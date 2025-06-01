@@ -1,0 +1,15 @@
+[submodule "services/models/emp_survey"]
+	path = services/models/emp_survey
+	url = https://github.com/arush-gitcodes/emp_survey
+[submodule "services/models/emp_voice"]
+	path = services/models/emp_voice
+	url = https://github.com/arush-gitcodes/emp_voice
+[submodule "services/models/emp_face"]
+	path = services/models/emp_face
+	url = https://github.com/arush-gitcodes/emp_face
+[submodule "services/models/emp_chats"]
+	path = services/models/emp_chats
+	url = https://github.com/arush-gitcodes/emp_chats
+[submodule "services/models/sentimental-analysis"]
+	path = services/models/sentimental-analysis
+	url = https://github.com/ambi1303/Sentimental-analysis

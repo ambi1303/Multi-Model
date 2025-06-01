@@ -24,12 +24,12 @@ All features are unified in a single backend and frontend for a seamless user ex
 ```
 .
 ├── integrated/
-│   ├── backend/         # Unified FastAPI backend
+│   ├── backend/         # Unified FastAPI backend (API gateway)
 │   └── frontend/        # Unified React frontend
-├── stt/                 # (Legacy) Speech-to-text service
-├── survey/              # (Legacy) Survey service
-├── video/               # (Legacy) Video service
-├── chat/                # (Legacy) Chat service
+├── stt/                 # Speech-to-text service (with its own venv)
+├── survey/              # Survey service (with its own venv)
+├── video/               # Video service (with its own venv)
+├── chat/                # Chat service (with its own venv)
 └── README.md            # (This file)
 ```
 
@@ -37,7 +37,22 @@ All features are unified in a single backend and frontend for a seamless user ex
 
 ## Setup Instructions
 
-### 1. Backend
+### 1. Set Up Each Model Backend (REQUIRED)
+Each model backend (video, stt, chat, survey) has its own Python virtual environment and requirements. You must set these up before running the integrated backend.
+
+For each model (replace `<model_dir>` with `video/emp_face`, `stt/stt`, `chat/chat/mental_state_analyzer`, `survey/survey`):
+
+```bash
+cd <model_dir>
+python -m venv venv
+venv/Scripts/pip install -r requirements.txt  # On Windows
+# or
+venv/bin/pip install -r requirements.txt     # On Linux/Mac
+```
+
+Then, start each backend (see their respective README files for details).
+
+### 2. Integrated Backend (API Gateway)
 
 #### Prerequisites
 - Python 3.8+
@@ -54,7 +69,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 9000
 ```
 
-### 2. Frontend
+### 3. Frontend
 
 #### Prerequisites
 - Node.js 16+
@@ -79,13 +94,22 @@ The frontend will be available at [http://localhost:3000](http://localhost:3000)
 - Open the frontend in your browser.
 - Use the tabs to switch between Video, Speech, Chat, and Survey analyzers.
 - Each tab provides a modern, user-friendly interface for its respective modality.
+- **Note:** The frontend now only displays user-friendly results (no raw JSON is shown).
+
+---
+
+## Troubleshooting
+- **ModuleNotFoundError:** Make sure you have installed all requirements in the correct venv for each backend.
+- **CORS errors:** Ensure all backends have permissive CORS settings for development.
+- **Port conflicts:** Make sure each backend runs on its designated port and is not blocked by another process.
+- **Frontend blank or errors:** Ensure React and MUI versions are compatible (React 18.x, MUI v5), and all dependencies are installed.
 
 ---
 
 ## Notes
-- The backend uses the Vosk model for speech recognition. The model files are included in `integrated/backend/vosk-model-small-en-us-0.15/`.
+- The backend uses the Vosk model for speech recognition. The model files are included in `stt/stt/vosk-model-small-en-us-0.15/`.
 - For best results, ensure your microphone and webcam are working and accessible by your browser.
-- All legacy services (in `stt/`, `survey/`, etc.) are now integrated and no longer need to be run separately.
+- All legacy services (in `stt/`, `survey/`, etc.) are now integrated and no longer need to be run separately, but their backends must be running for the integrated backend to work.
 
 ---
 
