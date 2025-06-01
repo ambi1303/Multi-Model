@@ -3,4 +3,14 @@ uvicorn
 requests
 pandas
 scikit-learn
-pydantic 
+pydantic
+python-multipart
+SpeechRecognition
+transformers
+torch
+numpy
+soundfile
+vosk
+ffmpeg-python
+textblob
+wave 

@@ -9,6 +9,12 @@ import pandas as pd
 import pickle
 import os
 from datetime import datetime
+import tempfile
+import subprocess
+import wave
+from vosk import Model, KaldiRecognizer
+from textblob import TextBlob
+import json
 
 app = FastAPI()
 
@@ -45,6 +51,30 @@ class PredictionResponse(BaseModel):
     model_used: str
     prediction_time: str
 
+# Initialize Vosk model (global, so it's loaded once)
+VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), "vosk-model-small-en-us-0.15")
+vosk_model = None
+if os.path.exists(VOSK_MODEL_PATH):
+    vosk_model = Model(VOSK_MODEL_PATH)
+else:
+    print(f"Vosk model not found at {VOSK_MODEL_PATH}")
+
+def convert_webm_to_wav(input_path, output_path):
+    try:
+        command = [
+            'ffmpeg', '-i', input_path,
+            '-acodec', 'pcm_s16le',
+            '-ac', '1',
+            '-ar', '16000',
+            '-y',
+            output_path
+        ]
+        subprocess.run(command, check=True, capture_output=True)
+        return True
+    except Exception as e:
+        print(f"Error converting audio: {e}")
+        return False
+
 @app.get("/")
 def health_check():
     return {"status": "ok"}
@@ -63,9 +93,62 @@ async def analyze_video(file: UploadFile = File(...)):
 
 @app.post("/analyze-speech")
 async def analyze_speech(audio_file: UploadFile = File(...)):
-    files = {"audio_file": (audio_file.filename, await audio_file.read(), audio_file.content_type)}
-    resp = requests.post(STT_BACKEND_URL, files=files)
-    return JSONResponse(content=resp.json(), status_code=resp.status_code)
+    temp_audio_path = None
+    wav_path = None
+    wf = None
+    try:
+        # Save uploaded file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
+            content = await audio_file.read()
+            temp_audio.write(content)
+            temp_audio_path = temp_audio.name
+        # Convert WebM to WAV
+        wav_path = temp_audio_path.replace('.webm', '.wav')
+        if not convert_webm_to_wav(temp_audio_path, wav_path):
+            return {"error": "Failed to convert audio format"}
+        # Process audio with Vosk
+        wf = wave.open(wav_path, "rb")
+        if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
+            return {"error": "Audio file must be WAV format mono PCM."}
+        if vosk_model is None:
+            return {"error": "Vosk model not loaded on server."}
+        recognizer = KaldiRecognizer(vosk_model, wf.getframerate())
+        recognizer.SetWords(True)
+        while True:
+            data = wf.readframes(4000)
+            if len(data) == 0:
+                break
+            recognizer.AcceptWaveform(data)
+        result = json.loads(recognizer.FinalResult())
+        transcribed_text = result.get("text", "")
+        if not transcribed_text:
+            return {"text": "", "sentiment": "N/A", "confidence": 0.0, "error": "No text was transcribed."}
+        # Sentiment analysis
+        analysis = TextBlob(transcribed_text)
+        sentiment_score = analysis.sentiment.polarity
+        if sentiment_score > 0:
+            sentiment = "POSITIVE"
+        elif sentiment_score < 0:
+            sentiment = "NEGATIVE"
+        else:
+            sentiment = "NEUTRAL"
+        return {
+            "text": transcribed_text,
+            "sentiment": sentiment,
+            "confidence": abs(sentiment_score)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        if wf:
+            wf.close()
+        try:
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                os.unlink(temp_audio_path)
+            if wav_path and os.path.exists(wav_path):
+                os.unlink(wav_path)
+        except Exception as e:
+            print(f"Error cleaning up temporary files: {str(e)}")
 
 @app.post("/analyze-chat")
 async def analyze_chat(request: Request):
