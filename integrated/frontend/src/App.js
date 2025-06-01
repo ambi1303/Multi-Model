@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import './App.css';
+import { AppBar, Toolbar, Typography, Tabs, Tab, Box, Button, TextField, Select, MenuItem, InputLabel, FormControl, Alert, CircularProgress, Paper } from '@mui/material';
+import { Send, Replay, Delete, UploadFile, PhotoCamera, Mic, Stop, History } from '@mui/icons-material';
 
 function VideoTab() {
   const webcamRef = useRef(null);
@@ -13,6 +15,7 @@ function VideoTab() {
   const [emotionCounts, setEmotionCounts] = useState({});
   const [timeLeft, setTimeLeft] = useState(10);
   const [showReport, setShowReport] = useState(false);
+  const [webcamAvailable, setWebcamAvailable] = useState(true);
 
   // Start 10-second analysis
   const startAnalysis = () => {
@@ -24,10 +27,22 @@ function VideoTab() {
     setError(null);
   };
 
+  // Add webcam error handling
+  const handleUserMediaError = (err) => {
+    setWebcamAvailable(false);
+    setError('Webcam not available or permission denied.');
+  };
+
   // Capture and send frame
   const captureAndSend = async () => {
-    if (!webcamRef.current) return;
-    const imageSrc = webcamRef.current.getScreenshot();
+    if (!webcamRef.current || !webcamAvailable) return;
+    let imageSrc;
+    try {
+      imageSrc = webcamRef.current.getScreenshot();
+    } catch (e) {
+      setError('Unable to capture webcam image.');
+      return;
+    }
     if (!imageSrc) return;
     try {
       const byteString = atob(imageSrc.split(',')[1]);
@@ -52,7 +67,7 @@ function VideoTab() {
         }));
       }
     } catch (err) {
-      // Optionally handle errors per frame
+      setError('Error analyzing webcam image.');
     }
   };
 
@@ -123,102 +138,127 @@ function VideoTab() {
   };
 
   return (
-    <div>
-      <h2>Video Emotion Recognition</h2>
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={() => setUseWebcam(true)} style={{ marginRight: '1rem' }}>
+    <Box>
+      <Typography variant="h5" sx={{ mb: 2 }}>Video Emotion Recognition</Typography>
+      <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+        <Button
+          variant={useWebcam ? 'contained' : 'outlined'}
+          startIcon={<PhotoCamera />}
+          onClick={() => setUseWebcam(true)}
+        >
           Use Webcam
-        </button>
-        <button onClick={() => setUseWebcam(false)}>
+        </Button>
+        <Button
+          variant={!useWebcam ? 'contained' : 'outlined'}
+          startIcon={<UploadFile />}
+          onClick={() => setUseWebcam(false)}
+        >
           Upload Image
-        </button>
-      </div>
+        </Button>
+      </Box>
       {useWebcam ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            width={320}
-            height={240}
-            style={{ borderRadius: '10px', marginBottom: '1rem' }}
-          />
-          {!isAnalyzing && !showReport && (
-            <button onClick={startAnalysis} disabled={loading}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {webcamAvailable ? (
+            (() => {
+              try {
+                return (
+                  <Webcam
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    width={320}
+                    height={240}
+                    style={{ borderRadius: '10px', marginBottom: '1rem' }}
+                    onUserMediaError={handleUserMediaError}
+                  />
+                );
+              } catch (err) {
+                return <Alert severity="error" sx={{ mb: 2 }}>Webcam component failed to render: {err.message}</Alert>;
+              }
+            })()
+          ) : (
+            <Alert severity="error" sx={{ mb: 2 }}>Webcam not available or permission denied.</Alert>
+          )}
+          {!isAnalyzing && !showReport && webcamAvailable && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={startAnalysis}
+              disabled={loading}
+              startIcon={<Replay />}
+              sx={{ mt: 2 }}
+            >
               Start 10s Analysis
-            </button>
+            </Button>
           )}
           {isAnalyzing && (
-            <div style={{ marginTop: '1em', color: '#1976d2', fontWeight: 'bold' }}>
-              Analyzing... Time left: {timeLeft}s
-            </div>
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={24} color="primary" />
+              <Typography color="primary" fontWeight="bold">
+                Analyzing... Time left: {timeLeft}s
+              </Typography>
+            </Box>
           )}
-        </div>
+        </Box>
       ) : (
-        <form onSubmit={handleFileSubmit} style={{ marginTop: '1rem' }}>
-          <input type="file" accept="image/*" onChange={handleFileChange} />
-          <button type="submit" disabled={!selectedFile || loading} style={{ marginLeft: '1rem' }}>
-            {loading ? 'Analyzing...' : 'Analyze'}
-          </button>
-        </form>
+        <Box component="form" onSubmit={handleFileSubmit} sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Button
+            variant="outlined"
+            component="label"
+            startIcon={<UploadFile />}
+          >
+            Choose Image
+            <input type="file" accept="image/*" hidden onChange={handleFileChange} />
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={!selectedFile || loading}
+            startIcon={<Replay />}
+          >
+            {loading ? <CircularProgress size={20} color="inherit" /> : 'Analyze'}
+          </Button>
+          {selectedFile && (
+            <Typography variant="body2" sx={{ ml: 1 }}>{selectedFile.name}</Typography>
+          )}
+        </Box>
       )}
-      <div style={{ marginTop: '2rem', width: '100%', maxWidth: 500, marginLeft: 'auto', marginRight: 'auto' }}>
-        {error && (
-          <div style={{ color: 'red', marginBottom: '1em' }}>
-            <strong>Error:</strong> {error}
-          </div>
+      <Box sx={{ mt: 3, width: '100%', maxWidth: 500, mx: 'auto' }}>
+        {typeof error === 'object' ? JSON.stringify(error) : error && (
+          <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'object' ? JSON.stringify(error) : error}</Alert>
         )}
         {showReport && (
-          <div style={{
-            background: '#f5f5f5',
-            border: '2px solid #1976d2',
-            borderRadius: '10px',
-            padding: '2em',
-            marginTop: '1em',
-            textAlign: 'center',
-            fontSize: '1.3em',
-            fontWeight: 'bold',
-            color: '#222',
-          }}>
-            <div style={{ color: '#1976d2', fontSize: '2em' }}>{getMostFrequentEmotion().toUpperCase()}</div>
-            <div style={{ fontWeight: 'normal', fontSize: '1em', marginTop: '1em' }}>Most Frequent Emotion</div>
-            <div style={{ fontWeight: 'normal', fontSize: '1em', marginTop: '1em' }}>Emotion Breakdown:</div>
-            <ul style={{ listStyle: 'none', padding: 0, marginTop: '0.5em', fontWeight: 'normal', fontSize: '1em' }}>
+          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
+            <Typography variant="h4" color="primary" sx={{ mb: 1 }}>{getMostFrequentEmotion().toUpperCase()}</Typography>
+            <Typography variant="subtitle1" sx={{ mb: 2 }}>Most Frequent Emotion</Typography>
+            <Typography variant="subtitle2">Emotion Breakdown:</Typography>
+            <Box component="ul" sx={{ listStyle: 'none', p: 0, mt: 1, mb: 2 }}>
               {Object.entries(emotionCounts).map(([emotion, count]) => (
-                <li key={emotion}>{emotion}: {count} times</li>
+                <li key={emotion}><b>{emotion}:</b> {count} times</li>
               ))}
-            </ul>
-            <button style={{ marginTop: '1.5em' }} onClick={startAnalysis}>Analyze Again</button>
-          </div>
+            </Box>
+            <Button variant="outlined" onClick={startAnalysis} startIcon={<Replay />}>Analyze Again</Button>
+          </Paper>
         )}
         {!useWebcam && result && (
-          <div style={{
-            background: '#f5f5f5',
-            border: '2px solid #1976d2',
-            borderRadius: '10px',
-            padding: '2em',
-            marginTop: '1em',
-            textAlign: 'center',
-            fontSize: '1.3em',
-            fontWeight: 'bold',
-            color: '#222',
-          }}>
+          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
             {result.emotion ? (
               <>
-                <span style={{ color: '#1976d2', fontSize: '2em' }}>{result.emotion.toUpperCase()}</span>
-                <div style={{ fontWeight: 'normal', fontSize: '1em', marginTop: '1em' }}>Detected Emotion</div>
+                <Typography variant="h4" color="primary">{result.emotion.toUpperCase()}</Typography>
+                <Typography variant="subtitle1" sx={{ mt: 1 }}>Detected Emotion</Typography>
               </>
             ) : (
               <>
-                <span style={{ color: 'orange' }}>No emotion detected or unexpected response.</span>
-                <div style={{ fontWeight: 'normal', fontSize: '1em', marginTop: '1em' }}>Raw JSON:</div>
-                <pre style={{ background: '#eee', color: '#333', padding: '1em', borderRadius: '6px', textAlign: 'left', fontSize: '0.9em', marginTop: '0.5em' }}>{JSON.stringify(result, null, 2)}</pre>
+                <Typography color="warning.main">No emotion detected or unexpected response.</Typography>
+                <Typography variant="subtitle2" sx={{ mt: 1 }}>Raw JSON:</Typography>
+                <Box component="pre" sx={{ background: '#eee', color: '#333', p: 2, borderRadius: 1, textAlign: 'left', fontSize: '0.95em', mt: 1 }}>{typeof result === 'object' ? JSON.stringify(result) : result}</Box>
               </>
             )}
-          </div>
+          </Paper>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
 
@@ -342,96 +382,77 @@ function SpeechTab() {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: 20 }}>
-      <h2>Speech-to-Text Emotion Analyzer</h2>
-      <div className="stt-controls">
-        <button 
+    <Box sx={{ maxWidth: 600, mx: 'auto', p: 2 }}>
+      <Typography variant="h5" sx={{ mb: 2 }}>Speech-to-Text Emotion Analyzer</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Button
+          variant={isRecording ? 'contained' : 'outlined'}
+          color={isRecording ? 'error' : 'primary'}
+          startIcon={isRecording ? <Stop /> : <Mic />}
           onClick={isRecording ? stopRecording : startRecording}
-          className={`stt-record-btn${isRecording ? ' recording' : ''}`}
           disabled={isProcessing}
         >
           {isRecording ? 'Stop Recording' : 'Start Recording'}
-        </button>
+        </Button>
         {isRecording && (
-          <div className="stt-timer">
+          <Typography color="primary" fontWeight="bold">
             Recording: {formatTime(recordingTime)}
-          </div>
+          </Typography>
         )}
-      </div>
+      </Box>
       {isProcessing && (
-        <div className="stt-processing">
-          <div className="stt-spinner"></div>
-          <p>Processing your speech...</p>
-        </div>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <CircularProgress size={24} color="primary" />
+          <Typography>Processing your speech...</Typography>
+        </Box>
       )}
-      {error && (
-        <div className="stt-error">
-          <h3>Error</h3>
-          <p>{error}</p>
-        </div>
+      {typeof error === 'object' ? JSON.stringify(error) : error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'object' ? JSON.stringify(error) : error}</Alert>
       )}
       {result && (
-        <div className="stt-result">
-          <h3>Analysis Results</h3>
-          <div className="stt-result-content">
-            <div className="stt-result-section">
-              <h4>Transcribed Text</h4>
-              <p>{result.text}</p>
-            </div>
-            <div className="stt-result-section">
-              <h4>Sentiment</h4>
-              <p style={{ color: getSentimentColor(result.sentiment), fontWeight: 600 }}>
-                {result.sentiment}
-              </p>
-            </div>
-            <div className="stt-result-section">
-              <h4>Confidence</h4>
-              <div className="stt-confidence-bar">
-                <div 
-                  className="stt-confidence-fill"
-                  style={{ width: `${(result.confidence * 100) || 0}%` }}
-                ></div>
-              </div>
-              <p>{((result.confidence || 0) * 100).toFixed(1)}%</p>
-            </div>
-          </div>
-        </div>
+        <Paper elevation={2} sx={{ p: 3, mb: 2 }}>
+          <Typography variant="h6" color="primary" sx={{ mb: 2 }}>Analysis Results</Typography>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2">Transcribed Text</Typography>
+            <Typography>{result.text}</Typography>
+          </Box>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2">Sentiment</Typography>
+            <Typography fontWeight={600} sx={{ color: getSentimentColor(result.sentiment) }}>{result.sentiment}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2">Confidence</Typography>
+            <Box sx={{ width: '100%', bgcolor: '#e0e0e0', borderRadius: 1, height: 10, mb: 1 }}>
+              <Box sx={{ width: `${(result.confidence * 100) || 0}%`, bgcolor: 'primary.main', height: '100%', borderRadius: 1 }} />
+            </Box>
+            <Typography>{((result.confidence || 0) * 100).toFixed(1)}%</Typography>
+          </Box>
+        </Paper>
       )}
       {sessionHistory.length > 0 && (
-        <div className="stt-history">
-          <div className="stt-history-header">
-            <h3>Session History</h3>
-            <button onClick={clearHistory} className="stt-clear-history-btn">
-              Clear History
-            </button>
-          </div>
-          <div className="stt-history-list">
+        <Box sx={{ mt: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="h6">Session History</Typography>
+            <Button onClick={clearHistory} color="error" startIcon={<Delete />}>Clear History</Button>
+          </Box>
+          <Box sx={{ maxHeight: 250, overflowY: 'auto' }}>
             {sessionHistory.map(entry => (
-              <div key={entry.id} className="stt-history-item">
-                <div className="stt-history-item-header">
-                  <span className="stt-history-timestamp">{entry.timestamp}</span>
-                  <span className="stt-history-duration">Duration: {formatTime(entry.duration)}</span>
-                </div>
-                <div className="stt-history-item-content">
-                  <p className="stt-history-text">{entry.text}</p>
-                  <div className="stt-history-details">
-                    <span 
-                      className="stt-history-sentiment"
-                      style={{ color: getSentimentColor(entry.sentiment) }}
-                    >
-                      {entry.sentiment}
-                    </span>
-                    <span className="stt-history-confidence">
-                      Confidence: {(entry.confidence * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <Paper key={entry.id} sx={{ mb: 2, p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="caption">{entry.timestamp}</Typography>
+                  <Typography variant="caption">Duration: {formatTime(entry.duration)}</Typography>
+                </Box>
+                <Typography variant="body2" sx={{ mb: 1 }}>{entry.text}</Typography>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Typography variant="caption" sx={{ color: getSentimentColor(entry.sentiment) }}>{entry.sentiment}</Typography>
+                  <Typography variant="caption">Confidence: {(entry.confidence * 100).toFixed(1)}%</Typography>
+                </Box>
+              </Paper>
             ))}
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
 
@@ -466,48 +487,42 @@ function ChatTab() {
   };
 
   return (
-    <div>
-      <h2>Chat Mental State Analyzer</h2>
-      <form onSubmit={handleSubmit} style={{ marginBottom: '2em' }}>
-        <textarea
+    <Box>
+      <Typography variant="h5" sx={{ mb: 2 }}>Chat Mental State Analyzer</Typography>
+      <Box component="form" onSubmit={handleSubmit} sx={{ mb: 3 }}>
+        <TextField
+          label="Chat Message"
           value={message}
           onChange={e => setMessage(e.target.value)}
+          multiline
           rows={4}
-          style={{ width: '100%', maxWidth: 500, fontSize: '1em', padding: '0.5em', borderRadius: '6px', border: '1px solid #ccc' }}
+          fullWidth
+          variant="outlined"
           placeholder="Enter your chat message here..."
           required
+          sx={{ mb: 2 }}
         />
-        <br />
-        <button type="submit" disabled={loading || !message.trim()} style={{ marginTop: '1em' }}>
-          {loading ? 'Analyzing...' : 'Analyze'}
-        </button>
-      </form>
-      {error && (
-        <div style={{ color: 'red', marginBottom: '1em' }}>
-          <strong>Error:</strong> {typeof error === 'object' ? JSON.stringify(error) : error}
-        </div>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          startIcon={<Send />}
+          disabled={loading || !message.trim()}
+        >
+          {loading ? <CircularProgress size={20} color="inherit" /> : 'Analyze'}
+        </Button>
+      </Box>
+      {typeof error === 'object' ? JSON.stringify(error) : error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'object' ? JSON.stringify(error) : error}</Alert>
       )}
       {result && (
-        <div style={{
-          background: '#f5f5f5',
-          border: '2px solid #1976d2',
-          borderRadius: '10px',
-          padding: '2em',
-          marginTop: '1em',
-          textAlign: 'center',
-          fontSize: '1.1em',
-          color: '#222',
-        }}>
-          <div><strong>Primary Emotion:</strong> <span style={{ color: '#1976d2', fontSize: '1.2em' }}>{result.primary_emotion}</span></div>
-          <div style={{ marginTop: '0.5em' }}><strong>Sentiment Score:</strong> {result.sentiment_score}</div>
-          <div style={{ marginTop: '0.5em' }}><strong>Mental State:</strong> {result.mental_state}</div>
-          <div style={{ marginTop: '1em', fontSize: '0.95em', color: '#555' }}>
-            <strong>Raw JSON:</strong>
-            <pre style={{ background: '#eee', color: '#333', padding: '1em', borderRadius: '6px', textAlign: 'left', fontSize: '0.95em', marginTop: '0.5em' }}>{JSON.stringify(result, null, 2)}</pre>
-          </div>
-        </div>
+        <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2, maxWidth: 400, mx: 'auto', overflowWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-line' }}>
+          <Typography variant="h6" color="primary" sx={{ mb: 1 }}>Primary Emotion: {result.primary_emotion}</Typography>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>Sentiment Score: {result.sentiment_score}</Typography>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>Mental State: {result.mental_state}</Typography>
+        </Paper>
       )}
-    </div>
+    </Box>
   );
 }
 
@@ -565,91 +580,130 @@ function SurveyTab() {
   };
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto', padding: 20 }}>
-      <h2>Employee Burnout Prediction Survey</h2>
-      <form className="survey-form" onSubmit={handleSubmit}>
-        <label>
-          Designation (1-5):
-          <input type="number" name="Designation" min="1" max="5" step="0.1" value={formData.Designation} onChange={handleInputChange} required />
-        </label>
-        <label>
-          Resource Allocation (1-10):
-          <input type="number" name="Resource_Allocation" min="1" max="10" step="0.1" value={formData.Resource_Allocation} onChange={handleInputChange} required />
-        </label>
-        <label>
-          Mental Fatigue Score (1-10):
-          <input type="number" name="Mental_Fatigue_Score" min="1" max="10" step="0.1" value={formData.Mental_Fatigue_Score} onChange={handleInputChange} required />
-        </label>
-        <label>
-          Company Type:
-          <select name="Company_Type" value={formData.Company_Type} onChange={handleInputChange} required>
-            <option value="">Select</option>
-            <option value="Service">Service</option>
-            <option value="Product">Product</option>
-          </select>
-        </label>
-        <label>
-          WFH Setup Available:
-          <select name="WFH_Setup_Available" value={formData.WFH_Setup_Available} onChange={handleInputChange} required>
-            <option value="">Select</option>
-            <option value="Yes">Yes</option>
-            <option value="No">No</option>
-          </select>
-        </label>
-        <label>
-          Gender:
-          <select name="Gender" value={formData.Gender} onChange={handleInputChange} required>
-            <option value="">Select</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-          </select>
-        </label>
-        <button type="submit" disabled={loading}>{loading ? 'Predicting...' : 'Predict Burnout'}</button>
-      </form>
-      {error && <div className="survey-error">{error}</div>}
+    <Box sx={{ maxWidth: 500, mx: 'auto', p: 2 }}>
+      <Typography variant="h5" sx={{ mb: 2 }}>Employee Burnout Prediction Survey</Typography>
+      <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, bgcolor: '#f7fafd', borderRadius: 2, p: 3, boxShadow: 1 }}>
+        <TextField
+          label="Designation (1-5)"
+          type="number"
+          name="Designation"
+          inputProps={{ min: 1, max: 5, step: 0.1 }}
+          value={formData.Designation}
+          onChange={handleInputChange}
+          required
+        />
+        <TextField
+          label="Resource Allocation (1-10)"
+          type="number"
+          name="Resource_Allocation"
+          inputProps={{ min: 1, max: 10, step: 0.1 }}
+          value={formData.Resource_Allocation}
+          onChange={handleInputChange}
+          required
+        />
+        <TextField
+          label="Mental Fatigue Score (1-10)"
+          type="number"
+          name="Mental_Fatigue_Score"
+          inputProps={{ min: 1, max: 10, step: 0.1 }}
+          value={formData.Mental_Fatigue_Score}
+          onChange={handleInputChange}
+          required
+        />
+        <FormControl required>
+          <InputLabel>Company Type</InputLabel>
+          <Select
+            name="Company_Type"
+            value={formData.Company_Type}
+            label="Company Type"
+            onChange={handleInputChange}
+          >
+            <MenuItem value=""><em>Select</em></MenuItem>
+            <MenuItem value="Service">Service</MenuItem>
+            <MenuItem value="Product">Product</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl required>
+          <InputLabel>WFH Setup Available</InputLabel>
+          <Select
+            name="WFH_Setup_Available"
+            value={formData.WFH_Setup_Available}
+            label="WFH Setup Available"
+            onChange={handleInputChange}
+          >
+            <MenuItem value=""><em>Select</em></MenuItem>
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl required>
+          <InputLabel>Gender</InputLabel>
+          <Select
+            name="Gender"
+            value={formData.Gender}
+            label="Gender"
+            onChange={handleInputChange}
+          >
+            <MenuItem value=""><em>Select</em></MenuItem>
+            <MenuItem value="Male">Male</MenuItem>
+            <MenuItem value="Female">Female</MenuItem>
+          </Select>
+        </FormControl>
+        <Button type="submit" variant="contained" color="primary" disabled={loading} sx={{ mt: 1 }}>
+          {loading ? <CircularProgress size={20} color="inherit" /> : 'Predict Burnout'}
+        </Button>
+      </Box>
+      {typeof error === 'object' ? JSON.stringify(error) : error && <Alert severity="error" sx={{ mt: 2 }}>{typeof error === 'object' ? JSON.stringify(error) : error}</Alert>}
       {prediction && (
-        <div className="survey-result">
-          <h3>Prediction Result</h3>
-          <div><strong>Burn Rate:</strong> {(prediction.burn_rate * 100).toFixed(2)}%</div>
-          <div><strong>Stress Level:</strong> {prediction.stress_level}</div>
-          <div><strong>Model Used:</strong> {prediction.model_used}</div>
-          <div><strong>Prediction Time:</strong> {prediction.prediction_time}</div>
-        </div>
+        <Paper elevation={2} sx={{ mt: 3, p: 2, border: '2px solid', borderColor: 'primary.main', borderRadius: 2, bgcolor: '#f0f7ff' }}>
+          <Typography variant="h6" color="primary" sx={{ mb: 1 }}>Prediction Result</Typography>
+          <Typography><b>Burn Rate:</b> {(prediction.burn_rate * 100).toFixed(2)}%</Typography>
+          <Typography><b>Stress Level:</b> {prediction.stress_level}</Typography>
+          <Typography><b>Model Used:</b> {prediction.model_used}</Typography>
+          <Typography><b>Prediction Time:</b> {prediction.prediction_time}</Typography>
+        </Paper>
       )}
-    </div>
+    </Box>
   );
 }
 
 const TABS = [
-  { name: 'Video', component: <VideoTab /> },
-  { name: 'Speech', component: <SpeechTab /> },
-  { name: 'Chat', component: <ChatTab /> },
-  { name: 'Survey', component: <SurveyTab /> },
+  { name: 'Video', component: VideoTab },
+  { name: 'Speech', component: SpeechTab },
+  { name: 'Chat', component: ChatTab },
+  { name: 'Survey', component: SurveyTab },
 ];
 
 function App() {
   const [activeTab, setActiveTab] = useState(0);
+  const ActiveTabComponent = TABS[activeTab].component;
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Integrated Multi-Modal Emotion & Mental State Analyzer</h1>
-        <nav className="tab-nav">
-          {TABS.map((tab, idx) => (
-            <button
-              key={tab.name}
-              className={activeTab === idx ? 'active' : ''}
-              onClick={() => setActiveTab(idx)}
-            >
-              {tab.name}
-            </button>
-          ))}
-        </nav>
-        <div className="tab-content">
-          {TABS[activeTab].component}
-        </div>
-      </header>
-    </div>
+    <Box className="App" sx={{ bgcolor: '#f4f7fa', minHeight: '100vh' }}>
+      <AppBar position="static" color="primary" sx={{ mb: 4 }}>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Integrated Multi-Modal Emotion & Mental State Analyzer
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      <Paper elevation={3} sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, md: 4 }, borderRadius: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="fullWidth"
+          sx={{ mb: 3 }}
+        >
+          <Tab label="Video" icon={<PhotoCamera />} iconPosition="start" />
+          <Tab label="Speech" icon={<Mic />} iconPosition="start" />
+          <Tab label="Chat" icon={<Send />} iconPosition="start" />
+          <Tab label="Survey" icon={<History />} iconPosition="start" />
+        </Tabs>
+        <Box className="tab-content"><ActiveTabComponent /></Box>
+      </Paper>
+    </Box>
   );
 }
 

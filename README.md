@@ -90,4 +90,23 @@ The frontend will be available at [http://localhost:3000](http://localhost:3000)
 ---
 
 ## License
-MIT 
+MIT
+
+---
+
+## 🚀 Roadmap
+
+See [ROADMAP.md](./ROADMAP.md) for planned enhancements and future directions for this project.
+
+---
+
+## 📌 Next Steps
+
+- **Implement API Gateway:** Set up a centralized API gateway to manage all service routes.
+- **Integrate Message Queue:** Choose and configure a message queue system to handle asynchronous tasks.
+- **Set Up Model Tracking:** Incorporate MLflow or DVC for model versioning and experiment tracking.
+- **Enhance Security:** Add JWT authentication, rate limiting, and input validation mechanisms.
+- **Establish Monitoring:** Implement logging and monitoring tools to track system performance and user interactions.
+- **Improve Documentation:** Update the README.md with comprehensive information and create a ROADMAP.md for future plans.
+
+By addressing these areas, your project will be more robust, scalable, and maintainable, facilitating easier collaboration and deployment. 
