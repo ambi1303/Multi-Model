@@ -3,6 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import requests
 import logging
+from pydantic import BaseModel, Field
+from typing import Literal
+import pandas as pd
+import pickle
+import os
+from datetime import datetime
 
 app = FastAPI()
 
@@ -23,6 +29,21 @@ VIDEO_BACKEND_URL = "http://localhost:8001/analyze-emotion"
 STT_BACKEND_URL = "http://localhost:8002/analyze-speech"
 CHAT_BACKEND_URL = "http://localhost:8003/analyze/single"
 SURVEY_BACKEND_URL = "http://localhost:8004/analyze"
+
+# Data model for burnout prediction
+class EmployeeData(BaseModel):
+    Designation: float = Field(..., ge=1, le=5, description="Employee designation level (1-5, 1 being lowest)")
+    Resource_Allocation: float = Field(..., ge=1, le=10, description="Resource allocation score (1-10)")
+    Mental_Fatigue_Score: float = Field(..., ge=1, le=10, description="Mental fatigue score (1-10)")
+    Company_Type: Literal["Service", "Product"] = Field(..., description="Type of company")
+    WFH_Setup_Available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
+    Gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
+
+class PredictionResponse(BaseModel):
+    burn_rate: float
+    stress_level: str
+    model_used: str
+    prediction_time: str
 
 @app.get("/")
 def health_check():
@@ -104,4 +125,71 @@ async def debug_echo(request: Request):
         json_body = await request.json()
     except Exception:
         json_body = None
-    return {"raw_body": body.decode(), "json_body": json_body} 
+    return {"raw_body": body.decode(), "json_body": json_body}
+
+@app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
+async def predict(employee: EmployeeData):
+    """
+    Predict burnout rate for an employee using the trained model.
+    """
+    try:
+        # Convert input to DataFrame
+        input_data = {
+            'Designation': employee.Designation,
+            'Resource Allocation': employee.Resource_Allocation,
+            'Mental Fatigue Score': employee.Mental_Fatigue_Score,
+            'Company Type': employee.Company_Type,
+            'WFH Setup Available': employee.WFH_Setup_Available,
+            'Gender': employee.Gender
+        }
+        input_df = pd.DataFrame([input_data])
+
+        # One-hot encode categorical columns
+        input_df = pd.get_dummies(input_df, columns=['Company Type', 'WFH Setup Available', 'Gender'], drop_first=True)
+
+        # Ensure the input has the same columns as the model was trained on
+        trained_features = ['Designation', 'Resource Allocation', 'Mental Fatigue Score', 
+                          'Company Type_Service', 'WFH Setup Available_Yes', 'Gender_Male']
+        for col in trained_features:
+            if col not in input_df.columns:
+                input_df[col] = 0
+        input_df = input_df[trained_features]
+
+        # Load scaler and model
+        model_dir = os.path.join(os.path.dirname(__file__), 'models')
+        scaler_path = os.path.join(model_dir, 'scaler.pkl')
+        model_path = os.path.join(model_dir, 'linear_regression.pkl')
+        if not os.path.exists(scaler_path) or not os.path.exists(model_path):
+            return JSONResponse(content={"error": "Models not trained yet. Please add scaler.pkl and linear_regression.pkl to the models directory."}, status_code=400)
+
+        with open(scaler_path, 'rb') as f:
+            scaler = pickle.load(f)
+        with open(model_path, 'rb') as f:
+            model = pickle.load(f)
+
+        # Scale the input
+        input_scaled = scaler.transform(input_df)
+
+        # Predict
+        prediction = model.predict(input_scaled)[0]
+
+        # Determine stress level based on burn rate
+        if prediction < 0.3:
+            stress_level = "Low Stress"
+        elif prediction < 0.5:
+            stress_level = "Medium Stress"
+        elif prediction < 0.7:
+            stress_level = "High Stress"
+        else:
+            stress_level = "Very High Stress"
+
+        response = {
+            "burn_rate": prediction,
+            "stress_level": stress_level,
+            "model_used": "Linear Regression",
+            "prediction_time": datetime.now().isoformat()
+        }
+        return response
+
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500) 

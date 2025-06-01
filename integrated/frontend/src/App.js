@@ -223,7 +223,216 @@ function VideoTab() {
 }
 
 function SpeechTab() {
-  return <div><h2>Speech-to-Text Emotion Analyzer</h2><p>Record or upload audio for analysis.</p></div>;
+  const [isRecording, setIsRecording] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [sessionHistory, setSessionHistory] = useState([]);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('sttSessionHistory');
+    if (savedHistory) {
+      setSessionHistory(JSON.parse(savedHistory));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('sttSessionHistory', JSON.stringify(sessionHistory));
+  }, [sessionHistory]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          sampleSize: 16
+        } 
+      });
+      const mediaRecorder = new window.MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        setIsProcessing(true);
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        const formData = new FormData();
+        formData.append('audio_file', audioBlob, 'recording.webm');
+        try {
+          const response = await fetch('http://localhost:9000/analyze-speech', {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await response.json();
+          if (data.error) {
+            setError(data.error);
+            setResult(null);
+          } else {
+            setResult(data);
+            setError(null);
+            const newEntry = {
+              id: Date.now(),
+              timestamp: new Date().toLocaleString(),
+              text: data.text,
+              sentiment: data.sentiment,
+              confidence: data.confidence,
+              duration: recordingTime
+            };
+            setSessionHistory(prev => [newEntry, ...prev]);
+          }
+        } catch (err) {
+          setError('Error analyzing speech: ' + err.message);
+          setResult(null);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      setError('Error accessing microphone: ' + err.message);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      clearInterval(timerRef.current);
+    }
+  };
+
+  const clearHistory = () => {
+    setSessionHistory([]);
+    localStorage.removeItem('sttSessionHistory');
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getSentimentColor = (sentiment) => {
+    switch (sentiment) {
+      case 'POSITIVE':
+        return '#4CAF50';
+      case 'NEGATIVE':
+        return '#F44336';
+      case 'NEUTRAL':
+        return '#2196F3';
+      default:
+        return '#757575';
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 600, margin: '0 auto', padding: 20 }}>
+      <h2>Speech-to-Text Emotion Analyzer</h2>
+      <div className="stt-controls">
+        <button 
+          onClick={isRecording ? stopRecording : startRecording}
+          className={`stt-record-btn${isRecording ? ' recording' : ''}`}
+          disabled={isProcessing}
+        >
+          {isRecording ? 'Stop Recording' : 'Start Recording'}
+        </button>
+        {isRecording && (
+          <div className="stt-timer">
+            Recording: {formatTime(recordingTime)}
+          </div>
+        )}
+      </div>
+      {isProcessing && (
+        <div className="stt-processing">
+          <div className="stt-spinner"></div>
+          <p>Processing your speech...</p>
+        </div>
+      )}
+      {error && (
+        <div className="stt-error">
+          <h3>Error</h3>
+          <p>{error}</p>
+        </div>
+      )}
+      {result && (
+        <div className="stt-result">
+          <h3>Analysis Results</h3>
+          <div className="stt-result-content">
+            <div className="stt-result-section">
+              <h4>Transcribed Text</h4>
+              <p>{result.text}</p>
+            </div>
+            <div className="stt-result-section">
+              <h4>Sentiment</h4>
+              <p style={{ color: getSentimentColor(result.sentiment), fontWeight: 600 }}>
+                {result.sentiment}
+              </p>
+            </div>
+            <div className="stt-result-section">
+              <h4>Confidence</h4>
+              <div className="stt-confidence-bar">
+                <div 
+                  className="stt-confidence-fill"
+                  style={{ width: `${(result.confidence * 100) || 0}%` }}
+                ></div>
+              </div>
+              <p>{((result.confidence || 0) * 100).toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {sessionHistory.length > 0 && (
+        <div className="stt-history">
+          <div className="stt-history-header">
+            <h3>Session History</h3>
+            <button onClick={clearHistory} className="stt-clear-history-btn">
+              Clear History
+            </button>
+          </div>
+          <div className="stt-history-list">
+            {sessionHistory.map(entry => (
+              <div key={entry.id} className="stt-history-item">
+                <div className="stt-history-item-header">
+                  <span className="stt-history-timestamp">{entry.timestamp}</span>
+                  <span className="stt-history-duration">Duration: {formatTime(entry.duration)}</span>
+                </div>
+                <div className="stt-history-item-content">
+                  <p className="stt-history-text">{entry.text}</p>
+                  <div className="stt-history-details">
+                    <span 
+                      className="stt-history-sentiment"
+                      style={{ color: getSentimentColor(entry.sentiment) }}
+                    >
+                      {entry.sentiment}
+                    </span>
+                    <span className="stt-history-confidence">
+                      Confidence: {(entry.confidence * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ChatTab() {
@@ -303,7 +512,112 @@ function ChatTab() {
 }
 
 function SurveyTab() {
-  return <div><h2>Survey Analyzer</h2><p>Submit survey data for analysis.</p></div>;
+  const [formData, setFormData] = useState({
+    Designation: '',
+    Resource_Allocation: '',
+    Mental_Fatigue_Score: '',
+    Company_Type: '',
+    WFH_Setup_Available: '',
+    Gender: '',
+  });
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setPrediction(null);
+    try {
+      // Prepare payload for backend
+      const payload = {
+        Designation: parseFloat(formData.Designation),
+        Resource_Allocation: parseFloat(formData.Resource_Allocation),
+        Mental_Fatigue_Score: parseFloat(formData.Mental_Fatigue_Score),
+        Company_Type: formData.Company_Type,
+        WFH_Setup_Available: formData.WFH_Setup_Available,
+        Gender: formData.Gender,
+      };
+      const response = await fetch('http://localhost:9000/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Prediction failed');
+      }
+      setPrediction(data);
+    } catch (err) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 500, margin: '0 auto', padding: 20 }}>
+      <h2>Employee Burnout Prediction Survey</h2>
+      <form className="survey-form" onSubmit={handleSubmit}>
+        <label>
+          Designation (1-5):
+          <input type="number" name="Designation" min="1" max="5" step="0.1" value={formData.Designation} onChange={handleInputChange} required />
+        </label>
+        <label>
+          Resource Allocation (1-10):
+          <input type="number" name="Resource_Allocation" min="1" max="10" step="0.1" value={formData.Resource_Allocation} onChange={handleInputChange} required />
+        </label>
+        <label>
+          Mental Fatigue Score (1-10):
+          <input type="number" name="Mental_Fatigue_Score" min="1" max="10" step="0.1" value={formData.Mental_Fatigue_Score} onChange={handleInputChange} required />
+        </label>
+        <label>
+          Company Type:
+          <select name="Company_Type" value={formData.Company_Type} onChange={handleInputChange} required>
+            <option value="">Select</option>
+            <option value="Service">Service</option>
+            <option value="Product">Product</option>
+          </select>
+        </label>
+        <label>
+          WFH Setup Available:
+          <select name="WFH_Setup_Available" value={formData.WFH_Setup_Available} onChange={handleInputChange} required>
+            <option value="">Select</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+          </select>
+        </label>
+        <label>
+          Gender:
+          <select name="Gender" value={formData.Gender} onChange={handleInputChange} required>
+            <option value="">Select</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </label>
+        <button type="submit" disabled={loading}>{loading ? 'Predicting...' : 'Predict Burnout'}</button>
+      </form>
+      {error && <div className="survey-error">{error}</div>}
+      {prediction && (
+        <div className="survey-result">
+          <h3>Prediction Result</h3>
+          <div><strong>Burn Rate:</strong> {(prediction.burn_rate * 100).toFixed(2)}%</div>
+          <div><strong>Stress Level:</strong> {prediction.stress_level}</div>
+          <div><strong>Model Used:</strong> {prediction.model_used}</div>
+          <div><strong>Prediction Time:</strong> {prediction.prediction_time}</div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const TABS = [
