@@ -216,23 +216,23 @@ function SurveyTab() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Burn Rate</Typography>
-                <Typography variant="h4" color={result.burn_rate < 0.3 ? 'success.main' : result.burn_rate < 0.5 ? 'warning.main' : 'error.main'}>
+                <Typography variant="h4" color={result.burn_rate < 0.3 ? 'success.main' : result.burn_rate < 0.5 ? 'warning.main' : 'error.main'} sx={{ fontFamily: 'Roboto, sans-serif', fontWeight: 'bold' }}>
                   {(result.burn_rate * 100).toFixed(1)}%
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Stress Level</Typography>
-                <Typography variant="h5" color={result.stress_level === 'Low Stress' ? 'success.main' : result.stress_level === 'Medium Stress' ? 'warning.main' : 'error.main'}>
+                <Typography variant="h5" color={result.stress_level === 'Low Stress' ? 'success.main' : result.stress_level === 'Medium Stress' ? 'warning.main' : 'error.main'} sx={{ fontFamily: 'Roboto, sans-serif', fontWeight: 'bold' }}>
                   {result.stress_level}
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Model Used</Typography>
-                <Typography variant="body1">{result.model_used}</Typography>
+                <Typography variant="body1" sx={{ fontFamily: 'Roboto, sans-serif' }}>{result.model_used}</Typography>
               </Box>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Prediction Time</Typography>
-                <Typography variant="body2">{new Date(result.prediction_time).toLocaleString()}</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'Roboto, sans-serif' }}>{new Date(result.prediction_time).toLocaleString()}</Typography>
               </Box>
             </Box>
           )}

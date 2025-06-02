@@ -1,12 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Box, Button, Typography, Paper, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { PlayArrow, Stop, PhotoCamera } from '@mui/icons-material';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Box, Button, Typography, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { PlayArrow, Stop } from '@mui/icons-material';
 import Webcam from 'react-webcam';
 
 function VideoTab() {
   const webcamRef = useRef(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [resultOpen, setResultOpen] = useState(false);
@@ -14,38 +13,7 @@ function VideoTab() {
   const [emotionCounts, setEmotionCounts] = useState({});
   const [webcamAvailable, setWebcamAvailable] = useState(true);
 
-  useEffect(() => {
-    let interval;
-    if (isAnalyzing) {
-      interval = setInterval(() => {
-        captureAndSend();
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isAnalyzing]);
-
-  useEffect(() => {
-    let timer;
-    if (isAnalyzing && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-    } else if (isAnalyzing && timeLeft === 0) {
-      setIsAnalyzing(false);
-      setResultOpen(true);
-    }
-    return () => clearInterval(timer);
-  }, [isAnalyzing, timeLeft]);
-
-  const startAnalysis = () => {
-    setIsAnalyzing(true);
-    setEmotionCounts({});
-    setTimeLeft(10);
-    setResult(null);
-    setError(null);
-  };
-
-  const captureAndSend = async () => {
+  const captureAndSend = useCallback(async () => {
     if (!webcamRef.current) return;
     let imageSrc;
     try {
@@ -80,17 +48,47 @@ function VideoTab() {
     } catch (err) {
       setError('Error analyzing webcam image.');
     }
-  };
+  }, []);
 
-  const getMostFrequentEmotion = () => {
+  useEffect(() => {
+    let interval;
+    if (isAnalyzing) {
+      interval = setInterval(() => {
+        captureAndSend();
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isAnalyzing, captureAndSend]);
+
+  useEffect(() => {
+    let timer;
+    if (isAnalyzing && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (isAnalyzing && timeLeft === 0) {
+      setIsAnalyzing(false);
+      setResultOpen(true);
+    }
+    return () => clearInterval(timer);
+  }, [isAnalyzing, timeLeft]);
+
+  const startAnalysis = useCallback(() => {
+    setIsAnalyzing(true);
+    setEmotionCounts({});
+    setTimeLeft(10);
+    setError(null);
+  }, []);
+
+  const getMostFrequentEmotion = useCallback(() => {
     if (Object.keys(emotionCounts).length === 0) return 'No emotions detected';
     return Object.entries(emotionCounts)
       .sort(([, a], [, b]) => b - a)[0][0];
-  };
+  }, [emotionCounts]);
 
-  const handleCloseResult = () => {
+  const handleCloseResult = useCallback(() => {
     setResultOpen(false);
-  };
+  }, []);
 
   return (
     <Box>
@@ -138,12 +136,12 @@ function VideoTab() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <Box>
               <Typography variant="subtitle2" color="text.secondary">Dominant Emotion</Typography>
-              <Typography variant="h5">{getMostFrequentEmotion()}</Typography>
+              <Typography variant="h5" sx={{ fontFamily: 'Roboto, sans-serif', fontWeight: 'bold' }}>{getMostFrequentEmotion()}</Typography>
             </Box>
             <Box>
               <Typography variant="subtitle2" color="text.secondary">Emotion Breakdown</Typography>
               {Object.entries(emotionCounts).map(([emotion, count]) => (
-                <Typography key={emotion} variant="body2">
+                <Typography key={emotion} variant="body2" sx={{ fontFamily: 'Roboto, sans-serif' }}>
                   {emotion}: {count} times
                 </Typography>
               ))}
