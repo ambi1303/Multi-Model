@@ -86,25 +86,35 @@ function ChatTab() {
         )}
         {result && (
           <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
-            {result.sentiment ? (
+            {(result.sentiment || result.confidence || result.sentiment_score !== undefined || result.primary_emotion || result.mental_state) ? (
               <>
                 <Typography variant="h6" color="primary" sx={{ mb: 2 }}>Analysis Results</Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Sentiment</Typography>
-                    <Typography variant="h6" color={result.sentiment === 'POSITIVE' ? 'success.main' : result.sentiment === 'NEGATIVE' ? 'error.main' : 'warning.main'}>
-                      {result.sentiment}
+                {result.sentiment_score !== undefined && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Sentiment Score</Typography>
+                    <Typography variant="h6" color={result.sentiment_score > 0 ? 'success.main' : result.sentiment_score < 0 ? 'error.main' : 'warning.main'}>
+                      {result.sentiment_score.toFixed(2)}
                     </Typography>
                   </Box>
-                  {result.confidence && (
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Confidence</Typography>
-                      <Typography variant="h6" color="primary">
-                        {(result.confidence * 100).toFixed(1)}%
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
+                )}
+                {result.primary_emotion && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Primary Emotion</Typography>
+                    <Typography variant="h6" color="primary">{result.primary_emotion}</Typography>
+                  </Box>
+                )}
+                {result.emotion_score !== undefined && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Emotion Score</Typography>
+                    <Typography variant="h6" color="primary">{(result.emotion_score * 100).toFixed(1)}%</Typography>
+                  </Box>
+                )}
+                {result.mental_state && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Mental State</Typography>
+                    <Typography variant="h6" color="primary">{result.mental_state}</Typography>
+                  </Box>
+                )}
                 {result.keywords && result.keywords.length > 0 && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="subtitle2" color="text.secondary">Key Topics</Typography>

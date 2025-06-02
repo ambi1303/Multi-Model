@@ -8,7 +8,7 @@ from typing import Literal
 import pandas as pd
 import pickle
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import tempfile
 import subprocess
 import wave
@@ -16,10 +16,11 @@ from vosk import Model, KaldiRecognizer
 from textblob import TextBlob
 import json
 import aiohttp
-from aiohttp import ClientSession
+from aiohttp import ClientSession, FormData
 import asyncio
 from functools import lru_cache
 from cachetools import TTLCache, cached
+from fastapi import APIRouter
 
 app = FastAPI()
 
@@ -109,10 +110,16 @@ def get_cached_model(model_name: str):
     pass
 
 @app.post("/analyze-video")
-@cached(cache)
 async def analyze_video(file: UploadFile = File(...)):
-    files = {"file": (file.filename, await file.read(), file.content_type)}
-    async with session.post(VIDEO_BACKEND_URL, files=files) as resp:
+    file_bytes = await file.read()
+    form = FormData()
+    form.add_field(
+        name="file",
+        value=file_bytes,
+        filename=file.filename,
+        content_type=file.content_type or "application/octet-stream"
+    )
+    async with session.post(VIDEO_BACKEND_URL, data=form) as resp:
         try:
             data = await resp.json()
         except Exception as e:
@@ -181,7 +188,6 @@ async def analyze_speech(audio_file: UploadFile = File(...)):
             print(f"Error cleaning up temporary files: {str(e)}")
 
 @app.post("/analyze-chat")
-@cached(cache)
 async def analyze_chat(request: Request):
     try:
         payload = await request.json()
@@ -206,7 +212,6 @@ async def analyze_chat(request: Request):
         return JSONResponse(content=await resp.json(), status_code=resp.status)
 
 @app.post("/analyze-survey")
-@cached(cache)
 async def analyze_survey():
     async with session.post(SURVEY_BACKEND_URL) as resp:
         return JSONResponse(content=await resp.json(), status_code=resp.status)
@@ -332,4 +337,24 @@ async def predict(employee: EmployeeData):
         return response
 
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500) 
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.get("/dashboard-stats")
+async def dashboard_stats():
+    # In a real app, fetch these from a database or analytics service
+    import random
+    today = datetime.now()
+    trend = []
+    for i in range(7):
+        day = today - timedelta(days=6-i)
+        trend.append({
+            "date": day.strftime("%b %d"),
+            "stress": random.randint(60, 80)
+        })
+    return {
+        "work_hours": 8,
+        "meeting_load": 0,
+        "stress_score": random.randint(0, 100),
+        "work_life_balance": 100,
+        "stress_trend": trend
+    } 

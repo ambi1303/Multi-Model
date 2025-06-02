@@ -66,7 +66,7 @@ function SpeechTab() {
 
   // Submit audio for analysis
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setLoading(true);
     setResult(null);
     setError(null);
@@ -97,6 +97,14 @@ function SpeechTab() {
       setLoading(false);
     }
   };
+
+  // Auto-analyze after recording is stopped
+  useEffect(() => {
+    if (audioBlob && !isRecording && !loading && useMicrophone) {
+      handleSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioBlob, isRecording, useMicrophone]);
 
   return (
     <Box>

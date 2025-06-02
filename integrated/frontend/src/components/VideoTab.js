@@ -1,40 +1,52 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, Button, Typography, Alert, CircularProgress, Paper } from '@mui/material';
-import { PhotoCamera, UploadFile, Replay } from '@mui/icons-material';
+import { Box, Button, Typography, Paper, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { PlayArrow, Stop, PhotoCamera } from '@mui/icons-material';
 import Webcam from 'react-webcam';
 
 function VideoTab() {
   const webcamRef = useRef(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [useWebcam, setUseWebcam] = useState(true);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [emotionCounts, setEmotionCounts] = useState({});
+  const [resultOpen, setResultOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(10);
-  const [showReport, setShowReport] = useState(false);
+  const [emotionCounts, setEmotionCounts] = useState({});
   const [webcamAvailable, setWebcamAvailable] = useState(true);
 
-  // Start 10-second analysis
+  useEffect(() => {
+    let interval;
+    if (isAnalyzing) {
+      interval = setInterval(() => {
+        captureAndSend();
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isAnalyzing]);
+
+  useEffect(() => {
+    let timer;
+    if (isAnalyzing && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (isAnalyzing && timeLeft === 0) {
+      setIsAnalyzing(false);
+      setResultOpen(true);
+    }
+    return () => clearInterval(timer);
+  }, [isAnalyzing, timeLeft]);
+
   const startAnalysis = () => {
     setIsAnalyzing(true);
-    setShowReport(false);
     setEmotionCounts({});
     setTimeLeft(10);
     setResult(null);
     setError(null);
   };
 
-  // Add webcam error handling
-  const handleUserMediaError = (err) => {
-    setWebcamAvailable(false);
-    setError('Webcam not available or permission denied.');
-  };
-
-  // Capture and send frame
   const captureAndSend = async () => {
-    if (!webcamRef.current || !webcamAvailable) return;
+    if (!webcamRef.current) return;
     let imageSrc;
     try {
       imageSrc = webcamRef.current.getScreenshot();
@@ -70,192 +82,78 @@ function VideoTab() {
     }
   };
 
-  // Interval for capturing frames
-  useEffect(() => {
-    let interval;
-    if (isAnalyzing) {
-      interval = setInterval(() => {
-        captureAndSend();
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isAnalyzing]);
-
-  // Timer for 10 seconds
-  useEffect(() => {
-    let timer;
-    if (isAnalyzing && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-    } else if (isAnalyzing && timeLeft === 0) {
-      setIsAnalyzing(false);
-      setShowReport(true);
-    }
-    return () => clearInterval(timer);
-  }, [isAnalyzing, timeLeft]);
-
-  // Get most frequent emotion
   const getMostFrequentEmotion = () => {
     if (Object.keys(emotionCounts).length === 0) return 'No emotions detected';
     return Object.entries(emotionCounts)
       .sort(([, a], [, b]) => b - a)[0][0];
   };
 
-  // File upload fallback (single frame)
-  const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
-    setResult(null);
-    setError(null);
-    setUseWebcam(false);
-  };
-
-  const handleFileSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedFile) return;
-    setLoading(true);
-    setResult(null);
-    setError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      const response = await fetch('http://localhost:9000/analyze-video', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      setResult(data);
-      if (!response.ok) {
-        setError(data.error || 'Error analyzing image');
-      }
-    } catch (err) {
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
+  const handleCloseResult = () => {
+    setResultOpen(false);
   };
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>Video Emotion Recognition</Typography>
-      <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+      <Box sx={{ position: 'relative', width: '100%', maxWidth: 640, mx: 'auto', mb: 2 }}>
+        {webcamAvailable ? (
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            width={320}
+            height={240}
+            style={{ width: '100%', borderRadius: 8 }}
+            onUserMediaError={() => setWebcamAvailable(false)}
+          />
+        ) : (
+          <Alert severity="error">Webcam not available or permission denied.</Alert>
+        )}
+      </Box>
+
+      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 2 }}>
         <Button
-          variant={useWebcam ? 'contained' : 'outlined'}
-          startIcon={<PhotoCamera />}
-          onClick={() => setUseWebcam(true)}
+          variant="contained"
+          color="primary"
+          onClick={startAnalysis}
+          disabled={isAnalyzing || loading || !webcamAvailable}
+          startIcon={isAnalyzing ? <Stop /> : <PlayArrow />}
         >
-          Use Webcam
-        </Button>
-        <Button
-          variant={!useWebcam ? 'contained' : 'outlined'}
-          startIcon={<UploadFile />}
-          onClick={() => setUseWebcam(false)}
-        >
-          Upload Image
+          {isAnalyzing ? `Analyzing... ${timeLeft}s` : 'Start 10s Analysis'}
         </Button>
       </Box>
-      {useWebcam ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {webcamAvailable ? (
-            (() => {
-              try {
-                return (
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={320}
-                    height={240}
-                    style={{ borderRadius: '10px', marginBottom: '1rem' }}
-                    onUserMediaError={handleUserMediaError}
-                  />
-                );
-              } catch (err) {
-                return <Alert severity="error" sx={{ mb: 2 }}>Webcam component failed to render: {err.message}</Alert>;
-              }
-            })()
-          ) : (
-            <Alert severity="error" sx={{ mb: 2 }}>Webcam not available or permission denied.</Alert>
-          )}
-          {!isAnalyzing && !showReport && webcamAvailable && (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={startAnalysis}
-              disabled={loading}
-              startIcon={<Replay />}
-              sx={{ mt: 2 }}
-            >
-              Start 10s Analysis
-            </Button>
-          )}
-          {isAnalyzing && (
-            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CircularProgress size={24} color="primary" />
-              <Typography color="primary" fontWeight="bold">
-                Analyzing... Time left: {timeLeft}s
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      ) : (
-        <Box component="form" onSubmit={handleFileSubmit} sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button
-            variant="outlined"
-            component="label"
-            startIcon={<UploadFile />}
-          >
-            Choose Image
-            <input type="file" accept="image/*" hidden onChange={handleFileChange} />
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={!selectedFile || loading}
-            startIcon={<Replay />}
-          >
-            {loading ? <CircularProgress size={20} color="inherit" /> : 'Analyze'}
-          </Button>
-          {selectedFile && (
-            <Typography variant="body2" sx={{ ml: 1 }}>{selectedFile.name}</Typography>
-          )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+      )}
+
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+          <CircularProgress />
         </Box>
       )}
-      <Box sx={{ mt: 3, width: '100%', maxWidth: 500, mx: 'auto' }}>
-        {typeof error === 'object' ? JSON.stringify(error) : error && (
-          <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'object' ? JSON.stringify(error) : error}</Alert>
-        )}
-        {showReport && (
-          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
-            <Typography variant="h4" color="primary" sx={{ mb: 1 }}>{getMostFrequentEmotion().toUpperCase()}</Typography>
-            <Typography variant="subtitle1" sx={{ mb: 2 }}>Most Frequent Emotion</Typography>
-            <Typography variant="subtitle2">Emotion Breakdown:</Typography>
-            <Box component="ul" sx={{ listStyle: 'none', p: 0, mt: 1, mb: 2 }}>
+
+      <Dialog open={resultOpen && Object.keys(emotionCounts).length > 0} onClose={handleCloseResult} maxWidth="xs" fullWidth>
+        <DialogTitle>Facial Emotion Analysis Results</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">Dominant Emotion</Typography>
+              <Typography variant="h5">{getMostFrequentEmotion()}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">Emotion Breakdown</Typography>
               {Object.entries(emotionCounts).map(([emotion, count]) => (
-                <li key={emotion}><b>{emotion}:</b> {count} times</li>
+                <Typography key={emotion} variant="body2">
+                  {emotion}: {count} times
+                </Typography>
               ))}
             </Box>
-            <Button variant="outlined" onClick={startAnalysis} startIcon={<Replay />}>Analyze Again</Button>
-          </Paper>
-        )}
-        {!useWebcam && result && (
-          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
-            {result.emotion ? (
-              <>
-                <Typography variant="h4" color="primary">{result.emotion.toUpperCase()}</Typography>
-                <Typography variant="subtitle1" sx={{ mt: 1 }}>Detected Emotion</Typography>
-              </>
-            ) : (
-              <>
-                <Typography color="warning.main">No emotion detected or unexpected response.</Typography>
-                <Typography variant="subtitle2" sx={{ mt: 1 }}>Raw JSON:</Typography>
-                <Box component="pre" sx={{ background: '#eee', color: '#333', p: 2, borderRadius: 1, textAlign: 'left', fontSize: '0.95em', mt: 1 }}>{typeof result === 'object' ? JSON.stringify(result) : result}</Box>
-              </>
-            )}
-          </Paper>
-        )}
-      </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseResult} color="primary" variant="contained">Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

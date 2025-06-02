@@ -1,55 +1,64 @@
-import React, { useState, lazy, Suspense } from 'react';
-import { Box, AppBar, Toolbar, Typography, Paper, Tabs, Tab } from '@mui/material';
-import { PhotoCamera, Mic, Send, History } from '@mui/icons-material';
-import CircularProgress from '@mui/material/CircularProgress';
+import React, { useState, Suspense, lazy } from 'react';
+import { ThemeProvider, createTheme, CssBaseline, Box, Paper, CircularProgress } from '@mui/material';
+import Sidebar from './components/Sidebar';
 
-// Lazy load tab components
+const Dashboard = lazy(() => import('./components/Dashboard'));
 const VideoTab = lazy(() => import('./components/VideoTab'));
 const SpeechTab = lazy(() => import('./components/SpeechTab'));
 const ChatTab = lazy(() => import('./components/ChatTab'));
 const SurveyTab = lazy(() => import('./components/SurveyTab'));
 
-const TABS = [
-  { name: 'Video', component: VideoTab },
-  { name: 'Speech', component: SpeechTab },
-  { name: 'Chat', component: ChatTab },
-  { name: 'Survey', component: SurveyTab },
-];
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    background: {
+      default: '#181A20',
+      paper: '#23242a',
+    },
+    primary: {
+      main: '#6C63FF',
+      dark: '#4b47b5',
+      contrastText: '#fff',
+    },
+    text: {
+      primary: '#fff',
+      secondary: '#b0b3b8',
+    },
+  },
+  shape: {
+    borderRadius: 12,
+  },
+  typography: {
+    fontFamily: 'Inter, Roboto, Arial, sans-serif',
+    h5: { fontWeight: 700 },
+    h6: { fontWeight: 600 },
+  },
+});
 
 function App() {
-  const [activeTab, setActiveTab] = useState(0);
-  const ActiveTabComponent = TABS[activeTab].component;
+  const [selected, setSelected] = useState('dashboard');
+
+  let Content;
+  if (selected === 'dashboard') Content = Dashboard;
+  else if (selected === 'communication') Content = ChatTab;
+  else if (selected === 'survey') Content = SurveyTab;
+  else if (selected === 'voice') Content = SpeechTab;
+  else Content = Dashboard;
 
   return (
-    <Box className="App" sx={{ bgcolor: '#f4f7fa', minHeight: '100vh' }}>
-      <AppBar position="static" color="primary" sx={{ mb: 4 }}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Integrated Multi-Modal Emotion & Mental State Analyzer
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <Paper elevation={3} sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, md: 4 }, borderRadius: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          indicatorColor="primary"
-          textColor="primary"
-          variant="fullWidth"
-          sx={{ mb: 3 }}
-        >
-          <Tab label="Video" icon={<PhotoCamera />} iconPosition="start" />
-          <Tab label="Speech" icon={<Mic />} iconPosition="start" />
-          <Tab label="Chat" icon={<Send />} iconPosition="start" />
-          <Tab label="Survey" icon={<History />} iconPosition="start" />
-        </Tabs>
-        <Box className="tab-content">
-          <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box>}>
-            <ActiveTabComponent />
-          </Suspense>
+    <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+        <Sidebar selected={selected} onSelect={setSelected} />
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', p: 4 }}>
+          <Paper elevation={3} sx={{ width: '100%', maxWidth: 900, minHeight: 600, p: 5, mt: 2, bgcolor: 'background.paper', borderRadius: 4 }}>
+            <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>}>
+              <Content />
+            </Suspense>
+          </Paper>
         </Box>
-      </Paper>
-    </Box>
+      </Box>
+    </ThemeProvider>
   );
 }
 
