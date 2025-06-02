@@ -15,9 +15,15 @@ import wave
 from vosk import Model, KaldiRecognizer
 from textblob import TextBlob
 import json
+import aiohttp
+from aiohttp import ClientSession
+import asyncio
+from functools import lru_cache
+from cachetools import TTLCache, cached
 
 app = FastAPI()
 
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,6 +41,23 @@ VIDEO_BACKEND_URL = "http://localhost:8001/analyze-emotion"
 STT_BACKEND_URL = "http://localhost:8002/analyze-speech"
 CHAT_BACKEND_URL = "http://localhost:8003/analyze/single"
 SURVEY_BACKEND_URL = "http://localhost:8004/analyze"
+
+# Create a session pool for HTTP requests
+session = None
+
+# Create a TTL cache with 5 minutes expiration
+cache = TTLCache(maxsize=100, ttl=300)
+
+@app.on_event("startup")
+async def startup_event():
+    global session
+    session = ClientSession()
+    logger.info("Application started with in-memory caching")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if session:
+        await session.close()
 
 # Data model for burnout prediction
 class EmployeeData(BaseModel):
@@ -79,17 +102,24 @@ def convert_webm_to_wav(input_path, output_path):
 def health_check():
     return {"status": "ok"}
 
+# Cache frequently accessed data
+@lru_cache(maxsize=100)
+def get_cached_model(model_name: str):
+    # Implement model caching logic here
+    pass
+
 @app.post("/analyze-video")
+@cached(cache)
 async def analyze_video(file: UploadFile = File(...)):
     files = {"file": (file.filename, await file.read(), file.content_type)}
-    resp = requests.post(VIDEO_BACKEND_URL, files=files)
-    try:
-        data = resp.json()
-    except Exception as e:
-        logger.error(f"Error decoding JSON from video backend: {e}")
-        data = {"error": "Invalid JSON from video backend"}
-    logger.info(f"Video backend response: {data}")
-    return JSONResponse(content=data, status_code=resp.status_code)
+    async with session.post(VIDEO_BACKEND_URL, files=files) as resp:
+        try:
+            data = await resp.json()
+        except Exception as e:
+            logger.error(f"Error decoding JSON from video backend: {e}")
+            data = {"error": "Invalid JSON from video backend"}
+        logger.info(f"Video backend response: {data}")
+        return JSONResponse(content=data, status_code=resp.status)
 
 @app.post("/analyze-speech")
 async def analyze_speech(audio_file: UploadFile = File(...)):
@@ -151,6 +181,7 @@ async def analyze_speech(audio_file: UploadFile = File(...)):
             print(f"Error cleaning up temporary files: {str(e)}")
 
 @app.post("/analyze-chat")
+@cached(cache)
 async def analyze_chat(request: Request):
     try:
         payload = await request.json()
@@ -169,35 +200,61 @@ async def analyze_chat(request: Request):
     }
     headers = {"Content-Type": "application/json"}
     logger.info(f"Forwarding to {CHAT_BACKEND_URL} with payload: {chat_payload}")
-    resp = requests.post(CHAT_BACKEND_URL, json=chat_payload, headers=headers)
-    logger.info(f"Chat backend response: {resp.status_code} {resp.text}")
-    return JSONResponse(content=resp.json(), status_code=resp.status_code)
+    
+    async with session.post(CHAT_BACKEND_URL, json=chat_payload, headers=headers) as resp:
+        logger.info(f"Chat backend response: {resp.status} {await resp.text()}")
+        return JSONResponse(content=await resp.json(), status_code=resp.status)
 
 @app.post("/analyze-survey")
+@cached(cache)
 async def analyze_survey():
-    resp = requests.post(SURVEY_BACKEND_URL)
-    return JSONResponse(content=resp.json(), status_code=resp.status_code)
+    async with session.post(SURVEY_BACKEND_URL) as resp:
+        return JSONResponse(content=await resp.json(), status_code=resp.status)
 
 @app.post("/analyze-all")
 async def analyze_all(file: UploadFile = File(None), audio_file: UploadFile = File(None), text: str = Form(None), person_id: str = Form(None)):
     results = {}
+    tasks = []
+    
     if file:
         files = {"file": (file.filename, await file.read(), file.content_type)}
-        resp = requests.post(VIDEO_BACKEND_URL, files=files)
-        results["video"] = resp.json()
+        tasks.append(session.post(VIDEO_BACKEND_URL, files=files))
+    
     if audio_file:
         files = {"audio_file": (audio_file.filename, await audio_file.read(), audio_file.content_type)}
-        resp = requests.post(STT_BACKEND_URL, files=files)
-        results["speech"] = resp.json()
+        tasks.append(session.post(STT_BACKEND_URL, files=files))
+    
     if text:
         data = {"text": text}
         if person_id:
             data["person_id"] = person_id
-        resp = requests.post(CHAT_BACKEND_URL, json=data)
-        results["chat"] = resp.json()
+        tasks.append(session.post(CHAT_BACKEND_URL, json=data))
+    
     # Survey is assumed to not require input
-    resp = requests.post(SURVEY_BACKEND_URL)
-    results["survey"] = resp.json()
+    tasks.append(session.post(SURVEY_BACKEND_URL))
+    
+    # Execute all requests concurrently
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Process responses
+    for i, resp in enumerate(responses):
+        if isinstance(resp, Exception):
+            logger.error(f"Error in request {i}: {str(resp)}")
+            continue
+            
+        try:
+            data = await resp.json()
+            if i == 0 and file:
+                results["video"] = data
+            elif i == 1 and audio_file:
+                results["speech"] = data
+            elif i == 2 and text:
+                results["chat"] = data
+            elif i == 3:
+                results["survey"] = data
+        except Exception as e:
+            logger.error(f"Error processing response {i}: {str(e)}")
+    
     return results
 
 # Debug endpoint to echo payload
