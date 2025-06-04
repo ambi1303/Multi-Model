@@ -1,0 +1,40 @@
+# Backend URLs
+backend_urls:
+  video: http://localhost:8001/analyze-emotion
+  stt: http://localhost:8002/analyze-speech
+  chat: http://localhost:8003/analyze/single
+  survey: http://localhost:8004/analyze
+
+# Logging
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: app.log
+
+# Cache Settings
+cache:
+  maxsize: 100
+  ttl: 300  # 5 minutes
+
+# Security
+security:
+  cors_origins:
+    - "*"
+  allowed_methods:
+    - GET
+    - POST
+    - OPTIONS
+  allowed_headers:
+    - "*"
+
+# Monitoring
+monitoring:
+  prometheus_enabled: true
+  metrics_path: /metrics
+  health_check_path: /health
+
+# Error Handling
+error_handling:
+  max_retries: 3
+  retry_delay: 1  # seconds
+  timeout: 30  # seconds 

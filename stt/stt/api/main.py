@@ -13,13 +13,15 @@ import time
 
 app = FastAPI()
 
-# Enable CORS for all origins
+# Configure CORS with more explicit settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicitly list allowed methods
     allow_headers=["*"],  # Allows all headers
+    expose_headers=["*"],  # Expose all headers
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Initialize Vosk model

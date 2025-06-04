@@ -16,13 +16,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
+# Configure CORS with more explicit settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicitly list allowed methods
     allow_headers=["*"],  # Allows all headers
+    expose_headers=["*"],  # Expose all headers
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Data Models
@@ -200,6 +202,13 @@ async def get_model_metrics():
         return metrics
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze", tags=["Integration"])
+async def analyze(employee: EmployeeData):
+    """
+    Wrapper for /predict to support integration with the common backend.
+    """
+    return await predict(employee)
 
 if __name__ == "__main__":
     import uvicorn

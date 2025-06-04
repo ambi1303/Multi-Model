@@ -1,0 +1,4 @@
+psutil==5.9.8
+uvicorn==0.24.0
+fastapi==0.104.1
+python-multipart==0.0.6 
