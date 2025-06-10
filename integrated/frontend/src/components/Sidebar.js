@@ -1,11 +1,21 @@
 import React from 'react';
 import { Box, Typography, Paper, Button, List, ListItem, ListItemText, Divider, RadioGroup, FormControlLabel, Radio } from '@mui/material';
+import {
+  Dashboard as DashboardIcon,
+  VideoLibrary as VideoIcon,
+  Assessment as SurveyIcon,
+  Chat as ChatIcon,
+  Mic as SpeechIcon,
+  Analytics as AnalysisIcon
+} from '@mui/icons-material';
 
 const navOptions = [
-  { label: 'Dashboard', value: 'dashboard' },
-  { label: 'Communication Analysis', value: 'communication' },
-  { label: 'Survey', value: 'survey' },
-  { label: 'Voice Analysis', value: 'voice' },
+  { label: 'Dashboard', value: 'dashboard', icon: <DashboardIcon />, path: '/' },
+  { label: 'Video Analysis', value: 'video', icon: <VideoIcon />, path: '/video' },
+  { label: 'Survey', value: 'survey', icon: <SurveyIcon />, path: '/survey' },
+  { label: 'Chat Analysis', value: 'chat', icon: <ChatIcon />, path: '/chat' },
+  { label: 'Speech Analysis', value: 'speech', icon: <SpeechIcon />, path: '/speech' },
+  { label: 'Unified Analysis', value: 'unified', icon: <AnalysisIcon />, path: '/unified' }
 ];
 
 const events = [
@@ -41,8 +51,18 @@ function Sidebar({ selected, onSelect }) {
               key={opt.value}
               value={opt.value}
               control={<Radio size="small" />}
-              label={opt.label}
-              sx={{ color: 'text.primary' }}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {opt.icon}
+                  <Typography>{opt.label}</Typography>
+                </Box>
+              }
+              sx={{ 
+                color: 'text.primary',
+                '&.Mui-selected': {
+                  color: 'primary.main',
+                }
+              }}
             />
           ))}
         </RadioGroup>

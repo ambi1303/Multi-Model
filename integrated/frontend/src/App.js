@@ -1,64 +1,197 @@
-import React, { useState, Suspense, lazy } from 'react';
-import { ThemeProvider, createTheme, CssBaseline, Box, Paper, CircularProgress } from '@mui/material';
-import Sidebar from './components/Sidebar';
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Drawer, 
+  AppBar, 
+  Toolbar, 
+  List, 
+  Typography, 
+  Divider, 
+  IconButton, 
+  ListItem, 
+  ListItemIcon, 
+  ListItemText,
+  useTheme,
+  CssBaseline,
+  useMediaQuery
+} from '@mui/material';
+import {
+  Menu as MenuIcon,
+  Dashboard as DashboardIcon,
+  Mic as SpeechIcon,
+  Chat as ChatIcon,
+  Assessment as SurveyIcon,
+  Home as HomeIcon
+} from '@mui/icons-material';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import Dashboard from './components/Dashboard';
+import SpeechTab from './components/SpeechTab';
+import ChatTab from './components/ChatTab';
+import SurveyTab from './components/SurveyTab';
+import LandingPage from './components/LandingPage';
 
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const VideoTab = lazy(() => import('./components/VideoTab'));
-const SpeechTab = lazy(() => import('./components/SpeechTab'));
-const ChatTab = lazy(() => import('./components/ChatTab'));
-const SurveyTab = lazy(() => import('./components/SurveyTab'));
-
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#181A20',
-      paper: '#23242a',
-    },
-    primary: {
-      main: '#6C63FF',
-      dark: '#4b47b5',
-      contrastText: '#fff',
-    },
-    text: {
-      primary: '#fff',
-      secondary: '#b0b3b8',
-    },
-  },
-  shape: {
-    borderRadius: 12,
-  },
-  typography: {
-    fontFamily: 'Inter, Roboto, Arial, sans-serif',
-    h5: { fontWeight: 700 },
-    h6: { fontWeight: 600 },
-  },
-});
+const drawerWidth = 240;
 
 function App() {
-  const [selected, setSelected] = useState('dashboard');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  let Content;
-  if (selected === 'dashboard') Content = Dashboard;
-  else if (selected === 'communication') Content = ChatTab;
-  else if (selected === 'survey') Content = SurveyTab;
-  else if (selected === 'voice') Content = SpeechTab;
-  else Content = Dashboard;
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const menuItems = [
+    { text: 'Home', icon: <HomeIcon />, path: '/home' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'Speech Analysis', icon: <SpeechIcon />, path: '/speech' },
+    { text: 'Chat Analysis', icon: <ChatIcon />, path: '/chat' },
+    { text: 'Survey', icon: <SurveyIcon />, path: '/survey' }
+  ];
+
+  const drawer = (
+    <div>
+      <Toolbar>
+        <Typography variant="h6" noWrap component="div">
+          Multimodal Analysis
+        </Typography>
+      </Toolbar>
+      <Divider />
+      <List>
+        {menuItems.map((item) => (
+          <ListItem 
+            button 
+            key={item.text} 
+            onClick={() => navigate(item.path)}
+            selected={location.pathname === item.path}
+            sx={{
+              '&.Mui-selected': {
+                backgroundColor: theme.palette.primary.light,
+                '&:hover': {
+                  backgroundColor: theme.palette.primary.light,
+                },
+              },
+            }}
+          >
+            <ListItemIcon sx={{ color: location.pathname === item.path ? 'primary.main' : 'inherit' }}>
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText primary={item.text} />
+          </ListItem>
+        ))}
+      </List>
+    </div>
+  );
 
   return (
-    <ThemeProvider theme={darkTheme}>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
       <CssBaseline />
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-        <Sidebar selected={selected} onSelect={setSelected} />
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', p: 4 }}>
-          <Paper elevation={3} sx={{ width: '100%', maxWidth: 900, minHeight: 600, p: 5, mt: 2, bgcolor: 'background.paper', borderRadius: 4 }}>
-            <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>}>
-              <Content />
-            </Suspense>
-          </Paper>
-        </Box>
+      <AppBar
+        position="fixed"
+        sx={{
+          width: {
+            sm: desktopOpen ? `calc(100% - ${drawerWidth}px)` : '100%',
+          },
+          ml: {
+            sm: desktopOpen ? `${drawerWidth}px` : '0px',
+          },
+          transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+          top: 0,
+          zIndex: theme.zIndex.drawer + 1,
+        }}
+      >
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            aria-label="open drawer"
+            edge="start"
+            onClick={isMobile ? handleDrawerToggle : () => setDesktopOpen(!desktopOpen)}
+            sx={{ mr: 2 }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" noWrap component="div">
+            {menuItems.find(item => item.path === location.pathname)?.text || 'Multimodal Analysis'}
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      <Box
+        component="nav"
+        sx={{ 
+          width: { sm: desktopOpen ? drawerWidth : 0 }, 
+          flexShrink: { sm: 0 },
+          transition: theme.transitions.create(['width'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+        }}
+      >
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true,
+          }}
+          sx={{
+            display: { xs: 'block', sm: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+        >
+          {drawer}
+        </Drawer>
+        <Drawer
+          variant="persistent"
+          open={desktopOpen}
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              position: 'relative',
+              height: '100vh',
+              transition: theme.transitions.create(['width'], {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+              }),
+              overflowX: 'hidden',
+            },
+          }}
+        >
+          {drawer}
+        </Drawer>
       </Box>
-    </ThemeProvider>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { sm: desktopOpen ? `calc(100% - ${drawerWidth}px)` : '100%' },
+          backgroundColor: theme.palette.background.default,
+          transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+          overflowY: 'auto',
+        }}
+      >
+        <Toolbar />
+        <Routes>
+          <Route path="/home" element={<LandingPage />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/speech" element={<SpeechTab />} />
+          <Route path="/chat" element={<ChatTab />} />
+          <Route path="/survey" element={<SurveyTab />} />
+        </Routes>
+      </Box>
+    </Box>
   );
 }
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography, Alert, CircularProgress, Paper, TextField, Slider, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Collapse, IconButton, Stack, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { Send, Replay, PhotoCamera, Close } from '@mui/icons-material';
+import { Box, Button, Typography, Alert, CircularProgress, Paper, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Slider, Stack, Grid, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Send, Replay } from '@mui/icons-material';
 import VideoTab from './VideoTab';
 
 function SurveyTab() {
@@ -15,7 +15,6 @@ function SurveyTab() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showVideo, setShowVideo] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -71,43 +70,31 @@ function SurveyTab() {
   };
 
   return (
-    <Box>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3, textAlign: 'center' }}>
         Stress Analysis Survey
       </Typography>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="flex-start" sx={{ mb: 3 }}>
-        <Box sx={{ flex: showVideo ? '0 0 420px' : '0 0 auto', maxWidth: 480, width: '100%' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<PhotoCamera />}
-            onClick={() => setShowVideo(true)}
-            sx={{ mb: 2, width: '100%' }}
-          >
-            Start Facial Emotion Analysis
-          </Button>
-          <Collapse in={showVideo}>
-            <Paper elevation={3} sx={{ p: 3, mb: 2, position: 'relative', bgcolor: 'background.default', borderRadius: 3, maxWidth: 420, width: '100%' }}>
-              <IconButton
-                size="small"
-                onClick={() => setShowVideo(false)}
-                sx={{ position: 'absolute', top: 8, right: 8, color: 'grey.400' }}
-                aria-label="Close video analysis"
-              >
-                <Close />
-              </IconButton>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Facial Emotion Analysis
-              </Typography>
+      
+      <Grid container spacing={3}>
+        {/* Video Analysis Section */}
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 3, height: '100%', bgcolor: 'background.paper', borderRadius: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
+              Facial Emotion Analysis
+            </Typography>
+            <Box sx={{ height: 'calc(100% - 48px)', display: 'flex', flexDirection: 'column' }}>
               <VideoTab />
-            </Paper>
-          </Collapse>
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Paper elevation={2} sx={{ p: 3, mb: 2, bgcolor: 'background.paper', borderRadius: 3 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>Survey Questions</Typography>
-              <Typography variant="body2" sx={{ mb: 2 }}>Please answer the following questions:</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        {/* Survey Section */}
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 3, height: '100%', bgcolor: 'background.paper', borderRadius: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>Survey Questions</Typography>
+            <Typography variant="body2" sx={{ mb: 3 }}>Please answer the following questions:</Typography>
+            
+            <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <FormControl sx={{ mb: 2 }}>
                 <FormLabel>Designation Level (1-5)</FormLabel>
                 <Slider
@@ -121,6 +108,7 @@ function SurveyTab() {
                   disabled={loading}
                 />
               </FormControl>
+
               <FormControl sx={{ mb: 2 }}>
                 <FormLabel>Resource Allocation (1-10)</FormLabel>
                 <Slider
@@ -134,6 +122,7 @@ function SurveyTab() {
                   disabled={loading}
                 />
               </FormControl>
+
               <FormControl sx={{ mb: 2 }}>
                 <FormLabel>Mental Fatigue Score (1-10)</FormLabel>
                 <Slider
@@ -147,6 +136,7 @@ function SurveyTab() {
                   disabled={loading}
                 />
               </FormControl>
+
               <FormControl sx={{ mb: 2 }}>
                 <FormLabel>Company Type</FormLabel>
                 <RadioGroup
@@ -158,6 +148,7 @@ function SurveyTab() {
                   <FormControlLabel value="Product" control={<Radio />} label="Product" disabled={loading} />
                 </RadioGroup>
               </FormControl>
+
               <FormControl sx={{ mb: 2 }}>
                 <FormLabel>WFH Setup Available</FormLabel>
                 <RadioGroup
@@ -169,6 +160,7 @@ function SurveyTab() {
                   <FormControlLabel value="No" control={<Radio />} label="No" disabled={loading} />
                 </RadioGroup>
               </FormControl>
+
               <FormControl sx={{ mb: 2 }}>
                 <FormLabel>Gender</FormLabel>
                 <RadioGroup
@@ -180,35 +172,36 @@ function SurveyTab() {
                   <FormControlLabel value="Female" control={<Radio />} label="Female" disabled={loading} />
                 </RadioGroup>
               </FormControl>
-            </Paper>
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Send />}
-              >
-                {loading ? 'Analyzing...' : 'Submit Survey'}
-              </Button>
-              {result && (
+
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
                 <Button
-                  variant="outlined"
-                  onClick={handleReset}
-                  startIcon={<Replay />}
+                  type="submit"
+                  variant="contained"
+                  color="primary"
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Send />}
                 >
-                  Reset
+                  {loading ? 'Analyzing...' : 'Submit Survey'}
                 </Button>
-              )}
+                {result && (
+                  <Button
+                    variant="outlined"
+                    onClick={handleReset}
+                    startIcon={<Replay />}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </Box>
             </Box>
-          </Box>
-          <Box sx={{ mt: 3, width: '100%', maxWidth: 500, mx: 'auto' }}>
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-            )}
-          </Box>
-        </Box>
-      </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {error && (
+        <Alert severity="error" sx={{ mt: 3, maxWidth: 500, mx: 'auto' }}>{error}</Alert>
+      )}
+
       <Dialog open={resultOpen && !!result} onClose={handleCloseResult} maxWidth="xs" fullWidth>
         <DialogTitle>Burnout Analysis Results</DialogTitle>
         <DialogContent>

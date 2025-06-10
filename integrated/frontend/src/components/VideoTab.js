@@ -5,9 +5,13 @@ import Webcam from 'react-webcam';
 
 function VideoTab() {
   const webcamRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [backendStatus, setBackendStatus] = useState('checking');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(10);
   const [emotionCounts, setEmotionCounts] = useState({});

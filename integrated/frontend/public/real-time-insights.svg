@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500" height="300" viewBox="0 0 500 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="500" height="300" fill="#F5F5F5"/>
+  
+  <!-- Real-time Data Visualization -->
+  <g transform="translate(50, 50)">
+    <!-- Circular Progress -->
+    <circle cx="100" cy="100" r="80" stroke="#E0E0E0" stroke-width="8" fill="none"/>
+    <circle cx="100" cy="100" r="80" stroke="#6C63FF" stroke-width="8" fill="none" stroke-dasharray="502" stroke-dashoffset="125"/>
+    <text x="100" y="110" text-anchor="middle" fill="#333" font-size="24" font-weight="bold">75%</text>
+    <text x="100" y="140" text-anchor="middle" fill="#666" font-size="14">Accuracy</text>
+    
+    <!-- Real-time Metrics -->
+    <g transform="translate(250, 0)">
+      <!-- Sentiment Score -->
+      <rect x="0" y="0" width="150" height="60" rx="8" fill="white" stroke="#E0E0E0"/>
+      <text x="75" y="25" text-anchor="middle" fill="#333" font-size="14">Sentiment</text>
+      <text x="75" y="45" text-anchor="middle" fill="#6C63FF" font-size="20" font-weight="bold">Positive</text>
+      
+      <!-- Emotion Score -->
+      <rect x="0" y="70" width="150" height="60" rx="8" fill="white" stroke="#E0E0E0"/>
+      <text x="75" y="95" text-anchor="middle" fill="#333" font-size="14">Emotion</text>
+      <text x="75" y="115" text-anchor="middle" fill="#4CAF50" font-size="20" font-weight="bold">Happy</text>
+      
+      <!-- Stress Level -->
+      <rect x="0" y="140" width="150" height="60" rx="8" fill="white" stroke="#E0E0E0"/>
+      <text x="75" y="165" text-anchor="middle" fill="#333" font-size="14">Stress Level</text>
+      <text x="75" y="185" text-anchor="middle" fill="#FF6B6B" font-size="20" font-weight="bold">Low</text>
+    </g>
+  </g>
+  
+  <!-- Animated Elements -->
+  <circle cx="400" cy="250" r="20" fill="#6C63FF" opacity="0.2">
+    <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.2;0.4;0.2" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  
+  <circle cx="350" cy="250" r="15" fill="#4CAF50" opacity="0.2">
+    <animate attributeName="r" values="15;20;15" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.2;0.4;0.2" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  
+  <circle cx="300" cy="250" r="10" fill="#FF6B6B" opacity="0.2">
+    <animate attributeName="r" values="10;15;10" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.2;0.4;0.2" dur="2s" repeatCount="indefinite"/>
+  </circle>
+</svg> 
