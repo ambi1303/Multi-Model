@@ -1,6 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, Button, Typography, Alert, CircularProgress, Paper } from '@mui/material';
-import { Mic, Stop, UploadFile, Replay } from '@mui/icons-material';
+import { Box, Typography, CircularProgress, Paper, Button, LinearProgress, Chip } from '@mui/material';
+import { Mic, Stop, UploadFile, CloudUpload, GraphicEq, VolumeUp } from '@mui/icons-material';
+
+function pad(num) {
+  return num.toString().padStart(2, '0');
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${pad(m)}:${pad(s)}`;
+}
 
 function SpeechTab() {
   const [isRecording, setIsRecording] = useState(false);
@@ -9,9 +19,27 @@ function SpeechTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [useMicrophone, setUseMicrophone] = useState(true);
+  const [inputMode, setInputMode] = useState('mic'); // 'mic' or 'upload'
+  const [timer, setTimer] = useState(0);
+  const timerInterval = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+
+  // Timer effect
+  useEffect(() => {
+    if (isRecording) {
+      timerInterval.current = setInterval(() => setTimer(t => t + 1), 1000);
+    } else if (timerInterval.current) {
+      clearInterval(timerInterval.current);
+      timerInterval.current = null;
+    }
+    return () => {
+      if (timerInterval.current) {
+        clearInterval(timerInterval.current);
+        timerInterval.current = null;
+      }
+    };
+  }, [isRecording]);
 
   // Initialize media recorder
   useEffect(() => {
@@ -32,7 +60,6 @@ function SpeechTab() {
         })
         .catch(err => {
           setError('Microphone access denied or not available');
-          setUseMicrophone(false);
         });
     }
   }, []);
@@ -45,6 +72,7 @@ function SpeechTab() {
       setIsRecording(true);
       setResult(null);
       setError(null);
+      setTimer(0);
     }
   };
 
@@ -61,7 +89,17 @@ function SpeechTab() {
     setSelectedFile(e.target.files[0]);
     setResult(null);
     setError(null);
-    setUseMicrophone(false);
+    setAudioBlob(null);
+  };
+
+  // Reset all
+  const handleReset = () => {
+    setIsRecording(false);
+    setAudioBlob(null);
+    setResult(null);
+    setError(null);
+    setSelectedFile(null);
+    setTimer(0);
   };
 
   // Submit audio for analysis
@@ -70,22 +108,19 @@ function SpeechTab() {
     setLoading(true);
     setResult(null);
     setError(null);
-
     try {
       const formData = new FormData();
-      if (useMicrophone && audioBlob) {
+      if (inputMode === 'mic' && audioBlob) {
         formData.append('audio_file', audioBlob, 'recording.webm');
-      } else if (selectedFile) {
+      } else if (inputMode === 'upload' && selectedFile) {
         formData.append('audio_file', selectedFile);
       } else {
         throw new Error('No audio file selected');
       }
-
       const response = await fetch('http://localhost:9000/analyze-speech', {
         method: 'POST',
         body: formData,
       });
-
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || 'Error analyzing speech');
@@ -100,123 +135,181 @@ function SpeechTab() {
 
   // Auto-analyze after recording is stopped
   useEffect(() => {
-    if (audioBlob && !isRecording && !loading && useMicrophone) {
-      handleSubmit();
+    if (audioBlob && !isRecording && !loading && inputMode === 'mic') {
+      // Don't auto-analyze, require user to click Analyze
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioBlob, isRecording, useMicrophone]);
+  }, [audioBlob, isRecording, inputMode]);
 
+  // UI rendering
   return (
-    <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>Speech Analysis</Typography>
-      <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
-        <Button
-          variant={useMicrophone ? 'contained' : 'outlined'}
-          startIcon={<Mic />}
-          onClick={() => setUseMicrophone(true)}
-          disabled={!mediaRecorderRef.current}
-        >
-          Use Microphone
-        </Button>
-        <Button
-          variant={!useMicrophone ? 'contained' : 'outlined'}
-          startIcon={<UploadFile />}
-          onClick={() => setUseMicrophone(false)}
-        >
-          Upload Audio
-        </Button>
-      </Box>
-
-      {useMicrophone ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="contained"
-              color={isRecording ? 'error' : 'primary'}
-              onClick={isRecording ? stopRecording : startRecording}
-              startIcon={isRecording ? <Stop /> : <Mic />}
-              disabled={loading}
-            >
-              {isRecording ? 'Stop Recording' : 'Start Recording'}
-            </Button>
-            {audioBlob && !isRecording && (
+    <Box sx={{ minHeight: '100vh', bgcolor: '#fff', py: 6 }}>
+      <Typography variant="h3" align="center" sx={{ fontWeight: 700, mb: 1 }}>
+        Voice Analysis Tool
+      </Typography>
+      <Typography align="center" sx={{ color: 'grey.700', mb: 4 }}>
+        Record your voice or upload an audio file to get detailed analysis
+      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+        <Paper elevation={1} sx={{ maxWidth: 700, width: '100%', borderRadius: 3, p: { xs: 2, md: 4 }, mx: 2 }}>
+          {/* Audio Input Section */}
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <VolumeUp sx={{ mr: 1 }} />
+              <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                Audio Input
+              </Typography>
+            </Box>
+            <Typography sx={{ color: 'grey.600', mb: 2 }}>
+              Choose your preferred method to provide audio for analysis
+            </Typography>
+            <Box sx={{ display: 'flex', mb: 2 }}>
+              <Button
+                variant={inputMode === 'mic' ? 'contained' : 'outlined'}
+                startIcon={<Mic />}
+                onClick={() => setInputMode('mic')}
+                sx={{ borderRadius: '8px 0 0 8px', flex: 1, fontWeight: 600 }}
+              >
+                Microphone
+              </Button>
+              <Button
+                variant={inputMode === 'upload' ? 'contained' : 'outlined'}
+                startIcon={<UploadFile />}
+                onClick={() => setInputMode('upload')}
+                sx={{ borderRadius: '0 8px 8px 0', flex: 1, fontWeight: 600 }}
+              >
+                Upload File
+              </Button>
+            </Box>
+            {/* Main interaction area */}
+            <Box sx={{ border: '2px dashed #e0e0e0', borderRadius: 2, minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', mb: 2, p: 2 }}>
+              {inputMode === 'mic' ? (
+                <>
+                  <Typography variant="h4" sx={{ fontFamily: 'monospace', mb: 1 }}>{formatTime(timer)}</Typography>
+                  {isRecording ? (
+                    <>
+                      <Typography sx={{ color: 'error.main', mb: 1 }}><span style={{ fontSize: 18, verticalAlign: 'middle' }}>●</span> Recording...</Typography>
+                      <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button variant="outlined" color="inherit" onClick={stopRecording} sx={{ minWidth: 56, fontWeight: 600 }} startIcon={<Stop />}>Stop</Button>
+                      </Box>
+                    </>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={startRecording}
+                      startIcon={<Mic />}
+                      sx={{ minWidth: 180, fontWeight: 600, fontSize: 18 }}
+                      disabled={loading}
+                    >
+                      Start Recording
+                    </Button>
+                  )}
+                  {audioBlob && !isRecording && (
+                    <Typography sx={{ color: 'success.main', mt: 2 }}>
+                      <CloudUpload sx={{ verticalAlign: 'middle', mr: 1 }} /> Recording saved ({formatTime(timer)})
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <Box sx={{ width: '100%', textAlign: 'center' }}>
+                  <CloudUpload sx={{ fontSize: 48, color: 'grey.500', mb: 1 }} />
+                  <Typography variant="h6" sx={{ mb: 1 }}>
+                    Upload Audio File
+                  </Typography>
+                  <Typography sx={{ color: 'grey.600', mb: 2 }}>
+                    Supports MP3, WAV, M4A files up to 10MB
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    component="label"
+                    startIcon={<UploadFile />}
+                    sx={{ fontWeight: 600 }}
+                  >
+                    Choose File
+                    <input type="file" accept="audio/*" hidden onChange={handleFileChange} />
+                  </Button>
+                  {selectedFile && (
+                    <Typography sx={{ mt: 2, color: 'success.main' }}>{selectedFile.name}</Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+            {/* Analyze/Reset Buttons */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                startIcon={<GraphicEq />}
+                sx={{ fontWeight: 700, fontSize: 18, minWidth: 180 }}
+                onClick={handleSubmit}
+                disabled={loading || (inputMode === 'mic' ? !audioBlob : !selectedFile)}
+              >
+                Analyze Voice
+              </Button>
               <Button
                 variant="outlined"
-                onClick={handleSubmit}
+                size="large"
+                sx={{ fontWeight: 700, fontSize: 18, minWidth: 120 }}
+                onClick={handleReset}
                 disabled={loading}
-                startIcon={<Replay />}
               >
-                {loading ? <CircularProgress size={20} color="inherit" /> : 'Analyze'}
+                Reset
               </Button>
+            </Box>
+            {/* Loading State */}
+            {loading && (
+              <Box sx={{ mt: 4, textAlign: 'center' }}>
+                <Typography sx={{ fontWeight: 600, mb: 1 }}><CircularProgress size={20} sx={{ mr: 1 }} /> Analyzing your voice...</Typography>
+                <LinearProgress sx={{ height: 10, borderRadius: 2, mb: 1 }} />
+                <Typography sx={{ color: 'grey.600' }}>Processing audio patterns, tone, and emotional indicators...</Typography>
+              </Box>
+            )}
+            {/* Error State */}
+            {error && (
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <Typography color="error" sx={{ fontWeight: 600 }}>{error}</Typography>
+              </Box>
+            )}
+            {/* Results Section */}
+            {result && !loading && (
+              <Box sx={{ mt: 6 }}>
+                <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 4 }}>
+                  Analysis Results
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center', mb: 3 }}>
+                  {/* Transcribed Text Card */}
+                  <Paper elevation={0} sx={{ p: 3, borderRadius: 3, minWidth: 260, flex: 1, maxWidth: 340, border: '1px solid #eee', transition: 'transform 0.15s, box-shadow 0.15s', '&:hover': { boxShadow: 6, transform: 'scale(1.03)' } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Transcribed Text</Typography>
+                    <Typography sx={{ fontWeight: 500, fontSize: 18 }}>{result.text || 'No text detected.'}</Typography>
+                  </Paper>
+                  {/* Sentiment Card */}
+                  <Paper elevation={0} sx={{ p: 3, borderRadius: 3, minWidth: 260, flex: 1, maxWidth: 340, border: '1px solid #eee', transition: 'transform 0.15s, box-shadow 0.15s', '&:hover': { boxShadow: 6, transform: 'scale(1.03)' } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Sentiment</Typography>
+                    <Typography sx={{ fontWeight: 600, fontSize: 20, mb: 1 }}>{result.sentiment || 'N/A'}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                      <LinearProgress variant="determinate" value={result.confidence ? result.confidence * 100 : 0} sx={{ flex: 1, height: 8, borderRadius: 2 }} />
+                      <Chip label={`${result.confidence ? (result.confidence * 100).toFixed(2) : '0.00'}%`} size="small" sx={{ ml: 1, fontWeight: 700 }} />
+                    </Box>
+                  </Paper>
+                  {/* Clarity Score Card (using confidence) */}
+                  <Paper elevation={0} sx={{ p: 3, borderRadius: 3, minWidth: 260, flex: 1, maxWidth: 340, border: '1px solid #eee', transition: 'transform 0.15s, box-shadow 0.15s', '&:hover': { boxShadow: 6, transform: 'scale(1.03)' } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <GraphicEq sx={{ mr: 1 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>Clarity Score</Typography>
+                    </Box>
+                    <Typography><b>Speech Clarity</b></Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                      <LinearProgress variant="determinate" value={result.confidence ? result.confidence * 100 : 0} sx={{ flex: 1, height: 8, borderRadius: 2 }} />
+                      <Chip label={`${result.confidence ? (result.confidence * 100).toFixed(2) : '0.00'}%`} size="small" sx={{ ml: 1, fontWeight: 700 }} />
+                    </Box>
+                  </Paper>
+                </Box>
+              </Box>
             )}
           </Box>
-          {isRecording && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Recording in progress...
-            </Alert>
-          )}
-        </Box>
-      ) : (
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button
-            variant="outlined"
-            component="label"
-            startIcon={<UploadFile />}
-          >
-            Choose Audio File
-            <input type="file" accept="audio/*" hidden onChange={handleFileChange} />
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={!selectedFile || loading}
-            startIcon={<Replay />}
-          >
-            {loading ? <CircularProgress size={20} color="inherit" /> : 'Analyze'}
-          </Button>
-          {selectedFile && (
-            <Typography variant="body2" sx={{ ml: 1 }}>{selectedFile.name}</Typography>
-          )}
-        </Box>
-      )}
-
-      <Box sx={{ mt: 3, width: '100%', maxWidth: 500, mx: 'auto' }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-        )}
-        {result && (
-          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
-            {result.text ? (
-              <>
-                <Typography variant="h6" color="primary" sx={{ mb: 2 }}>Transcribed Text</Typography>
-                <Typography variant="body1" sx={{ mb: 2 }}>{result.text}</Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Sentiment</Typography>
-                    <Typography variant="h6" color={result.sentiment === 'POSITIVE' ? 'success.main' : result.sentiment === 'NEGATIVE' ? 'error.main' : 'warning.main'}>
-                      {result.sentiment}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Confidence</Typography>
-                    <Typography variant="h6" color="primary">
-                      {(result.confidence * 100).toFixed(1)}%
-                    </Typography>
-                  </Box>
-                </Box>
-              </>
-            ) : (
-              <>
-                <Typography color="warning.main">No text detected or unexpected response.</Typography>
-                <Typography variant="subtitle2" sx={{ mt: 1 }}>Raw JSON:</Typography>
-                <Box component="pre" sx={{ background: '#eee', color: '#333', p: 2, borderRadius: 1, textAlign: 'left', fontSize: '0.95em', mt: 1 }}>
-                  {JSON.stringify(result, null, 2)}
-                </Box>
-              </>
-            )}
-          </Paper>
-        )}
+        </Paper>
       </Box>
     </Box>
   );
