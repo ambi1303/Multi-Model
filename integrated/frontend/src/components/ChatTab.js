@@ -1,20 +1,56 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography, Alert, CircularProgress, Paper, TextField } from '@mui/material';
-import { Send, Replay } from '@mui/icons-material';
+import { Box, Button, Typography, Paper, TextField, CircularProgress, Grid } from '@mui/material';
+import { 
+  MessageOutlined as MessageOutlinedIcon, 
+  AutoAwesome as AutoAwesomeIcon, 
+  CheckCircleOutline as CheckCircleOutlineIcon,
+  Adjust as AdjustIcon,
+  ChatBubbleOutline as ChatBubbleOutlineIcon,
+  Mood as MoodIcon,
+  SentimentVeryDissatisfied as SentimentVeryDissatisfiedIcon,
+  SentimentDissatisfied as SentimentDissatisfiedIcon,
+  SentimentNeutral as SentimentNeutralIcon
+} from '@mui/icons-material';
+import { motion } from 'framer-motion';
 
 function ChatTab() {
   const [text, setText] = useState('');
-  const [result, setResult] = useState(null);
+  const [charCount, setCharCount] = useState(0);
+  const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [showLoadingCard, setShowLoadingCard] = useState(false);
+  const [chatMessages] = useState([]);
+
+  const loadingTextVariants = {
+    hidden: { opacity: 0, x: -50 },
+    visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } },
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2 
+      }
+    }
+  };
+
+  const handleTextChange = (e) => {
+    const newText = e.target.value;
+    setText(newText);
+    setCharCount(newText.length);
+    setWordCount(newText.trim().split(/\s+/).filter(word => word.length > 0).length);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || loading) return;
 
     setLoading(true);
     setResult(null);
-    setError(null);
+    setShowLoadingCard(true); 
 
     try {
       const response = await fetch('http://localhost:9000/analyze-chat', {
@@ -29,126 +65,360 @@ function ChatTab() {
       });
 
       const data = await response.json();
+      console.log("Backend response data:", data);
       if (!response.ok) {
         throw new Error(data.error || 'Error analyzing text');
       }
+      // Use backend response directly
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      console.error('Error analyzing text:', err);
     } finally {
       setLoading(false);
+      setShowLoadingCard(false); 
     }
   };
 
+  // Helper to determine sentiment text and color based on primary_emotion
+  const getEmotionInfo = (emotion) => {
+    switch ((emotion || '').toLowerCase()) {
+      case 'joy':
+        return { text: 'Joy', color: '#4CAF50', bgColor: '#E8F5E9', icon: <MoodIcon /> };
+      case 'anger':
+        return { text: 'Anger', color: '#9C27B0', bgColor: '#F3E5F5', icon: <SentimentVeryDissatisfiedIcon /> };
+      case 'sadness':
+        return { text: 'Sadness', color: '#2196F3', bgColor: '#E3F2FD', icon: <SentimentDissatisfiedIcon /> };
+      case 'neutral':
+      default:
+        return { text: 'Neutral', color: '#FF9800', bgColor: '#FFF3E0', icon: <SentimentNeutralIcon /> };
+    }
+  };
+
+  const emotionInfo = result ? getEmotionInfo(result.primary_emotion) : null;
+
   return (
-    <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>Chat Analysis</Typography>
-      <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(180deg, #E0F2F7 0%, #E8EAF6 50%, #F3E5F5 100%)',
+        p: 2,
+      }}
+    >
+      {/* Main Title and Subtitle */}
+      <Typography
+        variant="h3"
+        component="h1"
+        sx={{
+          fontWeight: 700,
+          color: '#673AB7', 
+          mb: 1,
+          textAlign: 'center',
+        }}
+      >
+        Text Analyzer
+      </Typography>
+      <Typography
+        variant="h6"
+        sx={{
+          color: '#616161',
+          mb: 4,
+          textAlign: 'center',
+        }}
+      >
+        Analyze your text for sentiment, emotions, and insights
+      </Typography>
+
+      {/* Input Card */}
+      <Paper
+        elevation={3}
+        sx={{
+          p: { xs: 2, sm: 3, md: 4 },
+          maxWidth: 600,
+          width: '100%',
+          borderRadius: 3,
+          bgcolor: 'white',
+          boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
+          border: '1px solid #E0E0E0',
+          mb: 3, 
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <MessageOutlinedIcon sx={{ mr: 1, color: '#616161' }} />
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+            Enter Your Text
+          </Typography>
+        </Box>
         <TextField
           multiline
-          rows={4}
+          rows={6}
           variant="outlined"
-          label="Enter your text"
+          placeholder="Type or paste your text here for analysis..."
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleTextChange}
           disabled={loading}
           fullWidth
+          sx={{
+            mb: 1,
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+              borderColor: '#E0E0E0',
+              '&:hover fieldset': {
+                borderColor: '#BDBDBD',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#9575CD',
+              },
+            },
+          }}
         />
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {charCount} characters • {wordCount} words
+        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button
             type="submit"
             variant="contained"
-            color="primary"
+            onClick={handleSubmit}
             disabled={!text.trim() || loading}
-            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Send />}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <AutoAwesomeIcon />}
+            sx={{
+              background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)', 
+              color: 'white',
+              py: 1.5,
+              px: 3,
+              borderRadius: 2,
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': {
+                opacity: 0.9,
+                background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)',
+              },
+            }}
           >
-            {loading ? 'Analyzing...' : 'Analyze'}
+            {loading ? 'Analyzing...' : 'Analyze Text'}
           </Button>
-          {result && (
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setText('');
-                setResult(null);
-                setError(null);
-              }}
-              startIcon={<Replay />}
-            >
-              Clear
-            </Button>
-          )}
         </Box>
-      </Box>
+      </Paper>
 
-      <Box sx={{ mt: 3, width: '100%', maxWidth: 500, mx: 'auto' }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-        )}
-        {result && (
-          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
-            {(result.sentiment || result.confidence || result.sentiment_score !== undefined || result.primary_emotion || result.mental_state) ? (
-              <>
-                <Typography variant="h6" color="primary" sx={{ mb: 2 }}>Analysis Results</Typography>
-                {result.sentiment_score !== undefined && (
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Sentiment Score</Typography>
-                    <Typography variant="h6" color={result.sentiment_score > 0 ? 'success.main' : result.sentiment_score < 0 ? 'error.main' : 'warning.main'}>
-                      {result.sentiment_score.toFixed(2)}
-                    </Typography>
-                  </Box>
-                )}
-                {result.primary_emotion && (
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Primary Emotion</Typography>
-                    <Typography variant="h6" color="primary">{result.primary_emotion}</Typography>
-                  </Box>
-                )}
-                {result.emotion_score !== undefined && (
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Emotion Score</Typography>
-                    <Typography variant="h6" color="primary">{(result.emotion_score * 100).toFixed(1)}%</Typography>
-                  </Box>
-                )}
-                {result.mental_state && (
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Mental State</Typography>
-                    <Typography variant="h6" color="primary">{result.mental_state}</Typography>
-                  </Box>
-                )}
-                {result.keywords && result.keywords.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Key Topics</Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', mt: 1 }}>
-                      {result.keywords.map((keyword, index) => (
-                        <Paper
-                          key={index}
-                          elevation={1}
-                          sx={{
-                            px: 1.5,
-                            py: 0.5,
-                            bgcolor: 'primary.light',
-                            color: 'primary.contrastText',
-                            borderRadius: 1,
-                          }}
-                        >
-                          {keyword}
-                        </Paper>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </>
-            ) : (
-              <>
-                <Typography color="warning.main">No sentiment detected or unexpected response.</Typography>
-                <Typography variant="subtitle2" sx={{ mt: 1 }}>Raw JSON:</Typography>
-                <Box component="pre" sx={{ background: '#eee', color: '#333', p: 2, borderRadius: 1, textAlign: 'left', fontSize: '0.95em', mt: 1 }}>
-                  {JSON.stringify(result, null, 2)}
+      {/* Loading Card (New) */}
+      {showLoadingCard && (
+        <Paper
+          elevation={3}
+          sx={{
+            p: { xs: 2, sm: 3, md: 4 },
+            maxWidth: 600,
+            width: '100%',
+            borderRadius: 3,
+            bgcolor: 'white',
+            boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
+            border: '1px solid #E0E0E0',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            mt: 3, 
+          }}
+        >
+          <CircularProgress 
+            size={60} 
+            sx={{
+              color: '#673AB7',
+              mb: 2,
+              animationDuration: '800ms', 
+              '& .MuiCircularProgress-circle': {
+                strokeLinecap: 'round',
+              },
+            }}
+          />
+          <Typography variant="h5" sx={{ fontWeight: 600, color: '#424242', mb: 2 }}>
+            Analyzing Your Text...
+          </Typography>
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            sx={{ textAlign: 'left', width: '100%', px: { xs: 0, sm: 2 } }}
+          >
+            <motion.div variants={loadingTextVariants}>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                Processing sentiment...
+              </Typography>
+            </motion.div>
+            <motion.div variants={loadingTextVariants}>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                Detecting emotions...
+              </Typography>
+            </motion.div>
+            <motion.div variants={loadingTextVariants}>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                Extracting key phrases...
+              </Typography>
+            </motion.div>
+            <motion.div variants={loadingTextVariants}>
+              <Typography variant="body1" color="text.secondary">
+                Calculating readability...
+              </Typography>
+            </motion.div>
+          </motion.div>
+        </Paper>
+      )}
+
+      {/* Analysis Results */}
+      {result && !showLoadingCard && (
+        <Box sx={{ mt: 3, width: '100%', maxWidth: 600, mx: 'auto' }}>
+          {/* Analysis Complete Banner */}
+          <Box
+            sx={{
+              bgcolor: '#E8F5E9', // Light green
+              p: 2,
+              borderRadius: 2,
+              mb: 3,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              border: '1px solid #A5D6A7',
+            }}
+          >
+            <CheckCircleOutlineIcon sx={{ color: '#4CAF50' }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#2E7D32' }}>
+                Analysis Complete!
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                This text contains {wordCount} words with a {emotionInfo?.text.toLowerCase()} tone. The content appears to be well-structured and engaging.
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Summary Cards */}
+          <Grid container spacing={2} mb={3}>
+            {/* Sentiment Card */}
+            <Grid item xs={6} sm={3}>
+              <Paper 
+                elevation={1} 
+                sx={{
+                  p: 2, 
+                  textAlign: 'center', 
+                  borderRadius: 2, 
+                  bgcolor: emotionInfo?.bgColor || '#E0E0E0',
+                  color: emotionInfo?.color || '#424242',
+                  border: `1px solid ${emotionInfo?.color || '#BDBDBD'}`
+                }}
+              >
+                <Box sx={{ fontSize: 40, mb: 1 }}>
+                  {emotionInfo?.icon}
                 </Box>
-              </>
-            )}
-          </Paper>
-        )}
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {emotionInfo?.text}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Sentiment
+                </Typography>
+              </Paper>
+            </Grid>
+            {/* Score Card */}
+            <Grid item xs={6} sm={3}>
+              <Paper 
+                elevation={1} 
+                sx={{
+                  p: 2, 
+                  textAlign: 'center', 
+                  borderRadius: 2, 
+                  bgcolor: '#E3F2FD', // Light blue
+                  color: '#2196F3', // Blue
+                  border: '1px solid #90CAF9'
+                }}
+              >
+                <Box sx={{ fontSize: 40, mb: 1 }}>
+                  <AdjustIcon />
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {result.emotion_score !== undefined ? (result.emotion_score * 100).toFixed(2) : '0.00'}/100
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Score
+                </Typography>
+              </Paper>
+            </Grid>
+            {/* Mental State Card */}
+            <Grid item xs={6} sm={3}>
+              <Paper 
+                elevation={1} 
+                sx={{
+                  p: 2, 
+                  textAlign: 'center', 
+                  borderRadius: 2, 
+                  bgcolor: '#FFFDE7', // Light yellow
+                  color: '#FBC02D', // Amber
+                  border: '1px solid #FFE082'
+                }}
+              >
+                <Box sx={{ fontSize: 40, mb: 1 }}>
+                  <ChatBubbleOutlineIcon />
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {result.mental_state || 'N/A'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Mental State
+                </Typography>
+              </Paper>
+            </Grid>
+            {/* Word Count Card */}
+            <Grid item xs={6} sm={3}>
+              <Paper 
+                elevation={1} 
+                sx={{
+                  p: 2, 
+                  textAlign: 'center', 
+                  borderRadius: 2, 
+                  bgcolor: '#F3E5F5', // Light purple
+                  color: '#6A1B9A', // Purple
+                  border: '1px solid #CE93D8'
+                }}
+              >
+                <Box sx={{ fontSize: 40, mb: 1 }}>
+                  <ChatBubbleOutlineIcon />
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {wordCount}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Word Count
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+        {chatMessages.map((message, index) => (
+          <Box
+            key={index}
+            sx={{
+              display: 'flex',
+              justifyContent: message.sender === 'user' ? 'flex-end' : 'flex-start',
+              mb: 2,
+            }}
+          >
+            <Paper
+              elevation={1}
+              sx={{
+                p: 2,
+                backgroundColor: message.sender === 'user' ? 'primary.light' : 'grey.100',
+                borderRadius: 2,
+                maxWidth: '70%',
+              }}
+            >
+              <Typography variant="body1">{message.text}</Typography>
+            </Paper>
+          </Box>
+        ))}
       </Box>
     </Box>
   );

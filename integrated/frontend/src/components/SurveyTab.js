@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography, Alert, CircularProgress, Paper, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Slider, Stack, Grid, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Button, Typography, Alert, CircularProgress, Paper, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Slider, Grid, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Send, Replay } from '@mui/icons-material';
 import VideoTab from './VideoTab';
 

@@ -30,12 +30,49 @@ All features are unified in a single backend and frontend for a seamless user ex
 ├── survey/              # Survey service (with its own venv)
 ├── video/               # Video service (with its own venv)
 ├── chat/                # Chat service (with its own venv)
+├── docker-compose.yml   # Docker Compose configuration for all services
 └── README.md            # (This file)
 ```
 
 ---
 
-## Setup Instructions
+## Setup and Running with Docker Compose (Recommended)
+
+This project is configured to run all services (frontend and multiple backends) using Docker Compose, ensuring a consistent development environment across different machines.
+
+#### Prerequisites
+- **Docker Desktop** (or Docker Engine) installed and running on your system.
+
+#### Steps to run the project:
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repo-url>
+    cd <your-repo-name>
+    ```
+
+2.  **Build and start all services:**
+    Navigate to the root directory of the project (where `docker-compose.yml` is located) and run:
+    ```bash
+    docker-compose up --build
+    ```
+    *   `docker-compose up`: Starts all services defined in `docker-compose.yml`.
+    *   `--build`: Builds the Docker images for each service. This is important to include the first time you run it or after making changes to any `Dockerfile` or `requirements.txt` / `package.json`.
+
+3.  **Access the application:**
+    Once all services are up and running, the frontend will be available in your browser at:
+    [http://localhost:3000](http://localhost:3000)
+
+#### Stopping the services
+
+To stop and remove all running containers, networks, and volumes created by `docker-compose up`, run:
+```bash
+docker-compose down
+```
+
+---
+
+## Legacy Setup Instructions (Deprecated)
 
 ### 1. Set Up Each Model Backend (REQUIRED)
 Each model backend (video, stt, chat, survey) has its own Python virtual environment and requirements. You must set these up before running the integrated backend.
@@ -45,9 +82,9 @@ For each model (replace `<model_dir>` with `video/emp_face`, `stt/stt`, `chat/ch
 ```bash
 cd <model_dir>
 python -m venv venv
-venv/Scripts/pip install -r requirements.txt  # On Windows
+vv/Scripts/pip install -r requirements.txt  # On Windows
 # or
-venv/bin/pip install -r requirements.txt     # On Linux/Mac
+vv/bin/pip install -r requirements.txt     # On Linux/Mac
 ```
 
 Then, start each backend (see their respective README files for details).

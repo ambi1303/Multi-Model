@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Typography, Button, Container, Grid, Paper, Card, CardContent, Stack, LinearProgress } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Box, Typography, Container, Grid, Paper, Card, CardContent, Stack, LinearProgress } from '@mui/material';
 import { 
   Mood as SentimentIcon,
   Psychology as EmotionIcon,
@@ -9,22 +8,11 @@ import {
   Visibility as VisibilityIcon,
   SentimentVerySatisfied as PositiveIcon,
   SentimentNeutral as NeutralIcon,
-  SentimentVeryDissatisfied as NegativeIcon,
-  PlayArrow as PlayArrowIcon, // For the play icon on demo button
-  ArrowForward as ArrowForwardIcon // For the arrow icon on start analysis button
+  SentimentVeryDissatisfied as NegativeIcon
 } from '@mui/icons-material';
-import { keyframes } from '@mui/system';
-
-// Define animations outside component
-const pulseAnimation = keyframes`
-  0% { transform: scale(0.8); opacity: 0.7; }
-  50% { transform: scale(1.2); opacity: 0.3; }
-  100% { transform: scale(0.8); opacity: 0.7; }
-`;
+import HeroSectionAnimated from './HeroSectionAnimated';
 
 function LandingPage() {
-  const navigate = useNavigate();
-
   const features = [
     {
       title: 'Emotion Recognition',
@@ -88,143 +76,7 @@ function LandingPage() {
 
   return (
     <Box sx={{ minHeight: '100vh' }}>
-      {/* Hero Section with Animated Background */}
-      <Box sx={{ 
-        position: 'relative',
-        background: '#E0F7FA', // Light blue background
-        color: '#212121',
-        py: { xs: 8, md: 12 },
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '80vh'
-      }}>
-        <Box sx={{
-          position: 'absolute',
-          width: 200,
-          height: 200,
-          borderRadius: '50%',
-          bgcolor: '#B2EBF2',
-          opacity: 0.4,
-          top: '10%',
-          left: '10%',
-          animation: `${pulseAnimation} 10s infinite ease-in-out`
-        }} />
-        <Box sx={{
-          position: 'absolute',
-          width: 150,
-          height: 150,
-          borderRadius: '50%',
-          bgcolor: '#80DEEA',
-          opacity: 0.3,
-          bottom: '15%',
-          right: '15%',
-          animation: `${pulseAnimation} 12s infinite ease-in-out reverse`
-        }} />
-        <Box sx={{
-          position: 'absolute',
-          width: 100,
-          height: 100,
-          borderRadius: '50%',
-          bgcolor: '#4DD0E1',
-          opacity: 0.2,
-          top: '40%',
-          right: '5%',
-          animation: `${pulseAnimation} 8s infinite ease-in-out`
-        }} />
-        <Box sx={{
-          position: 'absolute',
-          width: 180,
-          height: 180,
-          borderRadius: '50%',
-          bgcolor: '#00BCD4',
-          opacity: 0.3,
-          bottom: '5%',
-          left: '5%',
-          animation: `${pulseAnimation} 14s infinite ease-in-out`
-        }} />
-        <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-          <Typography variant="overline" sx={{
-            bgcolor: '#E8F5E9',
-            color: '#2E7D32',
-            px: 1.5,
-            py: 0.5,
-            borderRadius: 2,
-            fontWeight: 700,
-            fontSize: '0.8rem',
-            letterSpacing: 1.5,
-            display: 'inline-block',
-            mb: 2
-          }}>
-            Advanced AI-Powered Analysis
-          </Typography>
-          <Typography variant="h2" component="h1" sx={{
-            fontWeight: 700,
-            mb: 2,
-            fontSize: { xs: '2.5rem', sm: '3rem', md: '4rem' },
-            lineHeight: 1.2,
-            color: '#212121'
-          }}>
-            Unlock the Power of <br />
-            <Typography component="span" sx={{ color: '#009688', fontWeight: 700, fontSize: 'inherit' }}>
-              Multimodal
-            </Typography> Sentiment Analysis
-          </Typography>
-          <Typography variant="h6" sx={{ 
-            mb: 4, 
-            opacity: 0.8,
-            fontSize: { xs: '1rem', sm: '1.15rem', md: '1.25rem' },
-            maxWidth: 700,
-            mx: 'auto',
-            color: '#424242'
-          }}>
-            Analyze emotions, sentiment, and context across text, voice, and visual data with cutting-edge AI technology. Get deeper insights than ever before.
-          </Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center" alignItems="center">
-            <Button
-              variant="contained"
-              size="large"
-              endIcon={<ArrowForwardIcon />}
-              sx={{
-                px: 3,
-                py: 1.5,
-                fontSize: '1.05rem',
-                borderRadius: 2,
-                textTransform: 'none',
-                bgcolor: '#2E7D32',
-                color: 'white',
-                '&:hover': {
-                  bgcolor: '#1B5E20',
-                }
-              }}
-            >
-              Start Free Analysis
-            </Button>
-            <Button
-              variant="outlined"
-              size="large"
-              startIcon={<PlayArrowIcon />}
-              sx={{
-                px: 3,
-                py: 1.5,
-                fontSize: '1.05rem',
-                borderRadius: 2,
-                textTransform: 'none',
-                borderColor: '#9E9E9E',
-                color: '#424242',
-                '&:hover': {
-                  borderColor: '#616161',
-                  color: '#212121',
-                  bgcolor: '#F5F5F5',
-                }
-              }}
-            >
-              Watch Demo
-            </Button>
-          </Stack>
-        </Container>
-      </Box>
+      <HeroSectionAnimated />
 
       {/* Features Section */}
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
