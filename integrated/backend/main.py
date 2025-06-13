@@ -25,26 +25,9 @@ from fastapi import APIRouter
 app = FastAPI()
 
 # Configure CORS with more permissive settings
-origins = [
-    "http://localhost:3000",  # React frontend
-    "http://localhost:8000",  # Default FastAPI port
-    "http://localhost:8001",  # Video model
-    "http://localhost:8002",  # STT model
-    "http://localhost:8003",  # Chat model
-    "http://localhost:8004",  # Survey model
-    "http://localhost:9000",  # Integrated backend
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:8001",
-    "http://127.0.0.1:8002",
-    "http://127.0.0.1:8003",
-    "http://127.0.0.1:8004",
-    "http://127.0.0.1:9000",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -193,28 +176,45 @@ async def analyze_chat(request: Request):
         return JSONResponse(content=await resp.json(), status_code=resp.status)
 
 @app.post("/analyze-survey")
-async def analyze_survey(employee: EmployeeData):
+async def analyze_survey(request: Request):
     try:
-        logger.info(f"Forwarding survey data to backend: {employee.dict()}")
+        # Log the raw incoming request body
+        raw_body = await request.body()
+        logger.info(f"Raw incoming request body: {raw_body}")
+        try:
+            data = await request.json()
+        except Exception as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            return JSONResponse(content={"error": "Invalid JSON body", "raw_body": raw_body.decode()}, status_code=400)
+        logger.info(f"Parsed JSON data: {data}")
+        try:
+            employee = EmployeeData(**data)
+        except Exception as e:
+            logger.error(f"Failed to parse EmployeeData: {e}")
+            return JSONResponse(content={"error": f"Invalid EmployeeData: {e}", "parsed_data": data}, status_code=422)
+        logger.info(f"Parsed EmployeeData: {employee}")
+        # Forward to survey backend
+        logger.info(f"Forwarding to survey backend: {employee.dict()}")
         async with session.post(SURVEY_BACKEND_URL, json=employee.dict()) as resp:
+            response_text = await resp.text()
+            logger.info(f"Survey backend response status: {resp.status}")
+            logger.info(f"Survey backend response body: {response_text}")
             if resp.status != 200:
-                error_detail = await resp.text()
-                logger.error(f"Survey backend error: {error_detail}")
-                raise HTTPException(status_code=resp.status, detail=error_detail)
-            
+                logger.error(f"Survey backend error: {response_text}")
+                return JSONResponse(content={"error": response_text}, status_code=resp.status)
             try:
                 response_data = await resp.json()
                 logger.info(f"Survey analysis completed successfully: {response_data}")
                 return JSONResponse(content=response_data, status_code=resp.status)
             except Exception as e:
                 logger.error(f"Error parsing survey response: {str(e)}")
-                raise HTTPException(status_code=500, detail="Error parsing survey response")
+                return JSONResponse(content={"error": "Error parsing survey response", "response_text": response_text}, status_code=500)
     except aiohttp.ClientError as e:
         logger.error(f"Connection error in analyze-survey: {str(e)}")
-        raise HTTPException(status_code=503, detail="Survey service unavailable")
+        return JSONResponse(content={"error": "Survey service unavailable"}, status_code=503)
     except Exception as e:
         logger.error(f"Error in analyze-survey: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/analyze-all")
 async def analyze_all(file: UploadFile = File(None), audio_file: UploadFile = File(None), text: str = Form(None), person_id: str = Form(None)):

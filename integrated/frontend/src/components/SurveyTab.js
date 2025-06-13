@@ -24,19 +24,21 @@ function SurveyTab() {
     setError(null);
 
     try {
+      const payload = {
+        Designation: Number(formData.designation),
+        Resource_Allocation: Number(formData.resourceAllocation),
+        Mental_Fatigue_Score: Number(formData.mentalFatigueScore),
+        Company_Type: formData.companyType,
+        WFH_Setup_Available: formData.wfhSetupAvailable,
+        Gender: formData.gender
+      };
+      console.log('Survey payload being sent:', payload);
       const response = await fetch('http://localhost:9000/analyze-survey', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          Designation: formData.designation,
-          Resource_Allocation: formData.resourceAllocation,
-          Mental_Fatigue_Score: formData.mentalFatigueScore,
-          Company_Type: formData.companyType,
-          WFH_Setup_Available: formData.wfhSetupAvailable,
-          Gender: formData.gender
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

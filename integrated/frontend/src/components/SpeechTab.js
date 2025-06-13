@@ -289,11 +289,11 @@ function SpeechTab() {
                     <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Sentiment</Typography>
                     <Typography sx={{ fontWeight: 600, fontSize: 20, mb: 1 }}>{result.sentiment || 'N/A'}</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <LinearProgress variant="determinate" value={result.confidence ? result.confidence * 100 : 0} sx={{ flex: 1, height: 8, borderRadius: 2 }} />
-                      <Chip label={`${result.confidence ? (result.confidence * 100).toFixed(2) : '0.00'}%`} size="small" sx={{ ml: 1, fontWeight: 700 }} />
+                      <LinearProgress variant="determinate" value={result.sentiment_score ? result.sentiment_score * 100 : 0} sx={{ flex: 1, height: 8, borderRadius: 2 }} />
+                      <Chip label={`${result.sentiment_score ? (result.sentiment_score * 100).toFixed(2) : '0.00'}%`} size="small" sx={{ ml: 1, fontWeight: 700 }} />
                     </Box>
                   </Paper>
-                  {/* Clarity Score Card (using confidence) */}
+                  {/* Clarity Score Card (using emotion_score) */}
                   <Paper elevation={0} sx={{ p: 3, borderRadius: 3, minWidth: 260, flex: 1, maxWidth: 340, border: '1px solid #eee', transition: 'transform 0.15s, box-shadow 0.15s', '&:hover': { boxShadow: 6, transform: 'scale(1.03)' } }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                       <GraphicEq sx={{ mr: 1 }} />
@@ -301,8 +301,8 @@ function SpeechTab() {
                     </Box>
                     <Typography><b>Speech Clarity</b></Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <LinearProgress variant="determinate" value={result.confidence ? result.confidence * 100 : 0} sx={{ flex: 1, height: 8, borderRadius: 2 }} />
-                      <Chip label={`${result.confidence ? (result.confidence * 100).toFixed(2) : '0.00'}%`} size="small" sx={{ ml: 1, fontWeight: 700 }} />
+                      <LinearProgress variant="determinate" value={result.emotion_score ? result.emotion_score * 100 : 0} sx={{ flex: 1, height: 8, borderRadius: 2 }} />
+                      <Chip label={`${result.emotion_score ? (result.emotion_score * 100).toFixed(2) : '0.00'}%`} size="small" sx={{ ml: 1, fontWeight: 700 }} />
                     </Box>
                   </Paper>
                 </Box>

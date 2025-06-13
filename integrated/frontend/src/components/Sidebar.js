@@ -8,6 +8,7 @@ import {
   Mic as SpeechIcon,
   Analytics as AnalysisIcon
 } from '@mui/icons-material';
+import Tooltip from '@mui/material/Tooltip';
 
 const navOptions = [
   { label: 'Dashboard', value: 'dashboard', icon: <DashboardIcon />, path: '/' },
@@ -24,67 +25,76 @@ const events = [
   'Stress Management Session - Next Wednesday',
 ];
 
-function Sidebar({ selected, onSelect }) {
+function Sidebar({ collapsed = false, menuItems = [], selected, onSelect }) {
   return (
     <Box
       sx={{
-        width: 300,
+        width: collapsed ? 60 : 250,
         minHeight: '100vh',
         bgcolor: 'background.paper',
         color: 'text.primary',
-        p: 3,
+        p: collapsed ? 1 : 3,
         borderRight: '1px solid #222',
         display: { xs: 'none', md: 'flex' },
         flexDirection: 'column',
         gap: 3,
+        alignItems: collapsed ? 'center' : 'flex-start',
+        transition: 'width 0.2s',
       }}
     >
-      <Box>
-        <Typography variant="h6" sx={{ mb: 1 }}>Navigation</Typography>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>Go to</Typography>
-        <RadioGroup
-          value={selected}
-          onChange={e => onSelect(e.target.value)}
-        >
-          {navOptions.map(opt => (
+      <Box sx={{ mb: 2, width: '100%', display: 'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+        <Typography variant="h6" sx={{ mb: 1, display: collapsed ? 'none' : 'block' }}>Navigation</Typography>
+      </Box>
+      <RadioGroup
+        value={selected}
+        onChange={e => onSelect(e.target.value)}
+        sx={{ width: '100%' }}
+      >
+        {(menuItems.length ? menuItems : navOptions).map(opt => (
+          <Tooltip key={opt.value || opt.text} title={opt.label || opt.text} placement="right" arrow disableInteractive>
             <FormControlLabel
-              key={opt.value}
-              value={opt.value}
-              control={<Radio size="small" />}
+              value={opt.path || opt.value}
+              control={<Radio size="small" sx={{ display: 'none' }} />}
               label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {opt.icon}
-                  <Typography>{opt.label}</Typography>
                 </Box>
               }
-              sx={{ 
+              sx={{
                 color: 'text.primary',
+                width: '100%',
+                justifyContent: 'center',
                 '&.Mui-selected': {
                   color: 'primary.main',
-                }
+                },
+                m: '8px 0',
+                pl: 0,
+                pr: 0,
               }}
             />
-          ))}
-        </RadioGroup>
-      </Box>
-      <Divider sx={{ my: 2, bgcolor: 'grey.800' }} />
-      <Box>
-        <Typography variant="h6" sx={{ mb: 1 }}>Mental Health Resources</Typography>
-        <Paper elevation={2} sx={{ bgcolor: 'primary.dark', color: 'primary.contrastText', p: 2, mb: 2 }}>
-          Need help? Contact HR or use the Employee Assistance Program
-        </Paper>
-      </Box>
-      <Divider sx={{ my: 2, bgcolor: 'grey.800' }} />
-      <Box>
-        <Typography variant="h6" sx={{ mb: 1 }}>Upcoming Events</Typography>
-        <List dense>
-          {events.map((event, idx) => (
-            <ListItem key={idx} sx={{ py: 0.5 }}>
-              <ListItemText primary={event} primaryTypographyProps={{ fontSize: 15 }} />
-            </ListItem>
-          ))}
-        </List>
-      </Box>
+          </Tooltip>
+        ))}
+      </RadioGroup>
+      {!collapsed && <>
+        <Divider sx={{ my: 2, bgcolor: 'grey.800' }} />
+        <Box>
+          <Typography variant="h6" sx={{ mb: 1 }}>Mental Health Resources</Typography>
+          <Paper elevation={2} sx={{ bgcolor: 'primary.dark', color: 'primary.contrastText', p: 2, mb: 2 }}>
+            Need help? Contact HR or use the Employee Assistance Program
+          </Paper>
+        </Box>
+        <Divider sx={{ my: 2, bgcolor: 'grey.800' }} />
+        <Box>
+          <Typography variant="h6" sx={{ mb: 1 }}>Upcoming Events</Typography>
+          <List dense>
+            {events.map((event, idx) => (
+              <ListItem key={idx} sx={{ py: 0.5 }}>
+                <ListItemText primary={event} primaryTypographyProps={{ fontSize: 15 }} />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      </>}
     </Box>
   );
 }

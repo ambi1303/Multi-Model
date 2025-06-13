@@ -19,9 +19,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Fix NumPy version issue
-np.__version__ = "1.24.3"  # Force NumPy version to be compatible
-
 app = FastAPI()
 
 # Configure CORS with more explicit settings
@@ -41,11 +38,28 @@ if not os.path.exists(MODEL_PATH):
     raise Exception(f"Vosk model not found at {MODEL_PATH}")
 model = Model(MODEL_PATH)
 
-# Initialize models
+# Initialize models with explicit device and NumPy check
 logger.info("Loading sentiment and emotion models...")
-sentiment_model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
-emotion_model = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base")
-logger.info("All models loaded successfully")
+try:
+    # Verify NumPy is available
+    logger.info(f"NumPy version: {np.__version__}")
+    
+    # Initialize models with explicit device
+    device = 0 if torch.cuda.is_available() else -1
+    sentiment_model = pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english",
+        device=device
+    )
+    emotion_model = pipeline(
+        "text-classification",
+        model="j-hartmann/emotion-english-distilroberta-base",
+        device=device
+    )
+    logger.info("All models loaded successfully")
+except Exception as e:
+    logger.error(f"Error initializing models: {str(e)}")
+    raise
 
 def convert_webm_to_wav(input_path, output_path):
     try:

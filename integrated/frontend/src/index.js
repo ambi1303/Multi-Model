@@ -5,6 +5,9 @@ import './index.css';
 import App from './App';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { ErrorBoundary } from './ErrorBoundary';
+import 'primereact/resources/themes/lara-light-blue/theme.css';
+import 'primereact/resources/primereact.min.css';
+import 'primeicons/primeicons.css';
 
 const theme = createTheme();
 
