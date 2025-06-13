@@ -49,7 +49,7 @@ function App() {
       const formData = new FormData();
       formData.append('file', blob, 'webcam.jpg');
 
-      const response = await axios.post('http://localhost:8000/analyze-emotion', formData, {
+      const response = await axios.post('http://localhost:8001/analyze-emotion', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }

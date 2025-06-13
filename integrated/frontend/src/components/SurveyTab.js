@@ -24,7 +24,7 @@ function SurveyTab() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:9000/predict', {
+      const response = await fetch('http://localhost:9000/analyze-survey', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,7 +41,7 @@ function SurveyTab() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Error analyzing survey');
+        throw new Error(data.detail || data.error || 'Error analyzing survey');
       }
       setResult(data);
       setResultOpen(true);

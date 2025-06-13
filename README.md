@@ -1,23 +1,20 @@
 # Integrated Multi-Modal Emotion & Mental State Analyzer
 
 This project is an integrated platform for analyzing emotion and mental state using multiple modalities:
-- **Video Emotion Recognition**
-- **Speech-to-Text Emotion Analyzer**
-- **Chat Mental State Analyzer**
-- **Employee Burnout Prediction Survey**
-
-All features are unified in a single backend and frontend for a seamless user experience.
-
----
+- **Video Emotion Recognition**: Real-time emotion detection from webcam or uploaded images
+- **Speech-to-Text Emotion Analyzer**: Voice recording analysis with transcription and sentiment detection
+- **Chat Mental State Analyzer**: Mental state analysis from chat messages
+- **Employee Burnout Prediction Survey**: Structured survey for burnout prediction
 
 ## Features
 
-- **Video**: Analyze emotions from webcam or uploaded images.
-- **Speech**: Record your voice and get transcription, sentiment, and confidence using speech-to-text and sentiment analysis.
-- **Chat**: Analyze the mental state from chat messages.
-- **Survey**: Predict employee burnout and stress level from a structured survey.
-
----
+- **Video Analysis**: Real-time emotion detection using DeepFace
+- **Speech Analysis**: 
+  - Speech-to-text conversion using Vosk
+  - Sentiment analysis using TextBlob
+  - Emotion detection from transcribed text
+- **Chat Analysis**: Mental state analysis from chat messages
+- **Survey Analysis**: Employee burnout prediction using machine learning models
 
 ## Project Structure
 
@@ -26,148 +23,175 @@ All features are unified in a single backend and frontend for a seamless user ex
 ├── integrated/
 │   ├── backend/         # Unified FastAPI backend (API gateway)
 │   └── frontend/        # Unified React frontend
-├── stt/                 # Speech-to-text service (with its own venv)
-├── survey/              # Survey service (with its own venv)
-├── video/               # Video service (with its own venv)
-├── chat/                # Chat service (with its own venv)
-├── docker-compose.yml   # Docker Compose configuration for all services
-└── README.md            # (This file)
+├── stt/                 # Speech-to-text service
+├── survey/             # Survey service
+├── video/              # Video service
+├── chat/               # Chat service
+├── setup.sh            # Setup script for all services
+└── README.md           # This file
 ```
 
----
+## Prerequisites
 
-## Setup and Running with Docker Compose (Recommended)
-
-This project is configured to run all services (frontend and multiple backends) using Docker Compose, ensuring a consistent development environment across different machines.
-
-#### Prerequisites
-- **Docker Desktop** (or Docker Engine) installed and running on your system.
-
-#### Steps to run the project:
-
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repo-url>
-    cd <your-repo-name>
-    ```
-
-2.  **Build and start all services:**
-    Navigate to the root directory of the project (where `docker-compose.yml` is located) and run:
-    ```bash
-    docker-compose up --build
-    ```
-    *   `docker-compose up`: Starts all services defined in `docker-compose.yml`.
-    *   `--build`: Builds the Docker images for each service. This is important to include the first time you run it or after making changes to any `Dockerfile` or `requirements.txt` / `package.json`.
-
-3.  **Access the application:**
-    Once all services are up and running, the frontend will be available in your browser at:
-    [http://localhost:3000](http://localhost:3000)
-
-#### Stopping the services
-
-To stop and remove all running containers, networks, and volumes created by `docker-compose up`, run:
-```bash
-docker-compose down
-```
-
----
-
-## Legacy Setup Instructions (Deprecated)
-
-### 1. Set Up Each Model Backend (REQUIRED)
-Each model backend (video, stt, chat, survey) has its own Python virtual environment and requirements. You must set these up before running the integrated backend.
-
-For each model (replace `<model_dir>` with `video/emp_face`, `stt/stt`, `chat/chat/mental_state_analyzer`, `survey/survey`):
-
-```bash
-cd <model_dir>
-python -m venv venv
-vv/Scripts/pip install -r requirements.txt  # On Windows
-# or
-vv/bin/pip install -r requirements.txt     # On Linux/Mac
-```
-
-Then, start each backend (see their respective README files for details).
-
-### 2. Integrated Backend (API Gateway)
-
-#### Prerequisites
 - Python 3.8+
-- [ffmpeg](https://ffmpeg.org/download.html) installed and available in your PATH (required for audio conversion)
+- Node.js 16+
+- ffmpeg (for audio processing)
+- Git
 
-#### Install dependencies
+## Quick Start
+
+1. **Clone the repository:**
+   ```bash
+   git clone <your-repo-url>
+   cd <your-repo-name>
+   ```
+
+2. **Run the setup script:**
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+   This script will:
+   - Create virtual environments for all Python services
+   - Install all required dependencies
+   - Download necessary models
+   - Set up the frontend
+
+3. **Start all services:**
+   ```bash
+   python start_all_backends.py
+   ```
+   This will start:
+   - Video backend (port 8001)
+   - STT backend (port 8002)
+   - Chat backend (port 8003)
+   - Survey backend (port 8004)
+   - Integrated backend (port 9000)
+
+4. **Access the application:**
+   Open your browser and navigate to:
+   ```
+   http://localhost:3000
+   ```
+
+## Manual Setup (Alternative)
+
+If you prefer to set up services manually:
+
+### 1. Set Up Python Virtual Environments
+
+For each service (video, stt, chat, survey):
+
 ```bash
-cd integrated/backend
+cd <service_directory>
+python -m venv venv
+source venv/bin/activate  # On Linux/Mac
+# or
+venv\Scripts\activate     # On Windows
 pip install -r requirements.txt
 ```
 
-#### Run the backend
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 9000
-```
+### 2. Set Up Frontend
 
-### 3. Frontend
-
-#### Prerequisites
-- Node.js 16+
-
-#### Install dependencies
 ```bash
 cd integrated/frontend
 npm install
 ```
 
-#### Run the frontend
+### 3. Start Services
+
+Start each backend service in a separate terminal:
+
 ```bash
+# Video Backend
+cd video/emp_face
+source venv/bin/activate
+uvicorn api:app --reload --port 8001
+
+# STT Backend
+cd stt/stt/api
+source venv/bin/activate
+uvicorn main:app --reload --port 8002
+
+# Chat Backend
+cd chat/chat/mental_state_analyzer
+source venv/bin/activate
+uvicorn api:app --reload --port 8003
+
+# Survey Backend
+cd survey/survey
+source venv/bin/activate
+uvicorn backend:app --reload --port 8004
+
+# Integrated Backend
+cd integrated/backend
+source venv/bin/activate
+uvicorn main:app --reload --port 9000
+
+# Frontend
+cd integrated/frontend
 npm start
 ```
 
-The frontend will be available at [http://localhost:3000](http://localhost:3000)
-
----
-
 ## Usage
 
-- Open the frontend in your browser.
-- Use the tabs to switch between Video, Speech, Chat, and Survey analyzers.
-- Each tab provides a modern, user-friendly interface for its respective modality.
-- **Note:** The frontend now only displays user-friendly results (no raw JSON is shown).
+1. **Video Analysis**:
+   - Allow camera access when prompted
+   - Click "Start Camera" to begin real-time emotion detection
+   - Upload an image for static analysis
 
----
+2. **Speech Analysis**:
+   - Click "Start Recording" to begin voice recording
+   - Speak clearly into your microphone
+   - Click "Stop Recording" to analyze the speech
+   - View transcription, sentiment, and emotion results
+
+3. **Chat Analysis**:
+   - Enter your message in the chat input
+   - Click "Analyze" to get mental state analysis
+   - View sentiment and emotion breakdown
+
+4. **Survey Analysis**:
+   - Fill out the employee survey form
+   - Submit to get burnout prediction and stress level analysis
 
 ## Troubleshooting
-- **ModuleNotFoundError:** Make sure you have installed all requirements in the correct venv for each backend.
-- **CORS errors:** Ensure all backends have permissive CORS settings for development.
-- **Port conflicts:** Make sure each backend runs on its designated port and is not blocked by another process.
-- **Frontend blank or errors:** Ensure React and MUI versions are compatible (React 18.x, MUI v5), and all dependencies are installed.
 
----
+1. **Camera/Microphone Access**:
+   - Ensure your browser has permission to access camera/microphone
+   - Check if other applications are using these devices
 
-## Notes
-- The backend uses the Vosk model for speech recognition. The model files are included in `stt/stt/vosk-model-small-en-us-0.15/`.
-- For best results, ensure your microphone and webcam are working and accessible by your browser.
-- All legacy services (in `stt/`, `survey/`, etc.) are now integrated and no longer need to be run separately, but their backends must be running for the integrated backend to work.
+2. **Port Conflicts**:
+   - Ensure no other services are using ports 8001-8004 and 9000
+   - Check if all backend services are running
 
----
+3. **Model Loading Issues**:
+   - Verify that all model files are downloaded correctly
+   - Check the logs for specific error messages
+
+4. **CORS Errors**:
+   - Ensure all backend services are running
+   - Check browser console for specific CORS error messages
+
+## Development
+
+- Each service has its own virtual environment for isolation
+- Backend services use FastAPI for API endpoints
+- Frontend uses React with Material-UI components
+- All services communicate through the integrated backend
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
+
 MIT
 
----
+## Support
 
-## 🚀 Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for planned enhancements and future directions for this project.
-
----
-
-## 📌 Next Steps
-
-- **Implement API Gateway:** Set up a centralized API gateway to manage all service routes.
-- **Integrate Message Queue:** Choose and configure a message queue system to handle asynchronous tasks.
-- **Set Up Model Tracking:** Incorporate MLflow or DVC for model versioning and experiment tracking.
-- **Enhance Security:** Add JWT authentication, rate limiting, and input validation mechanisms.
-- **Establish Monitoring:** Implement logging and monitoring tools to track system performance and user interactions.
-- **Improve Documentation:** Update the README.md with comprehensive information and create a ROADMAP.md for future plans.
-
-By addressing these areas, your project will be more robust, scalable, and maintainable, facilitating easier collaboration and deployment. 
+For issues and feature requests, please create an issue in the repository. 
