@@ -158,29 +158,24 @@ function App() {
         )}
         
         {result && (
-          <div className="result">
-            <h2>Analysis Results</h2>
-            <div className="result-content">
-              <div className="result-section">
-                <h3>Transcribed Text</h3>
-                <p>{result.text}</p>
-              </div>
-              <div className="result-section">
-                <h3>Sentiment</h3>
-                <p style={{ color: getSentimentColor(result.sentiment) }}>
-                  {result.sentiment}
-                </p>
-              </div>
-              <div className="result-section">
-                <h3>Confidence</h3>
-                <div className="confidence-bar">
-                  <div 
-                    className="confidence-fill"
-                    style={{ width: `${result.confidence * 100}%` }}
-                  ></div>
-                </div>
-                <p>{(result.confidence * 100).toFixed(1)}%</p>
-              </div>
+          <div className="result-console" style={{
+            background: '#181818',
+            color: '#fff',
+            borderRadius: 8,
+            padding: 24,
+            fontFamily: 'monospace',
+            fontSize: '1.1em',
+            marginTop: 24,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.15)'
+          }}>
+            <div>
+              <span role="img" aria-label="mic">🎤</span> <b>Transcribed Text:</b> {result.text || 'N/A'}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <span role="img" aria-label="brain">🧠</span> <b>Sentiment:</b> {result.sentiment || 'N/A'} <span style={{ color: '#aaa' }}>(Confidence: {typeof result.sentiment_score === 'number' ? result.sentiment_score.toFixed(2) : '0.00'})</span>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <span role="img" aria-label="bubble">💬</span> <b>Emotion:</b> {result.emotion || 'N/A'} <span style={{ color: '#aaa' }}>(Confidence: {typeof result.emotion_score === 'number' ? result.emotion_score.toFixed(2) : '0.00'})</span>
             </div>
           </div>
         )}

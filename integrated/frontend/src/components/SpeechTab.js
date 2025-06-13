@@ -186,36 +186,26 @@ function SpeechTab() {
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
         )}
         {result && (
-          <Paper elevation={2} sx={{ p: 3, textAlign: 'center', border: '2px solid', borderColor: 'primary.main', borderRadius: 2 }}>
-            {result.text ? (
-              <>
-                <Typography variant="h6" color="primary" sx={{ mb: 2 }}>Transcribed Text</Typography>
-                <Typography variant="body1" sx={{ mb: 2 }}>{result.text}</Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Sentiment</Typography>
-                    <Typography variant="h6" color={result.sentiment === 'POSITIVE' ? 'success.main' : result.sentiment === 'NEGATIVE' ? 'error.main' : 'warning.main'}>
-                      {result.sentiment}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Confidence</Typography>
-                    <Typography variant="h6" color="primary">
-                      {(result.confidence * 100).toFixed(1)}%
-                    </Typography>
-                  </Box>
-                </Box>
-              </>
-            ) : (
-              <>
-                <Typography color="warning.main">No text detected or unexpected response.</Typography>
-                <Typography variant="subtitle2" sx={{ mt: 1 }}>Raw JSON:</Typography>
-                <Box component="pre" sx={{ background: '#eee', color: '#333', p: 2, borderRadius: 1, textAlign: 'left', fontSize: '0.95em', mt: 1 }}>
-                  {JSON.stringify(result, null, 2)}
-                </Box>
-              </>
-            )}
-          </Paper>
+          <div className="result-console" style={{
+            background: '#181818',
+            color: '#fff',
+            borderRadius: 8,
+            padding: 24,
+            fontFamily: 'monospace',
+            fontSize: '1.1em',
+            marginTop: 24,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.15)'
+          }}>
+            <div>
+              <span role="img" aria-label="mic">🎤</span> <b>Transcribed Text:</b> {result.text || 'N/A'}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <span role="img" aria-label="brain">🧠</span> <b>Sentiment:</b> {result.sentiment || 'N/A'} <span style={{ color: '#aaa' }}>(Confidence: {typeof result.sentiment_score === 'number' ? result.sentiment_score.toFixed(2) : '0.00'})</span>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <span role="img" aria-label="bubble">💬</span> <b>Emotion:</b> {result.emotion || 'N/A'} <span style={{ color: '#aaa' }}>(Confidence: {typeof result.emotion_score === 'number' ? result.emotion_score.toFixed(2) : '0.00'})</span>
+            </div>
+          </div>
         )}
       </Box>
     </Box>

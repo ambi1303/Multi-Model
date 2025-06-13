@@ -9,6 +9,11 @@ import os
 import json
 from datetime import datetime
 from survey_predict import train_models
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Employee Burnout Prediction Backend",
@@ -26,6 +31,26 @@ app.add_middleware(
     expose_headers=["*"],  # Expose all headers
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    Train models on startup if they don't exist
+    """
+    try:
+        models_dir = os.path.join(os.path.dirname(__file__), 'models')
+        scaler_path = os.path.join(models_dir, 'scaler.pkl')
+        model_path = os.path.join(models_dir, 'linear_regression.pkl')
+        
+        if not os.path.exists(scaler_path) or not os.path.exists(model_path):
+            logger.info("Models not found. Training models...")
+            train_models()
+            logger.info("Models trained successfully")
+        else:
+            logger.info("Models found, skipping training")
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+        raise e
 
 # Data Models
 class EmployeeData(BaseModel):
@@ -121,12 +146,16 @@ async def predict(employee: EmployeeData):
         input_df = input_df[trained_features]
 
         # Load scaler and model
-        if not os.path.exists('models/scaler.pkl') or not os.path.exists('models/linear_regression.pkl'):
+        models_dir = os.path.join(os.path.dirname(__file__), 'models')
+        scaler_path = os.path.join(models_dir, 'scaler.pkl')
+        model_path = os.path.join(models_dir, 'linear_regression.pkl')
+        
+        if not os.path.exists(scaler_path) or not os.path.exists(model_path):
             raise HTTPException(status_code=400, detail="Models not trained yet. Please train the models first.")
 
-        with open('models/scaler.pkl', 'rb') as f:
+        with open(scaler_path, 'rb') as f:
             scaler = pickle.load(f)
-        with open('models/linear_regression.pkl', 'rb') as f:
+        with open(model_path, 'rb') as f:
             model = pickle.load(f)
 
         # Scale the input
@@ -208,7 +237,14 @@ async def analyze(employee: EmployeeData):
     """
     Wrapper for /predict to support integration with the common backend.
     """
-    return await predict(employee)
+    try:
+        logger.info(f"Received survey data for analysis: {employee.dict()}")
+        result = await predict(employee)
+        logger.info(f"Survey analysis completed successfully: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in survey analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

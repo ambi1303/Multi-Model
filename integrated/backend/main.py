@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form, Body, Request
+from fastapi import FastAPI, File, UploadFile, Form, Body, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import requests
@@ -149,62 +149,24 @@ async def analyze_video(file: UploadFile = File(...)):
 
 @app.post("/analyze-speech")
 async def analyze_speech(audio_file: UploadFile = File(...)):
-    temp_audio_path = None
-    wav_path = None
-    wf = None
+    # Proxy the audio file to the STT backend (port 8002)
+    stt_url = "http://localhost:8002/analyze-speech"
     try:
-        # Save uploaded file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
-            content = await audio_file.read()
-            temp_audio.write(content)
-            temp_audio_path = temp_audio.name
-        # Convert WebM to WAV
-        wav_path = temp_audio_path.replace('.webm', '.wav')
-        if not convert_webm_to_wav(temp_audio_path, wav_path):
-            return {"error": "Failed to convert audio format"}
-        # Process audio with Vosk
-        wf = wave.open(wav_path, "rb")
-        if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
-            return {"error": "Audio file must be WAV format mono PCM."}
-        if vosk_model is None:
-            return {"error": "Vosk model not loaded on server."}
-        recognizer = KaldiRecognizer(vosk_model, wf.getframerate())
-        recognizer.SetWords(True)
-        while True:
-            data = wf.readframes(4000)
-            if len(data) == 0:
-                break
-            recognizer.AcceptWaveform(data)
-        result = json.loads(recognizer.FinalResult())
-        transcribed_text = result.get("text", "")
-        if not transcribed_text:
-            return {"text": "", "sentiment": "N/A", "confidence": 0.0, "error": "No text was transcribed."}
-        # Sentiment analysis
-        analysis = TextBlob(transcribed_text)
-        sentiment_score = analysis.sentiment.polarity
-        if sentiment_score > 0:
-            sentiment = "POSITIVE"
-        elif sentiment_score < 0:
-            sentiment = "NEGATIVE"
-        else:
-            sentiment = "NEUTRAL"
-        return {
-            "text": transcribed_text,
-            "sentiment": sentiment,
-            "confidence": abs(sentiment_score)
-        }
+        # Read the uploaded file
+        file_bytes = await audio_file.read()
+        form = FormData()
+        form.add_field(
+            name="audio_file",
+            value=file_bytes,
+            filename=audio_file.filename,
+            content_type=audio_file.content_type or "application/octet-stream"
+        )
+        async with session.post(stt_url, data=form) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
     except Exception as e:
-        return {"error": str(e)}
-    finally:
-        if wf:
-            wf.close()
-        try:
-            if temp_audio_path and os.path.exists(temp_audio_path):
-                os.unlink(temp_audio_path)
-            if wav_path and os.path.exists(wav_path):
-                os.unlink(wav_path)
-        except Exception as e:
-            print(f"Error cleaning up temporary files: {str(e)}")
+        logger.error(f"Error proxying to STT backend: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/analyze-chat")
 async def analyze_chat(request: Request):
@@ -231,9 +193,28 @@ async def analyze_chat(request: Request):
         return JSONResponse(content=await resp.json(), status_code=resp.status)
 
 @app.post("/analyze-survey")
-async def analyze_survey():
-    async with session.post(SURVEY_BACKEND_URL) as resp:
-        return JSONResponse(content=await resp.json(), status_code=resp.status)
+async def analyze_survey(employee: EmployeeData):
+    try:
+        logger.info(f"Forwarding survey data to backend: {employee.dict()}")
+        async with session.post(SURVEY_BACKEND_URL, json=employee.dict()) as resp:
+            if resp.status != 200:
+                error_detail = await resp.text()
+                logger.error(f"Survey backend error: {error_detail}")
+                raise HTTPException(status_code=resp.status, detail=error_detail)
+            
+            try:
+                response_data = await resp.json()
+                logger.info(f"Survey analysis completed successfully: {response_data}")
+                return JSONResponse(content=response_data, status_code=resp.status)
+            except Exception as e:
+                logger.error(f"Error parsing survey response: {str(e)}")
+                raise HTTPException(status_code=500, detail="Error parsing survey response")
+    except aiohttp.ClientError as e:
+        logger.error(f"Connection error in analyze-survey: {str(e)}")
+        raise HTTPException(status_code=503, detail="Survey service unavailable")
+    except Exception as e:
+        logger.error(f"Error in analyze-survey: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze-all")
 async def analyze_all(file: UploadFile = File(None), audio_file: UploadFile = File(None), text: str = Form(None), person_id: str = Form(None)):
@@ -290,73 +271,6 @@ async def debug_echo(request: Request):
     except Exception:
         json_body = None
     return {"raw_body": body.decode(), "json_body": json_body}
-
-@app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-async def predict(employee: EmployeeData):
-    """
-    Predict burnout rate for an employee using the trained model.
-    """
-    try:
-        # Convert input to DataFrame
-        input_data = {
-            'Designation': employee.Designation,
-            'Resource Allocation': employee.Resource_Allocation,
-            'Mental Fatigue Score': employee.Mental_Fatigue_Score,
-            'Company Type': employee.Company_Type,
-            'WFH Setup Available': employee.WFH_Setup_Available,
-            'Gender': employee.Gender
-        }
-        input_df = pd.DataFrame([input_data])
-
-        # One-hot encode categorical columns
-        input_df = pd.get_dummies(input_df, columns=['Company Type', 'WFH Setup Available', 'Gender'], drop_first=True)
-
-        # Ensure the input has the same columns as the model was trained on
-        trained_features = ['Designation', 'Resource Allocation', 'Mental Fatigue Score', 
-                          'Company Type_Service', 'WFH Setup Available_Yes', 'Gender_Male']
-        for col in trained_features:
-            if col not in input_df.columns:
-                input_df[col] = 0
-        input_df = input_df[trained_features]
-
-        # Load scaler and model
-        model_dir = os.path.join(os.path.dirname(__file__), 'models')
-        scaler_path = os.path.join(model_dir, 'scaler.pkl')
-        model_path = os.path.join(model_dir, 'linear_regression.pkl')
-        if not os.path.exists(scaler_path) or not os.path.exists(model_path):
-            return JSONResponse(content={"error": "Models not trained yet. Please add scaler.pkl and linear_regression.pkl to the models directory."}, status_code=400)
-
-        with open(scaler_path, 'rb') as f:
-            scaler = pickle.load(f)
-        with open(model_path, 'rb') as f:
-            model = pickle.load(f)
-
-        # Scale the input
-        input_scaled = scaler.transform(input_df)
-
-        # Predict
-        prediction = model.predict(input_scaled)[0]
-
-        # Determine stress level based on burn rate
-        if prediction < 0.3:
-            stress_level = "Low Stress"
-        elif prediction < 0.5:
-            stress_level = "Medium Stress"
-        elif prediction < 0.7:
-            stress_level = "High Stress"
-        else:
-            stress_level = "Very High Stress"
-
-        response = {
-            "burn_rate": prediction,
-            "stress_level": stress_level,
-            "model_used": "Linear Regression",
-            "prediction_time": datetime.now().isoformat()
-        }
-        return response
-
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/dashboard-stats")
 async def dashboard_stats():
