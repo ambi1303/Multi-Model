@@ -121,4 +121,12 @@ export const getDashboardStats = async () => {
 export const checkHealth = async () => {
     const response = await api.get('/health');
     return response.data;
+};
+
+// Batch Chat Analysis from JSON file
+export const analyzeChatFile = async (messages) => {
+    // messages: array of {text, person_id, timestamp}
+    const response = await api.post('/analyze/multiple', messages);
+    // Expected response: { analyzed_messages: [...], summary: {...} }
+    return response.data;
 }; 

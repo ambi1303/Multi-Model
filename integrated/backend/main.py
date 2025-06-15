@@ -290,4 +290,17 @@ async def dashboard_stats():
         "stress_score": random.randint(0, 100),
         "work_life_balance": 100,
         "stress_trend": trend
-    } 
+    }
+
+@app.post("/analyze/multiple")
+async def analyze_multiple(request: Request):
+    try:
+        payload = await request.json()
+        logger.info(f"Proxying /analyze/multiple to chat backend with payload: {payload}")
+        async with session.post("http://localhost:8003/analyze/multiple", json=payload) as resp:
+            data = await resp.json()
+            logger.info(f"Chat backend /analyze/multiple response: {data}")
+            return JSONResponse(content=data, status_code=resp.status)
+    except Exception as e:
+        logger.error(f"Error proxying to chat backend: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500) 

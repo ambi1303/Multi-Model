@@ -31,7 +31,7 @@ const SentimentAnalysis = () => {
                 multiline
                 rows={4}
                 variant="outlined"
-                label="Enter your text"
+                label="What's running in your mind?"
                 sx={{ mb: 2 }}
               />
               <Button
