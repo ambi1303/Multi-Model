@@ -25,6 +25,22 @@ function App() {
                 <Route
                   index
                   element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Home..." />}>
+                      <Home />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="home"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Home..." />}>
+                      <Home />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="dashboard"
+                  element={
                     <Suspense fallback={<LoadingSpinner message="Loading Dashboard..." />}>
                       <Dashboard />
                     </Suspense>
@@ -59,14 +75,6 @@ function App() {
                   element={
                     <Suspense fallback={<LoadingSpinner message="Loading Burnout Survey..." />}>
                       <BurnoutSurvey />
-                    </Suspense>
-                  }
-                />
-                <Route
-                  path="home"
-                  element={
-                    <Suspense fallback={<LoadingSpinner message="Loading Home..." />}>
-                      <Home />
                     </Suspense>
                   }
                 />

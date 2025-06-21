@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -13,6 +13,10 @@ export const AppShell: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const location = useLocation();
+
+  // Hide header/sidebar on landing page
+  const isLanding = location.pathname === '/' || location.pathname === '/home';
 
   const handleDrawerToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -20,9 +24,8 @@ export const AppShell: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <Header onMenuClick={handleDrawerToggle} />
-      
-      {isMobile ? (
+      {!isLanding && <Header onMenuClick={handleDrawerToggle} />}
+      {!isLanding && (isMobile ? (
         <Sidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
@@ -38,15 +41,14 @@ export const AppShell: React.FC = () => {
             width={DRAWER_WIDTH}
           />
         )
-      )}
-      
+      ))}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           display: 'flex',
           flexDirection: 'column',
-          mt: '64px', // Header height
+          mt: !isLanding ? '64px' : 0, // Header height
           transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           width: '100%',
         }}
@@ -60,7 +62,6 @@ export const AppShell: React.FC = () => {
         >
           <Outlet />
         </Box>
-        
         <Footer />
       </Box>
     </Box>

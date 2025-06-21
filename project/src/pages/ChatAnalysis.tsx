@@ -119,10 +119,50 @@ export const ChatAnalysis: React.FC = () => {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ textAlign: 'center', mb: 4 }}>
-        <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 2 }}>
+      <Box sx={{ textAlign: 'center', mb: 4, mt: 2, animation: 'fadeIn 1.2s cubic-bezier(0.4,0,0.2,1)', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(-30px)' }, to: { opacity: 1, transform: 'none' } } }}>
+        <Typography
+          variant="h3"
+          component="h1"
+          sx={{
+            fontWeight: 700,
+            mb: 2,
+            background: 'linear-gradient(90deg, #6366f1, #7c3aed, #06b6d4, #f59e42, #6366f1)',
+            backgroundSize: '200% auto',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            animation: 'gradientMove 3s linear infinite',
+            '@keyframes gradientMove': {
+              '0%': { backgroundPosition: '0% 50%' },
+              '50%': { backgroundPosition: '100% 50%' },
+              '100%': { backgroundPosition: '0% 50%' },
+            },
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
           Chat Mental State Analysis
         </Typography>
+        <Box
+          sx={{
+            width: 320,
+            maxWidth: '80vw',
+            height: 6,
+            mx: 'auto',
+            borderRadius: 3,
+            background: 'linear-gradient(90deg, #6366f1, #7c3aed, #06b6d4, #f59e42, #6366f1)',
+            backgroundSize: '200% auto',
+            animation: 'underlineMove 3s linear infinite',
+            '@keyframes underlineMove': {
+              '0%': { backgroundPosition: '0% 50%' },
+              '50%': { backgroundPosition: '100% 50%' },
+              '100%': { backgroundPosition: '0% 50%' },
+            },
+            mt: 1,
+            mb: 3,
+            opacity: 0.85,
+          }}
+        />
         <Typography variant="h6" color="text.secondary">
           Analyze emotional patterns and mental states from text conversations
         </Typography>
