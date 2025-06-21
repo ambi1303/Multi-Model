@@ -3,7 +3,7 @@ import { Box, Button, Typography, CircularProgress, Alert, Dialog, DialogTitle, 
 import { PlayArrow, Stop } from '@mui/icons-material';
 import Webcam from 'react-webcam';
 
-function VideoTab() {
+function VideoTab(props) {
   const webcamRef = useRef(null);
   const [error, setError] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -69,6 +69,7 @@ function VideoTab() {
     } else if (isAnalyzing && timeLeft === 0) {
       setIsAnalyzing(false);
       setResultOpen(true);
+      handleModalSubmit();
     }
     return () => clearInterval(timer);
   }, [isAnalyzing, timeLeft]);
@@ -89,6 +90,13 @@ function VideoTab() {
   const handleCloseResult = useCallback(() => {
     setResultOpen(false);
   }, []);
+
+  const handleModalSubmit = () => {
+    if (props.isModalStep && props.onSubmit) {
+      const sentiment = getMostFrequentEmotion();
+      props.onSubmit({ sentiment, score: 100 });
+    }
+  };
 
   return (
     <Box>

@@ -14,7 +14,7 @@ import {
 import { motion } from 'framer-motion';
 import { analyzeChatFile } from '../services/api';
 
-function ChatTab() {
+function ChatTab(props) {
   const [text, setText] = useState('');
   const [charCount, setCharCount] = useState(0);
   const [wordCount, setWordCount] = useState(0);
@@ -56,7 +56,7 @@ function ChatTab() {
 
     setLoading(true);
     setResult(null);
-    setShowLoadingCard(true); 
+    setShowLoadingCard(true);
 
     try {
       const response = await fetch('http://localhost:9000/analyze-chat', {
@@ -71,17 +71,18 @@ function ChatTab() {
       });
 
       const data = await response.json();
-      console.log("Backend response data:", data);
       if (!response.ok) {
         throw new Error(data.error || 'Error analyzing text');
       }
-      // Use backend response directly
       setResult(data);
+      if (props.isModalStep && props.onSubmit) {
+        props.onSubmit(data);
+      }
     } catch (err) {
       console.error('Error analyzing text:', err);
     } finally {
       setLoading(false);
-      setShowLoadingCard(false); 
+      setShowLoadingCard(false);
     }
   };
 
@@ -169,85 +170,179 @@ function ChatTab() {
         Analyze your text for sentiment, emotions, and insights
       </Typography>
 
-      {/* Input Card */}
-      <Paper
-        elevation={3}
+      {/* Input areas side by side */}
+      <Box
         sx={{
-          p: { xs: 2, sm: 3, md: 4 },
-          maxWidth: 600,
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
           width: '100%',
-          borderRadius: 3,
-          bgcolor: 'white',
-          boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
-          border: '1px solid #E0E0E0',
-          mb: 3, 
+          maxWidth: 1200,
+          gap: 4,
+          alignItems: 'stretch',
+          justifyContent: 'center',
+          mb: 2,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <MessageOutlinedIcon sx={{ mr: 1, color: '#616161' }} />
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
-            What's running in your mind?
-          </Typography>
-        </Box>
-        <TextField
-          multiline
-          rows={6}
-          variant="outlined"
-          placeholder="Type or paste your text here for analysis..."
-          value={text}
-          onChange={handleTextChange}
-          disabled={loading}
-          fullWidth
-          sx={{
-            mb: 1,
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
-              borderColor: '#E0E0E0',
-              '&:hover fieldset': {
-                borderColor: '#BDBDBD',
-              },
-              '&.Mui-focused fieldset': {
-                borderColor: '#9575CD',
-              },
-            },
-          }}
-        />
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {charCount} characters • {wordCount} words
-        </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            type="submit"
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={!text.trim() || loading}
-            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <AutoAwesomeIcon />}
+        {/* Chat Input Section */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Paper
+            elevation={3}
             sx={{
-              background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)', 
-              color: 'white',
-              py: 1.5,
-              px: 3,
-              borderRadius: 2,
-              fontWeight: 600,
-              textTransform: 'none',
-              '&:hover': {
-                opacity: 0.9,
-                background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)',
-              },
+              p: { xs: 2, sm: 3, md: 4 },
+              width: '100%',
+              borderRadius: 3,
+              bgcolor: 'white',
+              boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #E0E0E0',
+              mb: 0,
+              mx: 'auto',
             }}
           >
-            {loading ? 'Analyzing...' : 'Analyze Text'}
-          </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <MessageOutlinedIcon sx={{ mr: 1, color: '#616161' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+                What's running in your mind?
+              </Typography>
+            </Box>
+            <TextField
+              multiline
+              rows={6}
+              variant="outlined"
+              placeholder="Type or paste your text here for analysis..."
+              value={text}
+              onChange={handleTextChange}
+              disabled={loading}
+              fullWidth
+              sx={{
+                mb: 1,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  borderColor: '#E0E0E0',
+                  '&:hover fieldset': {
+                    borderColor: '#BDBDBD',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#9575CD',
+                  },
+                },
+              }}
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {charCount} characters • {wordCount} words
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                type="submit"
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={!text.trim() || loading}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <AutoAwesomeIcon />}
+                sx={{
+                  background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)', 
+                  color: 'white',
+                  py: 1.5,
+                  px: 3,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    opacity: 0.9,
+                    background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)',
+                  },
+                }}
+              >
+                {loading ? 'Analyzing...' : 'Analyze Text'}
+              </Button>
+            </Box>
+          </Paper>
         </Box>
-      </Paper>
 
-      {/* Loading Card (New) */}
+        {/* Divider */}
+        <Box
+          sx={{
+            width: { xs: '100%', md: 2 },
+            background: { xs: 'transparent', md: 'linear-gradient(180deg, #E0E0E0 0%, #BDBDBD 100%)' },
+            mx: { xs: 0, md: 2 },
+            my: { xs: 2, md: 0 },
+            borderRadius: 1,
+            display: { xs: 'none', md: 'block' },
+          }}
+        />
+
+        {/* Batch Chat Input Section */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: { xs: 2, sm: 3, md: 4 },
+              width: '100%',
+              borderRadius: 3,
+              bgcolor: 'white',
+              boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #E0E0E0',
+              mb: 0,
+              mx: 'auto',
+            }}
+          >
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#512DA8', mb: 2 }}>
+              Chat Analysis (Batch)
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              Upload a chat JSON file to analyze emotions, sentiment, and mental state for each message.
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <input
+                accept="application/json"
+                style={{ display: 'none' }}
+                id="batch-chat-file"
+                type="file"
+                onChange={handleBatchFileChange}
+                disabled={batchLoading}
+              />
+              <label htmlFor="batch-chat-file">
+                <Button
+                  variant="contained"
+                  component="span"
+                  disabled={batchLoading}
+                  sx={{
+                    background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)',
+                    color: 'white',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    px: 3,
+                    py: 1.5,
+                    '&:hover': { opacity: 0.9 },
+                  }}
+                >
+                  Fetch Chat
+                </Button>
+              </label>
+              <Typography variant="body2" color="text.secondary">
+                {batchFileName}
+              </Typography>
+            </Box>
+            {batchLoading && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <CircularProgress size={24} />
+                <Typography>Analyzing chat messages...</Typography>
+              </Box>
+            )}
+            {batchError && (
+              <Typography color="error" sx={{ mb: 2 }}>{batchError}</Typography>
+            )}
+          </Paper>
+        </Box>
+      </Box>
+
+      {/* Output/results area (full width) */}
+      {/* Chat Analysis Output */}
       {showLoadingCard && (
         <Paper
           elevation={3}
           sx={{
             p: { xs: 2, sm: 3, md: 4 },
-            maxWidth: 600,
+            maxWidth: 900,
             width: '100%',
             borderRadius: 3,
             bgcolor: 'white',
@@ -258,6 +353,7 @@ function ChatTab() {
             alignItems: 'center',
             textAlign: 'center',
             mt: 3, 
+            mx: 'auto',
           }}
         >
           <CircularProgress 
@@ -303,10 +399,8 @@ function ChatTab() {
           </motion.div>
         </Paper>
       )}
-
-      {/* Analysis Results */}
       {result && !showLoadingCard && (
-        <Box sx={{ mt: 3, width: '100%', maxWidth: 600, mx: 'auto' }}>
+        <Box sx={{ mt: 3, width: '100%', maxWidth: 900, mx: 'auto' }}>
           {/* Analysis Complete Banner */}
           <Box
             sx={{
@@ -330,7 +424,6 @@ function ChatTab() {
               </Typography>
             </Box>
           </Box>
-
           {/* Summary Cards */}
           <Grid container spacing={2} mb={3}>
             {/* Sentiment Card */}
@@ -432,137 +525,74 @@ function ChatTab() {
           </Grid>
         </Box>
       )}
-
-      {/* Batch Chat Analysis Section */}
-      <Paper
-        elevation={3}
-        sx={{
-          p: { xs: 2, sm: 3, md: 4 },
-          maxWidth: 700,
-          width: '100%',
-          borderRadius: 3,
-          bgcolor: 'white',
-          boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
-          border: '1px solid #E0E0E0',
-          mb: 3,
-          mt: 2,
-        }}
-      >
-        <Typography variant="h5" sx={{ fontWeight: 700, color: '#512DA8', mb: 2 }}>
-          Chat Analysis (Batch)
-        </Typography>
-        <Typography variant="body1" sx={{ mb: 2 }}>
-          Upload a chat JSON file to analyze emotions, sentiment, and mental state for each message.
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <input
-            accept="application/json"
-            style={{ display: 'none' }}
-            id="batch-chat-file"
-            type="file"
-            onChange={handleBatchFileChange}
-            disabled={batchLoading}
-          />
-          <label htmlFor="batch-chat-file">
-            <Button
-              variant="contained"
-              component="span"
-              disabled={batchLoading}
-              sx={{
-                background: 'linear-gradient(45deg, #7E57C2 30%, #BA68C8 90%)',
-                color: 'white',
-                fontWeight: 600,
-                borderRadius: 2,
-                textTransform: 'none',
-                px: 3,
-                py: 1.5,
-                '&:hover': { opacity: 0.9 },
-              }}
-            >
-              Fetch Chat
-            </Button>
-          </label>
-          <Typography variant="body2" color="text.secondary">
-            {batchFileName}
-          </Typography>
-        </Box>
-        {batchLoading && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <CircularProgress size={24} />
-            <Typography>Analyzing chat messages...</Typography>
-          </Box>
-        )}
-        {batchError && (
-          <Typography color="error" sx={{ mb: 2 }}>{batchError}</Typography>
-        )}
-        {batchResult && (
-          <Box>
-            {/* Summary Section */}
-            <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: '#F3E5F5', borderRadius: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#6A1B9A' }}>Summary</Typography>
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-                {JSON.stringify(batchResult.summary, null, 2)}
-              </pre>
-            </Paper>
-            {/* Visualizations */}
-            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-              <Box>
-                <Typography variant="subtitle1">Mental States Distribution</Typography>
-                <img
-                  src="http://localhost:8003/visualizations/mental-states"
-                  alt="Mental States Distribution"
-                  style={{ maxWidth: 300, borderRadius: 8, border: '1px solid #E0E0E0' }}
-                  onError={e => { e.target.style.display = 'none'; }}
-                />
-              </Box>
-              <Box>
-                <Typography variant="subtitle1">Sentiment Trend</Typography>
-                <img
-                  src="http://localhost:8003/visualizations/sentiment-trend"
-                  alt="Sentiment Trend"
-                  style={{ maxWidth: 300, borderRadius: 8, border: '1px solid #E0E0E0' }}
-                  onError={e => { e.target.style.display = 'none'; }}
-                />
-              </Box>
+      {/* Batch Analysis Output */}
+      {batchResult && (
+        <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', mb: 3 }}>
+          {/* Summary Section */}
+          <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: '#F3E5F5', borderRadius: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#6A1B9A' }}>Summary</Typography>
+            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+              {JSON.stringify(batchResult.summary, null, 2)}
+            </pre>
+          </Paper>
+          {/* Visualizations */}
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle1">Mental States Distribution</Typography>
+              <img
+                src="http://localhost:8003/visualizations/mental-states"
+                alt="Mental States Distribution"
+                style={{ maxWidth: 300, borderRadius: 8, border: '1px solid #E0E0E0' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
             </Box>
-            {/* Table of analyzed messages */}
-            <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#512DA8', mb: 1 }}>
-                Per-Message Analysis
-              </Typography>
-              <Box sx={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#ede7f6' }}>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Timestamp</th>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Text</th>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Person ID</th>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Sentiment</th>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Primary Emotion</th>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Emotion Score</th>
-                      <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Mental State</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {batchResult.analyzed_messages.map((msg, idx) => (
-                      <tr key={idx}>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.timestamp}</td>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.text}</td>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.person_id}</td>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.sentiment_score?.toFixed(2)}</td>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.primary_emotion}</td>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{(msg.emotion_score * 100).toFixed(2)}</td>
-                        <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.mental_state}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Box>
-            </Paper>
+            <Box>
+              <Typography variant="subtitle1">Sentiment Trend</Typography>
+              <img
+                src="http://localhost:8003/visualizations/sentiment-trend"
+                alt="Sentiment Trend"
+                style={{ maxWidth: 300, borderRadius: 8, border: '1px solid #E0E0E0' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
+            </Box>
           </Box>
-        )}
-      </Paper>
-
+          {/* Table of analyzed messages */}
+          <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#512DA8', mb: 1 }}>
+              Per-Message Analysis
+            </Typography>
+            <Box sx={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#ede7f6' }}>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Timestamp</th>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Text</th>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Person ID</th>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Sentiment</th>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Primary Emotion</th>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Emotion Score</th>
+                    <th style={{ padding: 8, border: '1px solid #D1C4E9' }}>Mental State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchResult.analyzed_messages.map((msg, idx) => (
+                    <tr key={idx}>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.timestamp}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.text}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.person_id}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.sentiment_score?.toFixed(2)}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.primary_emotion}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{(msg.emotion_score * 100).toFixed(2)}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.mental_state}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Box>
+          </Paper>
+        </Box>
+      )}
+      {/* Chat messages (if any) */}
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
         {chatMessages.map((message, index) => (
           <Box

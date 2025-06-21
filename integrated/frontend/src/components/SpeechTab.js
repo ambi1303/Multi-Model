@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Box, Typography, CircularProgress, Paper, Button, LinearProgress, Chip } from '@mui/material';
 import { Mic, Stop, UploadFile, CloudUpload, GraphicEq, VolumeUp } from '@mui/icons-material';
+import { useSentiment } from '../SentimentContext';
 
 function pad(num) {
   return num.toString().padStart(2, '0');
@@ -12,7 +13,7 @@ function formatTime(seconds) {
   return `${pad(m)}:${pad(s)}`;
 }
 
-function SpeechTab() {
+function SpeechTab(props) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [result, setResult] = useState(null);
@@ -24,6 +25,7 @@ function SpeechTab() {
   const timerInterval = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const { setResult: setSentimentResult } = useSentiment();
 
   // Timer effect
   useEffect(() => {
@@ -126,6 +128,13 @@ function SpeechTab() {
         throw new Error(data.error || 'Error analyzing speech');
       }
       setResult(data);
+      // Update context with sentiment and score
+      if (data.sentiment && typeof data.sentiment_score === 'number') {
+        setSentimentResult('Audio', { sentiment: data.sentiment, score: data.sentiment_score * 100 });
+      }
+      if (props.isModalStep && props.onSubmit) {
+        props.onSubmit(data);
+      }
     } catch (err) {
       setError(err.message);
     } finally {

@@ -4,6 +4,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import { styled, alpha } from '@mui/material/styles';
 import AdbIcon from '@mui/icons-material/Adb';
+import { useNavigate } from 'react-router-dom';
+import { Button as PrimeButton } from 'primereact/button';
+import { ConfirmDialog } from 'primereact/confirmdialog';
+import { useState } from 'react';
+import StepperModalWorkflow from './StepperModalWorkflow';
 
 const Search = styled('div')(({ theme }) => ({
   position: 'relative',
@@ -52,6 +57,28 @@ const navLinks = [
 ];
 
 function Header() {
+  const navigate = useNavigate();
+  const [showModal, setShowModal] = React.useState(false);
+
+  const handleGetStarted = () => {
+    console.log('Get Started button clicked');
+    setShowModal(true);
+    setTimeout(() => {
+      console.log('showModal state after click:', true);
+    }, 0);
+  };
+  const handleModalHide = () => {
+    console.log('StepperModalWorkflow onHide called');
+    setShowModal(false);
+    setTimeout(() => {
+      console.log('showModal state after hide:', false);
+    }, 0);
+  };
+
+  React.useEffect(() => {
+    console.log('Header rendered, showModal:', showModal);
+  }, [showModal]);
+
   return (
     <AppBar position="static" color="default" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#fff' }}>
       <Toolbar sx={{ minHeight: 56, px: 2 }}>
@@ -81,9 +108,8 @@ function Header() {
         </IconButton>
         {/* Sign In and Get Started Buttons */}
         <Button color="inherit" sx={{ fontWeight: 500, textTransform: 'none', mx: 1 }}>Sign In</Button>
-        <Button variant="contained" color="primary" sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, boxShadow: 'none', px: 3 }}>
-          Get Started
-        </Button>
+        <PrimeButton label="Get Started" severity="primary" style={{ fontWeight: 700, borderRadius: 8, marginLeft: 8 }} onClick={handleGetStarted} />
+        <StepperModalWorkflow visible={showModal} onHide={handleModalHide} />
       </Toolbar>
     </AppBar>
   );

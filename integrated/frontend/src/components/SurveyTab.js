@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Box, Button, Typography, Alert, CircularProgress, Paper, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Slider, Grid, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Send, Replay } from '@mui/icons-material';
-import VideoTab from './VideoTab';
 
-function SurveyTab() {
+function SurveyTab(props) {
   const [formData, setFormData] = useState({
     designation: 1,
     resourceAllocation: 5,
@@ -47,6 +46,9 @@ function SurveyTab() {
       }
       setResult(data);
       setResultOpen(true);
+      if (props.isModalStep && props.onSubmit) {
+        props.onSubmit(data);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -78,20 +80,8 @@ function SurveyTab() {
       </Typography>
       
       <Grid container spacing={3}>
-        {/* Video Analysis Section */}
-        <Grid item xs={12} md={6}>
-          <Paper elevation={3} sx={{ p: 3, height: '100%', bgcolor: 'background.paper', borderRadius: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
-              Facial Emotion Analysis
-            </Typography>
-            <Box sx={{ height: 'calc(100% - 48px)', display: 'flex', flexDirection: 'column' }}>
-              <VideoTab />
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Survey Section */}
-        <Grid item xs={12} md={6}>
+        {/* Survey Section only */}
+        <Grid item xs={12} md={12}>
           <Paper elevation={3} sx={{ p: 3, height: '100%', bgcolor: 'background.paper', borderRadius: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>Survey Questions</Typography>
             <Typography variant="body2" sx={{ mb: 3 }}>Please answer the following questions:</Typography>
