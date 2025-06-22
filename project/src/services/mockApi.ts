@@ -28,7 +28,8 @@ export const analyzeVideoFrame = async (imageData: string): Promise<VideoAnalysi
   return {
     emotions,
     dominantEmotion,
-    averageConfidence
+    averageConfidence,
+    timestamp: Date.now(),
   };
 };
 
@@ -56,7 +57,8 @@ export const analyzeSpeech = async (audioBlob: Blob): Promise<SpeechAnalysisResu
     transcription,
     sentiment,
     emotions,
-    duration: Math.random() * 30 + 5 // 5-35 seconds
+    duration: Math.random() * 30 + 5, // 5-35 seconds
+    timestamp: Date.now(),
   };
 };
 
@@ -85,16 +87,29 @@ export const analyzeChatMessage = async (text: string): Promise<ChatMessage> => 
 
 export const analyzeBurnoutSurvey = async (data: BurnoutSurveyData): Promise<BurnoutResult> => {
   await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  const scores = Object.values(data).filter(v => typeof v === 'number') as number[];
-  const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-  
+
+  // Use the old burnout survey fields
+  const scores = [
+    data.workload,
+    data.workLifeBalance,
+    data.jobSatisfaction,
+    data.stressLevel,
+    data.supportSystem,
+    data.sleepQuality,
+    data.energyLevel,
+    data.motivation,
+  ].filter(v => typeof v === 'number') as number[];
+
+  const averageScore = scores.length
+    ? scores.reduce((sum, score) => sum + score, 0) / scores.length
+    : 0;
+
   let riskLevel: BurnoutResult['riskLevel'];
   if (averageScore >= 8) riskLevel = 'Severe';
   else if (averageScore >= 6) riskLevel = 'High';
   else if (averageScore >= 4) riskLevel = 'Moderate';
   else riskLevel = 'Low';
-  
+
   const recommendations = [
     'Consider taking regular breaks throughout the day',
     'Practice stress-reduction techniques like meditation',
@@ -103,14 +118,14 @@ export const analyzeBurnoutSurvey = async (data: BurnoutSurveyData): Promise<Bur
     'Prioritize sleep and physical exercise',
     'Set realistic goals and expectations'
   ];
-  
+
   const breakdown = [
-    { category: 'Workload Stress', score: data.workload, impact: 'High' },
-    { category: 'Work-Life Balance', score: data.workLifeBalance, impact: 'Medium' },
-    { category: 'Job Satisfaction', score: data.jobSatisfaction, impact: 'Medium' },
-    { category: 'Overall Stress', score: data.stressLevel, impact: 'High' }
-  ];
-  
+    data.workload !== undefined ? { category: 'Workload Stress', score: data.workload, impact: 'High' } : null,
+    data.workLifeBalance !== undefined ? { category: 'Work-Life Balance', score: data.workLifeBalance, impact: 'Medium' } : null,
+    data.jobSatisfaction !== undefined ? { category: 'Job Satisfaction', score: data.jobSatisfaction, impact: 'Medium' } : null,
+    data.stressLevel !== undefined ? { category: 'Overall Stress', score: data.stressLevel, impact: 'High' } : null,
+  ].filter(Boolean) as BurnoutResult['breakdown'];
+
   return {
     riskLevel,
     score: averageScore,

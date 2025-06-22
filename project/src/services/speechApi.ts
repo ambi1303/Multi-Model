@@ -1,5 +1,5 @@
 import api, { apiCall } from './api';
-import { SpeechAnalysisResult, EmotionResult } from '../types';
+import { SpeechAnalysisResult } from '../types';
 
 export const speechApi = {
   analyzeAudio: async (audioBlob: Blob): Promise<SpeechAnalysisResult> => {

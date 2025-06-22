@@ -1,5 +1,5 @@
 import api, { apiCall } from './api';
-import { EmotionResult, VideoAnalysisResult } from '../types';
+import {  VideoAnalysisResult } from '../types';
 
 export const videoApi = {
   analyzeFrame: async (imageData: string | Blob): Promise<VideoAnalysisResult> => {
