@@ -24,6 +24,7 @@ import { SpeechAnalysisResult } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
+import { useTheme } from '@mui/material/styles';
 
 export const SpeechAnalysis: React.FC = () => {
   const [analysis, setAnalysis] = useState<SpeechAnalysisResult | null>(null);
@@ -32,6 +33,7 @@ export const SpeechAnalysis: React.FC = () => {
   const { addAnalysisResult } = useAppStore();
   
   const { isRecording, audioBlob, duration, error, start, stop, reset } = useAudioRecorder();
+  const theme = useTheme();
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -383,6 +385,14 @@ export const SpeechAnalysis: React.FC = () => {
                     fontStyle: 'italic',
                     fontSize: '1.1rem',
                     lineHeight: 1.6,
+                    color: '#fff',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    borderRadius: 2,
+                    px: 2,
+                    py: 1,
+                    border: '2px solid #fff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    fontWeight: 700,
                   }}
                 >
                   "{analysis.transcription}"
@@ -414,9 +424,23 @@ export const SpeechAnalysis: React.FC = () => {
                         {getSentimentLabel(analysis.sentiment.score)}
                       </Typography>
                       <Chip
-                        label={`Score: ${Number(analysis.sentiment.score).toFixed(2)}`}
+                        label={`Score: ${Math.trunc(Number(analysis.sentiment.score) * 100) / 100}`}
                         size="small"
-                        sx={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                        variant="filled"
+                        sx={{
+                          color: '#fff',
+                          backgroundColor:
+                            getSentimentColor(analysis.sentiment.score) === 'success'
+                              ? '#388e3c'
+                              : getSentimentColor(analysis.sentiment.score) === 'error'
+                              ? '#d32f2f'
+                              : '#fbc02d',
+                          border: '2px solid #fff',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          fontWeight: 700,
+                          fontSize: '1rem',
+                          letterSpacing: 0.5,
+                        }}
                       />
                     </Box>
                     
@@ -442,7 +466,7 @@ export const SpeechAnalysis: React.FC = () => {
                   
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Typography variant="body2" color="text.secondary">
-                      <strong>Duration:</strong> {analysis.duration.toFixed(1)} seconds
+                      <strong>Duration:</strong> {duration.toFixed(2)} seconds
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       <strong>Analysis:</strong> Based on speech patterns and content

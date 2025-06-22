@@ -25,6 +25,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
 import api from '../services/api';
+import { useTheme } from '@mui/material/styles';
 
 export const ChatAnalysis: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -32,6 +33,7 @@ export const ChatAnalysis: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { showSuccess, showError } = useNotification();
   const { addAnalysisResult } = useAppStore();
+  const theme = useTheme();
 
   const analyzeMessage = async () => {
     if (!inputText.trim()) return;
@@ -274,13 +276,44 @@ export const ChatAnalysis: React.FC = () => {
                             <Chip
                               label={message.analysis.sentiment.label}
                               size="small"
+                              variant="filled"
                               color={getSentimentColor(message.analysis.sentiment.score)}
+                              sx={{
+                                ...(theme.palette.mode === 'dark' && {
+                                  color: '#fff',
+                                  backgroundColor:
+                                    getSentimentColor(message.analysis.sentiment.score) === 'success'
+                                      ? '#388e3c'
+                                      : getSentimentColor(message.analysis.sentiment.score) === 'error'
+                                      ? '#d32f2f'
+                                      : '#fbc02d',
+                                  border: '1px solid rgba(255,255,255,0.2)',
+                                }),
+                                fontWeight: 600,
+                                letterSpacing: 0.5,
+                              }}
                             />
                             <Chip
                               label={message.analysis.mentalState}
                               size="small"
+                              variant="filled"
                               color={getMentalStateColor(message.analysis.mentalState) as any}
-                              variant="outlined"
+                              sx={{
+                                ...(theme.palette.mode === 'dark' && {
+                                  color: '#fff',
+                                  backgroundColor:
+                                    getMentalStateColor(message.analysis.mentalState) === 'success'
+                                      ? '#388e3c'
+                                      : getMentalStateColor(message.analysis.mentalState) === 'error'
+                                      ? '#d32f2f'
+                                      : getMentalStateColor(message.analysis.mentalState) === 'warning'
+                                      ? '#fbc02d'
+                                      : '#1976d2', // fallback for primary
+                                  border: '1px solid rgba(255,255,255,0.2)',
+                                }),
+                                fontWeight: 600,
+                                letterSpacing: 0.5,
+                              }}
                             />
                           </Box>
                         </Box>

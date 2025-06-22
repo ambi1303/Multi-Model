@@ -95,14 +95,14 @@ export const VideoAnalysis: React.FC = () => {
       const imageData = capture();
       if (imageData) {
         try {
-          // eslint-disable-next-line no-await-in-loop
+           
           const result = await videoApi.analyzeFrame(imageData);
           results.push(result);
         } catch (e) {
           // ignore errors for individual frames
         }
       }
-      // eslint-disable-next-line no-await-in-loop
+       
       await new Promise(res => setTimeout(res, 500));
       elapsed = Date.now() - startTime;
     }
