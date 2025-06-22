@@ -13,6 +13,7 @@ const SpeechAnalysis = React.lazy(() => import('./pages/SpeechAnalysis').then(m 
 const ChatAnalysis = React.lazy(() => import('./pages/ChatAnalysis').then(m => ({ default: m.ChatAnalysis })));
 const BurnoutSurvey = React.lazy(() => import('./pages/BurnoutSurvey').then(m => ({ default: m.BurnoutSurvey })));
 const Home = React.lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 
 function App() {
   return (
@@ -75,6 +76,14 @@ function App() {
                   element={
                     <Suspense fallback={<LoadingSpinner message="Loading Burnout Survey..." />}>
                       <BurnoutSurvey />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="analytics"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Analytics..." />}>
+                      <Analytics />
                     </Suspense>
                   }
                 />

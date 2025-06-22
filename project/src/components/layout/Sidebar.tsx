@@ -11,6 +11,7 @@ import {
   Typography,
   Chip,
   Divider,
+  Button,
 } from '@mui/material';
 import {
   Dashboard,
@@ -35,6 +36,7 @@ const navigationItems: NavigationItem[] = [
   { label: 'Speech Analysis', path: '/speech', icon: <Mic /> },
   { label: 'Chat Analysis', path: '/chat', icon: <Chat /> },
   { label: 'Burnout Survey', path: '/survey', icon: <Assignment /> },
+  { label: 'Analytics', path: '/analytics', icon: <TrendingUp /> },
 ];
 
 interface SidebarProps {
@@ -121,6 +123,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <Divider sx={{ mx: 2 }} />
       
       <Box sx={{ p: 3 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          fullWidth
+          startIcon={<TrendingUp />}
+          sx={{ mb: 2, fontWeight: 600, fontSize: '1rem', boxShadow: 2 }}
+          onClick={() => handleNavigation('/analytics')}
+        >
+          Go to Analytics
+        </Button>
         <Box
           sx={{
             p: 2,
