@@ -24,12 +24,12 @@ function SurveyTab(props) {
 
     try {
       const payload = {
-        Designation: Number(formData.designation),
-        Resource_Allocation: Number(formData.resourceAllocation),
-        Mental_Fatigue_Score: Number(formData.mentalFatigueScore),
-        Company_Type: formData.companyType,
-        WFH_Setup_Available: formData.wfhSetupAvailable,
-        Gender: formData.gender
+        designation: Number(formData.designation),
+        resource_allocation: Number(formData.resourceAllocation),
+        mental_fatigue_score: Number(formData.mentalFatigueScore),
+        company_type: formData.companyType,
+        wfh_setup_available: formData.wfhSetupAvailable,
+        gender: formData.gender
       };
       console.log('Survey payload being sent:', payload);
       const response = await fetch('http://localhost:9000/analyze-survey', {

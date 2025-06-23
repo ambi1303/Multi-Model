@@ -22,7 +22,7 @@ cd ../..
 setup_venv "video/emp_face"
 
 # Setup STT backend
-setup_venv "stt/stt/api"
+setup_venv "stt/api"
 
 # Setup chat backend
 setup_venv "chat/chat/mental_state_analyzer"

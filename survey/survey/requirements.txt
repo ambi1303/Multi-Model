@@ -2,4 +2,6 @@ fastapi
 uvicorn
 pandas
 scikit-learn
-pydantic 
+pydantic
+python-dotenv
+httpx 

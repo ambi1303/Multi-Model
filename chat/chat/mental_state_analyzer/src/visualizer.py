@@ -54,14 +54,30 @@ class Visualizer:
         # Convert timestamp strings to datetime objects
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         
+        # Format mental state distribution with better presentation
+        mental_state_counts = df['mental_state'].value_counts()
+        total_messages = len(df)
+        mental_state_formatted = {}
+        for state, count in mental_state_counts.items():
+            percentage = (count / total_messages) * 100
+            mental_state_formatted[state] = f"{count} messages ({percentage:.0f}%)"
+        
+        # Format average sentiment as percentage
+        avg_sentiment = df['sentiment_score'].mean()
+        sentiment_percentage = ((avg_sentiment + 1) / 2) * 100  # Convert from -1,1 to 0,100
+        
+        # Format timestamps in human-readable format
+        start_time = df['timestamp'].min().strftime("%B %d, %Y at %I:%M %p")
+        end_time = df['timestamp'].max().strftime("%B %d, %Y at %I:%M %p")
+        
         summary = {
-            'total_messages': len(df),
-            'mental_state_distribution': df['mental_state'].value_counts().to_dict(),
-            'average_sentiment': df['sentiment_score'].mean(),
+            'total_messages': total_messages,
+            'mental_state_distribution': mental_state_formatted,
+            'average_sentiment': f"{sentiment_percentage:.0f}% positive",
             'most_common_emotion': df['primary_emotion'].mode().iloc[0],
             'time_span': {
-                'start': df['timestamp'].min().isoformat(),
-                'end': df['timestamp'].max().isoformat()
+                'start': start_time,
+                'end': end_time
             }
         }
         

@@ -11,13 +11,25 @@ export interface VideoAnalysisResult {
   timestamp: number;
 }
 
+export interface SentimentResult {
+  label: string;
+  confidence: number;
+  scores: {
+    negative: number;
+    neutral: number;
+    positive: number;
+  };
+  polarity: number;
+  subjectivity: number;
+  intensity: string;
+}
+
 export interface SpeechAnalysisResult {
   transcription: string;
-  sentiment: {
-    label: string;
-    score: number;
-  };
+  sentiment: SentimentResult;
   emotions: EmotionResult[];
+  genAIInsights: string;
+  technicalReport: string;
   duration: number;
   timestamp: number;
 }
@@ -36,27 +48,47 @@ export interface ChatMessage {
   };
 }
 
+export interface SurveyLikertData {
+  q1: number; // I feel happy and relaxed while doing my job.
+  q2: number; // I frequently feel anxious or stressed because of my work.
+  q3: number; // I feel emotionally exhausted at the end of my workday.
+  q4: number; // I feel motivated and excited about my work.
+  q5: number; // I feel a sense of accomplishment and purpose in my role.
+  q6: number; // I find myself feeling detached or indifferent about my work.
+  q7: number; // My workload is manageable within my regular working hours.
+  q8: number; // I have control over how I organize and complete my tasks.
+  q9: number; // My manager and team provide support when I face challenges.
+  q10: number; // I feel my personal time and work–life balance are respected by the organization.
+}
+
 export interface BurnoutSurveyData {
-  workload: number;
-  workLifeBalance: number;
-  jobSatisfaction: number;
-  stressLevel: number;
-  supportSystem: number;
-  sleepQuality: number;
-  energyLevel: number;
-  motivation: number;
-  additionalComments?: string;
+  employee: {
+    Designation: number;
+    Resource_Allocation: number;
+    Mental_Fatigue_Score: number;
+    Company_Type: string;
+    WFH_Setup_Available: string;
+    Gender: string;
+  };
+  survey: SurveyLikertData;
+  employee_id?: string;
 }
 
 export interface BurnoutResult {
-  riskLevel: 'Low' | 'Moderate' | 'High' | 'Severe';
-  score: number;
-  recommendations: string[];
-  breakdown: {
-    category: string;
-    score: number;
-    impact: string;
-  }[];
+  "Employee ID": string;
+  "Predicted Burn Rate": number;
+  "Survey Score": string;
+  "Mental Health Summary": string;
+  "Recommendations": string[];
+  // UI mapping properties
+  riskLevel?: string;
+  score?: number;
+  recommendations?: string[];
+  breakdown?: any[];
+  employeeId?: string;
+  surveyScore?: string;
+  mentalHealthSummary?: string;
+  burnRate?: number;
 }
 
 // API Types

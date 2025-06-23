@@ -68,17 +68,24 @@ class AnalysisResponse(BaseModel):
     summary: dict
 
 def format_timestamp(dt):
-    """Format timestamp to ISO format string."""
+    """Format timestamp to human-readable format."""
     if isinstance(dt, datetime):
-        return dt.isoformat()
+        return dt.strftime("%B %d, %Y at %I:%M %p")
     elif isinstance(dt, str):
         try:
-            # Try to parse the string as datetime and convert to ISO format
-            return datetime.fromisoformat(dt).isoformat()
+            # Try to parse the string as datetime and convert to readable format
+            parsed_dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            return parsed_dt.strftime("%B %d, %Y at %I:%M %p")
         except ValueError:
             # If parsing fails, return the original string
             return dt
     return str(dt)
+
+def format_percentage(value):
+    """Format decimal values as percentages."""
+    if isinstance(value, (int, float)):
+        return f"{value * 100:.0f}%"
+    return value
 
 @app.post("/analyze/single", response_model=MessageResponse)
 async def analyze_single_message(message: Message):

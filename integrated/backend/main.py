@@ -67,12 +67,12 @@ async def shutdown_event():
 
 # Data model for burnout prediction
 class EmployeeData(BaseModel):
-    Designation: float = Field(..., ge=1, le=5, description="Employee designation level (1-5, 1 being lowest)")
-    Resource_Allocation: float = Field(..., ge=1, le=10, description="Resource allocation score (1-10)")
-    Mental_Fatigue_Score: float = Field(..., ge=1, le=10, description="Mental fatigue score (1-10)")
-    Company_Type: Literal["Service", "Product"] = Field(..., description="Type of company")
-    WFH_Setup_Available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
-    Gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
+    designation: float = Field(..., ge=1, le=5, description="Employee designation level (1-5, 1 being lowest)")
+    resource_allocation: float = Field(..., ge=1, le=10, description="Resource allocation score (1-10)")
+    mental_fatigue_score: float = Field(..., ge=1, le=10, description="Mental fatigue score (1-10)")
+    company_type: Literal["Service", "Product"] = Field(..., description="Type of company")
+    wfh_setup_available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
+    gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
 
 class PredictionResponse(BaseModel):
     burn_rate: float
@@ -188,7 +188,6 @@ async def analyze_chat(request: Request):
 @app.post("/analyze-survey")
 async def analyze_survey(request: Request):
     try:
-        # Log the raw incoming request body
         raw_body = await request.body()
         logger.info(f"Raw incoming request body: {raw_body}")
         try:
@@ -197,28 +196,50 @@ async def analyze_survey(request: Request):
             logger.error(f"Failed to parse JSON: {e}")
             return JSONResponse(content={"error": "Invalid JSON body", "raw_body": raw_body.decode()}, status_code=400)
         logger.info(f"Parsed JSON data: {data}")
-        try:
-            employee = EmployeeData(**data)
-        except Exception as e:
-            logger.error(f"Failed to parse EmployeeData: {e}")
-            return JSONResponse(content={"error": f"Invalid EmployeeData: {e}", "parsed_data": data}, status_code=422)
-        logger.info(f"Parsed EmployeeData: {employee}")
-        # Forward to survey backend
-        logger.info(f"Forwarding to survey backend: {employee.dict()}")
-        async with session.post(SURVEY_BACKEND_URL, json=employee.dict()) as resp:
-            response_text = await resp.text()
-            logger.info(f"Survey backend response status: {resp.status}")
-            logger.info(f"Survey backend response body: {response_text}")
-            if resp.status != 200:
-                logger.error(f"Survey backend error: {response_text}")
-                return JSONResponse(content={"error": response_text}, status_code=resp.status)
+        
+        # Check if this is the new format with employee and survey fields
+        if "employee" in data and "survey" in data:
+            # New format - forward directly to survey backend's analyze-survey endpoint
+            survey_url = "http://localhost:8004/analyze-survey"
+            logger.info(f"Forwarding new format to survey backend: {data}")
+            async with session.post(survey_url, json=data) as resp:
+                response_text = await resp.text()
+                logger.info(f"Survey backend response status: {resp.status}")
+                logger.info(f"Survey backend response body: {response_text}")
+                if resp.status != 200:
+                    logger.error(f"Survey backend error: {response_text}")
+                    return JSONResponse(content={"error": response_text}, status_code=resp.status)
+                try:
+                    response_data = await resp.json()
+                    logger.info(f"Survey analysis completed successfully: {response_data}")
+                    return JSONResponse(content=response_data, status_code=resp.status)
+                except Exception as e:
+                    logger.error(f"Error parsing survey response: {str(e)}")
+                    return JSONResponse(content={"error": "Error parsing survey response", "response_text": response_text}, status_code=500)
+        else:
+            # Old format - validate and forward to old analyze endpoint
             try:
-                response_data = await resp.json()
-                logger.info(f"Survey analysis completed successfully: {response_data}")
-                return JSONResponse(content=response_data, status_code=resp.status)
+                employee = EmployeeData(**data)
             except Exception as e:
-                logger.error(f"Error parsing survey response: {str(e)}")
-                return JSONResponse(content={"error": "Error parsing survey response", "response_text": response_text}, status_code=500)
+                logger.error(f"Failed to parse EmployeeData: {e}")
+                return JSONResponse(content={"error": f"Invalid EmployeeData: {e}", "parsed_data": data}, status_code=422)
+            logger.info(f"Parsed EmployeeData: {employee}")
+            # Forward to survey backend
+            logger.info(f"Forwarding old format to survey backend: {data}")
+            async with session.post(SURVEY_BACKEND_URL, json=data) as resp:
+                response_text = await resp.text()
+                logger.info(f"Survey backend response status: {resp.status}")
+                logger.info(f"Survey backend response body: {response_text}")
+                if resp.status != 200:
+                    logger.error(f"Survey backend error: {response_text}")
+                    return JSONResponse(content={"error": response_text}, status_code=resp.status)
+                try:
+                    response_data = await resp.json()
+                    logger.info(f"Survey analysis completed successfully: {response_data}")
+                    return JSONResponse(content=response_data, status_code=resp.status)
+                except Exception as e:
+                    logger.error(f"Error parsing survey response: {str(e)}")
+                    return JSONResponse(content={"error": "Error parsing survey response", "response_text": response_text}, status_code=500)
     except aiohttp.ClientError as e:
         logger.error(f"Connection error in analyze-survey: {str(e)}")
         return JSONResponse(content={"error": "Survey service unavailable"}, status_code=503)

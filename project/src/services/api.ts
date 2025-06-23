@@ -55,3 +55,29 @@ export const apiCall = async <T>(
     throw error instanceof Error ? error : new Error('API call failed');
   }
 };
+
+// Single message analysis (integrated backend)
+export const analyzeSingleChatMessage = async (message: { text: string; person_id?: string }) => {
+  const response = await api.post('/analyze-chat', message);
+  return response.data;
+};
+
+// Batch message analysis (mental_state_analyzer)
+export const analyzeBatchChatMessages = async (messages: { text: string; person_id?: string }[]) => {
+  const response = await api.post('/analyze/multiple', messages);
+  return response.data;
+};
+
+// Fetch batch analysis visualizations and summary
+export const getBatchChatVisualizations = async () => {
+  const [mentalStates, sentimentTrend, summary] = await Promise.all([
+    api.get('/visualizations/mental-states', { responseType: 'blob' }),
+    api.get('/visualizations/sentiment-trend', { responseType: 'blob' }),
+    api.get('/results/latest'),
+  ]);
+  return {
+    mentalStatesImg: URL.createObjectURL(mentalStates.data),
+    sentimentTrendImg: URL.createObjectURL(sentimentTrend.data),
+    summary: summary.data.summary,
+  };
+};

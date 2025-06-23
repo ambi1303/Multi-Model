@@ -87,7 +87,7 @@ print("Starting model backends...")
 
 models = [
     ("video/emp_face", "venv", "api", "app", 8001),
-    ("stt/stt/api", "venv", "main", "app", 8002),
+    ("stt/api", "venv", "main", "app", 8002),
     ("chat/chat/mental_state_analyzer", "venv", "api", "app", 8003),
     ("survey/survey", "venv", "backend", "app", 8004),
 ]

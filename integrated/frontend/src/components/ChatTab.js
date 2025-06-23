@@ -529,11 +529,65 @@ function ChatTab(props) {
       {batchResult && (
         <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', mb: 3 }}>
           {/* Summary Section */}
-          <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: '#F3E5F5', borderRadius: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#6A1B9A' }}>Summary</Typography>
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-              {JSON.stringify(batchResult.summary, null, 2)}
-            </pre>
+          <Paper elevation={1} sx={{ p: 3, mb: 2, bgcolor: '#F3E5F5', borderRadius: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#6A1B9A', mb: 2 }}>
+              📊 Batch Analysis Summary
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#4A148C' }}>
+                  📝 Total Messages:
+                </Typography>
+                <Typography variant="body1" sx={{ color: '#6A1B9A' }}>
+                  {batchResult.summary.total_messages}
+                </Typography>
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#4A148C', mb: 1 }}>
+                  🧠 Mental State Distribution:
+                </Typography>
+                <Box sx={{ ml: 2 }}>
+                  {Object.entries(batchResult.summary.mental_state_distribution || {}).map(([state, count]) => (
+                    <Typography key={state} variant="body2" sx={{ color: '#6A1B9A', mb: 0.5 }}>
+                      • <strong>{state}:</strong> {count}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#4A148C' }}>
+                  💭 Average Sentiment:
+                </Typography>
+                <Typography variant="body1" sx={{ color: '#6A1B9A' }}>
+                  {batchResult.summary.average_sentiment}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#4A148C' }}>
+                  😊 Most Common Emotion:
+                </Typography>
+                <Typography variant="body1" sx={{ color: '#6A1B9A' }}>
+                  {batchResult.summary.most_common_emotion}
+                </Typography>
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#4A148C', mb: 1 }}>
+                  ⏰ Time Span:
+                </Typography>
+                <Box sx={{ ml: 2 }}>
+                  <Typography variant="body2" sx={{ color: '#6A1B9A', mb: 0.5 }}>
+                    <strong>From:</strong> {batchResult.summary.time_span?.start}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#6A1B9A' }}>
+                    <strong>To:</strong> {batchResult.summary.time_span?.end}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
           </Paper>
           {/* Visualizations */}
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
@@ -580,9 +634,9 @@ function ChatTab(props) {
                       <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.timestamp}</td>
                       <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.text}</td>
                       <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.person_id}</td>
-                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.sentiment_score?.toFixed(2)}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{((msg.sentiment_score + 1) / 2 * 100).toFixed(0)}%</td>
                       <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.primary_emotion}</td>
-                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{(msg.emotion_score * 100).toFixed(2)}</td>
+                      <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{(msg.emotion_score * 100).toFixed(0)}%</td>
                       <td style={{ padding: 8, border: '1px solid #E0E0E0' }}>{msg.mental_state}</td>
                     </tr>
                   ))}

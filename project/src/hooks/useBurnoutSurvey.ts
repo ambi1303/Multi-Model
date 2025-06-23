@@ -15,12 +15,12 @@ export function useBurnoutSurvey() {
     setLoading(true);
     try {
       const payload = {
-        Designation: Number(data.designation),
-        Resource_Allocation: Number(data.resourceAllocation),
-        Mental_Fatigue_Score: Number(data.mentalFatigueScore),
-        Company_Type: data.companyType,
-        WFH_Setup_Available: data.wfhSetupAvailable,
-        Gender: data.gender,
+        designation: Number(data.designation),
+        resource_allocation: Number(data.resourceAllocation),
+        mental_fatigue_score: Number(data.mentalFatigueScore),
+        company_type: data.companyType,
+        wfh_setup_available: data.wfhSetupAvailable,
+        gender: data.gender,
       };
       const response = await api.post('/analyze-survey', payload);
       const backend = response.data;

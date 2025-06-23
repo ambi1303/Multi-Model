@@ -10,18 +10,14 @@ export const speechApi = {
     });
     // Map backend response to SpeechAnalysisResult
     const data = response.data;
-    // The backend returns: text, sentiment, sentiment_score, emotion, emotion_score
-    // We'll map this to the expected frontend type
-    const now = Date.now();
     return {
-      transcription: data.text,
-      sentiment: {
-        label: data.sentiment,
-        score: data.sentiment_score ?? 0,
-      },
-      emotions: [{ emotion: data.emotion, confidence: data.emotion_score ?? 1, timestamp: now }],
-      duration: 0, // Not provided by backend
-      timestamp: now,
+      transcription: data.transcription,
+      sentiment: data.sentiment,
+      emotions: data.emotions,
+      genAIInsights: data.genAIInsights,
+      technicalReport: data.technicalReport,
+      duration: 0,
+      timestamp: Date.now(),
     };
   },
 

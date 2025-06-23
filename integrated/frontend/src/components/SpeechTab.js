@@ -27,6 +27,68 @@ function SpeechTab(props) {
   const chunksRef = useRef([]);
   const { setResult: setSentimentResult } = useSentiment();
 
+  // Format wellness advisor content
+  const formatWellnessContent = (content) => {
+    if (!content) return null;
+    
+    // Split content into sections
+    const sections = content.split(/\*\*([^*]+):\*\*/);
+    const formattedSections = [];
+    
+    for (let i = 0; i < sections.length; i++) {
+      if (i % 2 === 0) {
+        // Regular content
+        if (sections[i].trim()) {
+          // Split by numbered lists and format them
+          const lines = sections[i].split('\n').filter(line => line.trim());
+          lines.forEach((line, lineIndex) => {
+            const trimmedLine = line.trim();
+            if (trimmedLine) {
+              // Check if it's a numbered item
+              const numberedMatch = trimmedLine.match(/^(\d+)\.\s*\*\*([^*]+)\*\*:\s*(.+)$/);
+              if (numberedMatch) {
+                formattedSections.push(
+                  <Box key={`${i}-${lineIndex}`} sx={{ mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', mb: 1 }}>
+                      {numberedMatch[1]}. {numberedMatch[2]}
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                      {numberedMatch[3]}
+                    </Typography>
+                  </Box>
+                );
+              } else if (trimmedLine.match(/^\d+\./)) {
+                // Simple numbered item
+                const [number, ...rest] = trimmedLine.split(/\.\s*/);
+                formattedSections.push(
+                  <Typography key={`${i}-${lineIndex}`} variant="body1" sx={{ mb: 1.5, color: 'text.primary' }}>
+                    <strong style={{ color: '#1976d2' }}>{number}.</strong> {rest.join('. ')}
+                  </Typography>
+                );
+              } else {
+                // Regular paragraph
+                formattedSections.push(
+                  <Typography key={`${i}-${lineIndex}`} variant="body1" sx={{ mb: 1.5, color: 'text.primary', lineHeight: 1.6 }}>
+                    {trimmedLine}
+                  </Typography>
+                );
+              }
+            }
+          });
+        }
+      } else {
+        // Section header
+        formattedSections.push(
+          <Typography key={i} variant="h5" sx={{ fontWeight: 700, color: 'success.main', mb: 2, mt: 3 }}>
+            🌟 {sections[i]}
+          </Typography>
+        );
+      }
+    }
+    
+    return <Box>{formattedSections}</Box>;
+  };
+
   // Timer effect
   useEffect(() => {
     if (isRecording) {
@@ -315,6 +377,90 @@ function SpeechTab(props) {
                     </Box>
                   </Paper>
                 </Box>
+                
+                {/* Technical Report Section */}
+                {result.technicalReport && (
+                  <Box sx={{ mt: 4 }}>
+                    <Paper 
+                      elevation={1} 
+                      sx={{ 
+                        p: 4, 
+                        borderRadius: 3, 
+                        border: '1px solid', 
+                        borderColor: 'primary.light',
+                        backgroundColor: 'rgba(25, 118, 210, 0.02)'
+                      }}
+                    >
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', mb: 3 }}>
+                        📊 Technical Analysis Report
+                      </Typography>
+                      <Box
+                        sx={{
+                          p: 3,
+                          backgroundColor: 'grey.50',
+                          borderRadius: 2,
+                          borderLeft: 4,
+                          borderColor: 'primary.main',
+                          fontFamily: 'monospace',
+                          whiteSpace: 'pre-line',
+                          fontSize: '1.05rem',
+                        }}
+                      >
+                        {result.technicalReport}
+                      </Box>
+                    </Paper>
+                  </Box>
+                )}
+
+                {/* Wellness Advisor Section */}
+                {result.genAIInsights && (
+                  <Box sx={{ mt: 4 }}>
+                    <Paper 
+                      elevation={2} 
+                      sx={{ 
+                        p: 4, 
+                        borderRadius: 3, 
+                        border: '1px solid', 
+                        borderColor: 'success.light',
+                        backgroundColor: 'rgba(46, 125, 50, 0.02)'
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          backgroundColor: 'success.main',
+                          color: 'white',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 2,
+                          mr: 2
+                        }}>
+                          🧠
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
+                          Wellness Advisor
+                        </Typography>
+                        <Chip 
+                          label="Powered by Llama 3" 
+                          size="small" 
+                          sx={{ ml: 2, backgroundColor: 'success.light', color: 'success.main' }}
+                        />
+                      </Box>
+                      <Box
+                        sx={{
+                          p: 3,
+                          backgroundColor: 'rgba(46, 125, 50, 0.05)',
+                          borderRadius: 2,
+                          border: '1px solid',
+                          borderColor: 'success.light',
+                        }}
+                      >
+                        {formatWellnessContent(result.genAIInsights)}
+                      </Box>
+                    </Paper>
+                  </Box>
+                )}
               </Box>
             )}
           </Box>

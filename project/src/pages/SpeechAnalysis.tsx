@@ -100,6 +100,67 @@ export const SpeechAnalysis: React.FC = () => {
     return 'Neutral';
   };
 
+  const formatWellnessContent = (content: string) => {
+    if (!content) return '';
+    
+    // Split content into sections
+    const sections = content.split(/\*\*([^*]+):\*\*/);
+    const formattedSections: React.ReactNode[] = [];
+    
+    for (let i = 0; i < sections.length; i++) {
+      if (i % 2 === 0) {
+        // Regular content
+        if (sections[i].trim()) {
+          // Split by numbered lists and format them
+          const lines = sections[i].split('\n').filter(line => line.trim());
+          lines.forEach((line, lineIndex) => {
+            const trimmedLine = line.trim();
+            if (trimmedLine) {
+              // Check if it's a numbered item
+              const numberedMatch = trimmedLine.match(/^(\d+)\.\s*\*\*([^*]+)\*\*:\s*(.+)$/);
+              if (numberedMatch) {
+                formattedSections.push(
+                  <Box key={`${i}-${lineIndex}`} sx={{ mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', mb: 1 }}>
+                      {numberedMatch[1]}. {numberedMatch[2]}
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                      {numberedMatch[3]}
+                    </Typography>
+                  </Box>
+                );
+              } else if (trimmedLine.match(/^\d+\./)) {
+                // Simple numbered item
+                const [number, ...rest] = trimmedLine.split(/\.\s*/);
+                formattedSections.push(
+                  <Typography key={`${i}-${lineIndex}`} variant="body1" sx={{ mb: 1.5, color: 'text.primary' }}>
+                    <strong style={{ color: '#1976d2' }}>{number}.</strong> {rest.join('. ')}
+                  </Typography>
+                );
+              } else {
+                // Regular paragraph
+                formattedSections.push(
+                  <Typography key={`${i}-${lineIndex}`} variant="body1" sx={{ mb: 1.5, color: 'text.primary', lineHeight: 1.6 }}>
+                    {trimmedLine}
+                  </Typography>
+                );
+              }
+            }
+          });
+        }
+      } else {
+        // Section header
+        formattedSections.push(
+          <Typography key={i} variant="h5" sx={{ fontWeight: 700, color: 'success.main', mb: 2, mt: 3 }}>
+            🌟 {sections[i]}
+          </Typography>
+        );
+      }
+    }
+    
+    return <Box>{formattedSections}</Box>;
+  };
+
   const pieData = analysis?.emotions.slice(0, 5).map((emotion, index) => ({
     id: index,
     value: Math.round(emotion.confidence * 100),
@@ -364,11 +425,11 @@ export const SpeechAnalysis: React.FC = () => {
       {/* Results */}
       {analysis && !loading && (
         <Box sx={{ mt: 4 }}>
-          {/* Transcription */}
+          {/* Technical Analysis Report */}
           <Card sx={{ mb: 4 }}>
             <CardContent>
               <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-                Speech Transcription
+                Technical Analysis Report
               </Typography>
               <Box
                 sx={{
@@ -377,154 +438,53 @@ export const SpeechAnalysis: React.FC = () => {
                   borderRadius: 2,
                   borderLeft: 4,
                   borderColor: 'primary.main',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'pre-line',
+                  fontSize: '1.05rem',
                 }}
               >
-                <Typography
-                  variant="body1"
-                  sx={{
-                    fontStyle: 'italic',
-                    fontSize: '1.1rem',
-                    lineHeight: 1.6,
-                    color: '#fff',
-                    backgroundColor: 'rgba(0,0,0,0.7)',
-                    borderRadius: 2,
-                    px: 2,
-                    py: 1,
-                    border: '2px solid #fff',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    fontWeight: 700,
-                  }}
-                >
-                  "{analysis.transcription}"
-                </Typography>
+                {analysis.technicalReport}
               </Box>
             </CardContent>
           </Card>
-
-          <Grid container spacing={4}>
-            {/* Sentiment Analysis */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-                    Sentiment Analysis
-                  </Typography>
-                  
-                  <Box
-                    sx={{
-                      p: 3,
-                      borderRadius: 2,
-                      backgroundColor: `${getSentimentColor(analysis.sentiment.score)}.light`,
-                      color: `${getSentimentColor(analysis.sentiment.score)}.contrastText`,
-                      mb: 3,
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {getSentimentLabel(analysis.sentiment.score)}
-                      </Typography>
-                      <Chip
-                        label={`Score: ${Math.trunc(Number(analysis.sentiment.score) * 100) / 100}`}
-                        size="small"
-                        variant="filled"
-                        sx={{
-                          color: '#fff',
-                          backgroundColor:
-                            getSentimentColor(analysis.sentiment.score) === 'success'
-                              ? '#388e3c'
-                              : getSentimentColor(analysis.sentiment.score) === 'error'
-                              ? '#d32f2f'
-                              : '#fbc02d',
-                          border: '2px solid #fff',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          fontWeight: 700,
-                          fontSize: '1rem',
-                          letterSpacing: 0.5,
-                        }}
-                      />
-                    </Box>
-                    
-                    <Box
-                      sx={{
-                        width: '100%',
-                        height: 8,
-                        backgroundColor: 'rgba(255,255,255,0.3)',
-                        borderRadius: 4,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: `${Math.abs(analysis.sentiment.score) * 50 + 50}%`,
-                          height: '100%',
-                          backgroundColor: 'rgba(255,255,255,0.8)',
-                          transition: 'width 0.3s ease-in-out',
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                  
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      <strong>Duration:</strong> {duration.toFixed(2)} seconds
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      <strong>Analysis:</strong> Based on speech patterns and content
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Emotion Distribution */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-                    Emotion Breakdown
-                  </Typography>
-                  
-                  {pieData.length > 0 && (
-                    <PieChart
-                      series={[
-                        {
-                          data: pieData,
-                          highlightScope: { fade: 'global', highlight: 'item' },
-                          faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-                        },
-                      ]}
-                      height={250}
-                    />
-                  )}
-                  
-                  <Box sx={{ mt: 3 }}>
-                    <Grid container spacing={1}>
-                      {analysis.emotions.slice(0, 6).map((emotion, index) => (
-                        <Grid item xs={6} key={emotion.emotion}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box
-                              sx={{
-                                width: 12,
-                                height: 12,
-                                borderRadius: '50%',
-                                backgroundColor: `hsl(${index * 60}, 70%, 50%)`,
-                              }}
-                            />
-                            <Typography
-                              variant="caption"
-                              sx={{ textTransform: 'capitalize', fontSize: '0.75rem' }}
-                            >
-                              {emotion.emotion}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+          {/* GenAI Wellness Advisor */}
+          <Card sx={{ mb: 4, border: '1px solid', borderColor: 'success.light' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  backgroundColor: 'success.main',
+                  color: 'white',
+                  px: 2,
+                  py: 1,
+                  borderRadius: 2,
+                  mr: 2
+                }}>
+                  🧠
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: 'success.main' }}>
+                  Wellness Advisor
+                </Typography>
+                <Chip 
+                  label="Powered by Llama 3" 
+                  size="small" 
+                  sx={{ ml: 2, backgroundColor: 'success.light', color: 'success.main' }}
+                />
+              </Box>
+              <Box
+                sx={{
+                  p: 3,
+                  backgroundColor: 'rgba(46, 125, 50, 0.05)',
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'success.light',
+                }}
+              >
+                {formatWellnessContent(analysis.genAIInsights)}
+              </Box>
+            </CardContent>
+          </Card>
         </Box>
       )}
     </Box>
