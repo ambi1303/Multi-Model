@@ -65,7 +65,7 @@ export const ChatAnalysis: React.FC = () => {
       addAnalysisResult('chat', result);
       setInputText('');
       showSuccess('Message analyzed successfully!');
-    } catch (err) {
+    } catch {
       showError('Failed to analyze message. Please try again.');
     } finally {
       setLoading(false);
@@ -297,7 +297,7 @@ export const ChatAnalysis: React.FC = () => {
                               label={message.analysis.mentalState}
                               size="small"
                               variant="filled"
-                              color={getMentalStateColor(message.analysis.mentalState) as any}
+                              color={getMentalStateColor(message.analysis.mentalState) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
                               sx={{
                                 ...(theme.palette.mode === 'dark' && {
                                   color: '#fff',

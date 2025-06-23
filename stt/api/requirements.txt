@@ -1,0 +1,16 @@
+psutil==5.9.8
+uvicorn==0.24.0
+fastapi==0.104.1
+python-multipart==0.0.6
+SpeechRecognition==3.10.0
+transformers==4.35.2
+torch==2.2.0
+numpy<2.0
+soundfile==0.12.1
+vosk==0.3.44
+ffmpeg-python==0.2.0
+sounddevice
+pyaudio
+python-dotenv
+textblob 
+groq
