@@ -31,7 +31,7 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   { label: 'Home', path: '/home', icon: <Dashboard /> },
-  { label: 'Dashboard', path: '/', icon: <Dashboard /> },
+  { label: 'Dashboard', path: '/dashboard', icon: <Dashboard /> },
   { label: 'Video Analysis', path: '/video', icon: <Videocam /> },
   { label: 'Speech Analysis', path: '/speech', icon: <Mic /> },
   { label: 'Chat Analysis', path: '/chat', icon: <Chat /> },

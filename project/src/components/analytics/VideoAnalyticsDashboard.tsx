@@ -13,6 +13,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Alert,
 } from '@mui/material';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion } from 'framer-motion';
@@ -22,6 +23,8 @@ interface VideoAnalyticsDashboardProps {
   data: VideoAnalyticsData;
   filters: AnalyticsFilters;
 }
+
+const STATIC_FEATURE_IMPORTANCE = [];
 
 export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = ({ data, filters }) => {
   return (
@@ -137,7 +140,10 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                   Feature Importance
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {data.featureImportance.map((feature, index) => (
+                  {(data.featureImportance && data.featureImportance.length > 0
+                    ? data.featureImportance
+                    : STATIC_FEATURE_IMPORTANCE
+                  ).map((feature, index) => (
                     <Box key={feature.feature}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -172,6 +178,11 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                     </Box>
                   ))}
                 </Box>
+                {(!data.featureImportance || data.featureImportance.length === 0) && (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    Upcoming Feature: Real feature importance will be shown here soon!
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           </motion.div>

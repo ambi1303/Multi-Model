@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import {
   Box,
@@ -10,15 +9,12 @@ import {
   CardContent,
   Button,
   Slider,
-  TextField,
   Alert,
-  Chip,
-  LinearProgress,
+
   Paper,
 } from '@mui/material';
 import {
   Assignment,
-  Psychology,
   TrendingUp,
   Refresh,
   Warning,

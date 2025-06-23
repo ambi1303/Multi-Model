@@ -59,12 +59,7 @@ const generateMockAnalyticsData = (filters: AnalyticsFilters): AnalyticsData => 
         processingTime: Math.random() * 2000 + 500,
         confidence: Math.random() * 0.4 + 0.6,
       })),
-      featureImportance: [
-        { feature: 'Facial Landmarks', importance: 0.35 },
-        { feature: 'Eye Movement', importance: 0.28 },
-        { feature: 'Mouth Shape', importance: 0.22 },
-        { feature: 'Eyebrow Position', importance: 0.15 },
-      ],
+      featureImportance: [],
       recentSessions: Array.from({ length: 10 }, (_, i) => ({
         id: `session_${Date.now()}_${i}`,
         timestamp: new Date(Date.now() - i * 60 * 60 * 1000).toISOString(),
@@ -228,11 +223,26 @@ export const analyticsApi = {
   getAnalytics: async (filters: AnalyticsFilters): Promise<AnalyticsData> => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // In a real implementation, this would be:
-    // return apiCall(() => api.post('/analytics', filters));
-    
-    return generateMockAnalyticsData(filters);
+
+    // Fetch real video analytics
+    let realVideoAnalytics = null;
+    try {
+      const response = await api.get('/api/video/analytics');
+      realVideoAnalytics = response.data;
+    } catch (e) {
+      // fallback to mock if real API fails
+      realVideoAnalytics = null;
+    }
+
+    // Get the rest of the mock analytics
+    const mock = generateMockAnalyticsData(filters);
+    // Replace only the video section with real data if available
+    if (realVideoAnalytics) {
+      mock.video.confidenceDistribution = realVideoAnalytics.confidenceDistribution || [];
+      mock.video.emotionAccuracy = realVideoAnalytics.emotionAccuracy || [];
+      // Add more fields as you expand the backend
+    }
+    return mock;
   },
 
   exportData: async (filters: AnalyticsFilters): Promise<ExportData> => {

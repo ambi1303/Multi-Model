@@ -51,6 +51,9 @@ session = None
 # Create a TTL cache with 5 minutes expiration
 cache = TTLCache(maxsize=100, ttl=300)
 
+# In-memory storage for video analytics (for demo; replace with DB for production)
+video_analysis_results = []
+
 @app.on_event("startup")
 async def startup_event():
     global session
@@ -124,6 +127,13 @@ async def analyze_video(file: UploadFile = File(...)):
     async with session.post(VIDEO_BACKEND_URL, data=form) as resp:
         try:
             data = await resp.json()
+            # Store result for analytics (in-memory)
+            video_analysis_results.append({
+                "timestamp": datetime.now().isoformat(),
+                "dominant_emotion": data.get("dominantEmotion"),
+                "confidence": data.get("confidence", 0),
+                # Add more fields as needed
+            })
         except Exception as e:
             logger.error(f"Error decoding JSON from video backend: {e}")
             data = {"error": "Invalid JSON from video backend"}
@@ -303,4 +313,29 @@ async def analyze_multiple(request: Request):
             return JSONResponse(content=data, status_code=resp.status)
     except Exception as e:
         logger.error(f"Error proxying to chat backend: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500) 
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.get("/api/video/analytics")
+async def video_analytics():
+    # Aggregate confidence distribution
+    bins = ["0-20%", "20-40%", "40-60%", "60-80%", "80-100%"]
+    bin_counts = [0] * 5
+    for r in video_analysis_results:
+        c = r.get("confidence", 0)
+        idx = min(int(c * 5), 4)
+        bin_counts[idx] += 1
+    confidence_distribution = [{"range": b, "count": c} for b, c in zip(bins, bin_counts)]
+
+    # Aggregate emotion counts
+    emotion_counts = {}
+    for r in video_analysis_results:
+        e = r.get("dominant_emotion")
+        if e:
+            emotion_counts[e] = emotion_counts.get(e, 0) + 1
+    emotion_accuracy = [{"emotion": e, "accuracy": 100} for e in emotion_counts]  # Placeholder
+
+    return {
+        "confidenceDistribution": confidence_distribution,
+        "emotionAccuracy": emotion_accuracy,
+        # Add more analytics as needed
+    } 
