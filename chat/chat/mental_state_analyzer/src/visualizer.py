@@ -75,6 +75,7 @@ class Visualizer:
             'mental_state_distribution': mental_state_formatted,
             'average_sentiment': f"{sentiment_percentage:.0f}% positive",
             'most_common_emotion': df['primary_emotion'].mode().iloc[0],
+            'dominant_mental_state': mental_state_counts.index[0],  # Most common mental state
             'time_span': {
                 'start': start_time,
                 'end': end_time
@@ -82,3 +83,53 @@ class Visualizer:
         }
         
         return summary 
+    
+    def get_mental_states_data(self, analyzed_messages: List[Dict]) -> List[Dict]:
+        """Get mental states data formatted for React pie chart."""
+        df = pd.DataFrame(analyzed_messages)
+        state_counts = df['mental_state'].value_counts()
+        
+        # Format data for React Recharts PieChart
+        chart_data = []
+        colors = {
+            'Positive': '#4CAF50',
+            'Negative': '#F44336', 
+            'Neutral': '#FF9800',
+            'Stressed': '#E91E63',
+            'Anxious': '#9C27B0',
+            'Happy': '#2196F3',
+            'Sad': '#607D8B'
+        }
+        
+        for state, count in state_counts.items():
+            percentage = (count / len(df)) * 100
+            chart_data.append({
+                'name': state,
+                'value': count,
+                'percentage': round(percentage, 1),
+                'color': colors.get(state, '#757575')
+            })
+        
+        return chart_data
+    
+    def get_sentiment_trend_data(self, analyzed_messages: List[Dict]) -> List[Dict]:
+        """Get sentiment trend data formatted for React line chart."""
+        df = pd.DataFrame(analyzed_messages)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp')
+        
+        # Format data for React Recharts LineChart
+        chart_data = []
+        for _, row in df.iterrows():
+            # Convert sentiment score from -1,1 to 0,100 for better visualization
+            sentiment_percentage = ((row['sentiment_score'] + 1) / 2) * 100
+            
+            chart_data.append({
+                'timestamp': row['timestamp'].strftime('%H:%M'),
+                'fullTimestamp': row['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                'sentiment': round(sentiment_percentage, 1),
+                'rawSentiment': row['sentiment_score'],
+                'text': row['text'][:50] + '...' if len(row['text']) > 50 else row['text']
+            })
+        
+        return chart_data 

@@ -1,473 +1,607 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Typography,
-  Grid,
+import { 
+  Box, 
+  Button, 
+  Typography, 
+  Paper, 
+  TextField, 
+  CircularProgress, 
+  Grid, 
+  Tabs, 
+  Tab, 
+  Alert, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow,
   Card,
   CardContent,
-  TextField,
-  Button,
+  Divider,
   Chip,
-  Paper,
+  Avatar,
   IconButton,
+  Tooltip
 } from '@mui/material';
+import { 
+  analyzeSingleChatMessage, 
+  analyzeBatchChatMessages,
+  getBatchChatVisualizations,
+  analyzeChatFile,
+  CompleteAnalysisResponse
+} from '../services/api';
+import MentalStatesChart from '../components/charts/MentalStatesChart';
+import SentimentTrendChart from '../components/charts/SentimentTrendChart';
 import {
-  Send,
-  Clear,
-  Psychology,
+  MessageOutlined,
+  Analytics,
+  Mood,
+  SentimentVeryDissatisfied,
+  SentimentDissatisfied,
+  SentimentNeutral,
+  ChatBubbleOutline,
+  CloudUpload,
+  Visibility,
   TrendingUp,
   Delete,
+  Send
 } from '@mui/icons-material';
-import { LineChart } from '@mui/x-charts/LineChart';
-import { BarChart } from '@mui/x-charts/BarChart';
-import { ChatMessage } from '../types';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { useNotification } from '../contexts/NotificationContext';
-import { useAppStore } from '../store/useAppStore';
-import api from '../services/api';
-import { useTheme } from '@mui/material/styles';
+
+interface SingleAnalysisResult {
+  primary_emotion: string;
+  sentiment_score: number;
+  mental_state: string;
+  emotion_score?: number;
+  error?: string;
+}
+
+interface BatchAnalysisResult {
+  // Overall summary (from visualizer.generate_summary)
+  summary: {
+    total_messages: number;
+    mental_state_distribution: Record<string, string>;
+    average_sentiment: string;
+    most_common_emotion: string;
+    dominant_mental_state?: string;
+    time_span?: {
+      start: string;
+      end: string;
+    };
+  };
+  // Table analysis for each message (from emotion_detector.analyze_messages)
+  analyzed_messages: Array<{
+    timestamp: string;
+    text: string;
+    person_id: string;
+    sentiment_score: number;
+    primary_emotion: string;
+    emotion_score: number;
+    mental_state: string;
+  }>;
+  // Chart data for React components
+  mental_states_data: Array<{
+    name: string;
+    value: number;
+    percentage: number;
+    color: string;
+  }>;
+  sentiment_trend_data: Array<{
+    timestamp: string;
+    fullTimestamp: string;
+    sentiment: number;
+    rawSentiment: number;
+    text: string;
+  }>;
+  success: boolean;
+  message: string;
+}
+
+interface VisualizationData {
+  mentalStatesImg: string;
+  sentimentTrendImg: string;
+  summary: any;
+}
 
 export const ChatAnalysis: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [tab, setTab] = useState<'simple' | 'batch'>('simple');
+  
+  // Single message state
+  const [text, setText] = useState('');
+  const [charCount, setCharCount] = useState(0);
+  const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const { showSuccess, showError } = useNotification();
-  const { addAnalysisResult } = useAppStore();
-  const theme = useTheme();
+  const [result, setResult] = useState<SingleAnalysisResult | null>(null);
+  
+  // Batch analysis state
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchResult, setBatchResult] = useState<BatchAnalysisResult | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchFileName, setBatchFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const analyzeMessage = async () => {
-    if (!inputText.trim()) return;
+  // Tab switch handler
+  const handleTabChange = (_: any, value: string) => {
+    setTab(value as 'simple' | 'batch');
+    setResult(null);
+    setBatchResult(null);
+    setBatchError(null);
+    setBatchFileName('');
+    setSelectedFile(null);
+  };
 
+  // Text change handler
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+    setCharCount(newText.length);
+    setWordCount(newText.trim().split(/\s+/).filter(word => word.length > 0).length);
+  };
+
+  // Simple analysis submit
+  const handleSimpleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    
     setLoading(true);
+    setResult(null);
+    
     try {
-      // Real API call
-      const response = await api.post('/analyze-chat', {
-        text: inputText.trim(),
-        person_id: 'user_api',
-      });
-      const data = response.data;
-      // Map backend response to ChatMessage
-      const now = Date.now();
-      const result: ChatMessage = {
-        id: now.toString(),
-        text: data.text,
-        timestamp: now,
-        analysis: {
-          sentiment: {
-            label: data.sentiment || data.primary_emotion || 'neutral',
-            score: data.sentiment_score ?? 0,
-          },
-          emotions: [{ emotion: data.primary_emotion || 'neutral', confidence: data.emotion_score ?? 1, timestamp: now }],
-          mentalState: data.mental_state || 'neutral',
-        },
-      };
-      setMessages(prev => [result, ...prev]);
-      addAnalysisResult('chat', result);
-      setInputText('');
-      showSuccess('Message analyzed successfully!');
-    } catch {
-      showError('Failed to analyze message. Please try again.');
+      const data = await analyzeSingleChatMessage({ text: text.trim() });
+      setResult(data);
+    } catch (err: any) {
+      setResult({ error: err.message, primary_emotion: '', sentiment_score: 0, mental_state: '' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      analyzeMessage();
+  // File selection handler (just selects file, doesn't analyze)
+  const handleBatchFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBatchError(null);
+    setBatchResult(null);
+    
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setSelectedFile(file);
+    setBatchFileName(file.name);
+  };
+
+  // Note: Visualizations are now included directly in the analysis response
+
+  // Helper function to get emotion info
+  const getEmotionInfo = (emotion: string) => {
+    const emotionLower = (emotion || '').toLowerCase();
+    switch (emotionLower) {
+      case 'joy':
+      case 'happy':
+        return { text: 'Joy', color: '#4CAF50', bgColor: '#E8F5E9', icon: <Mood /> };
+      case 'anger':
+      case 'angry':
+        return { text: 'Anger', color: '#F44336', bgColor: '#FFEBEE', icon: <SentimentVeryDissatisfied /> };
+      case 'sadness':
+      case 'sad':
+        return { text: 'Sadness', color: '#2196F3', bgColor: '#E3F2FD', icon: <SentimentDissatisfied /> };
+      case 'fear':
+      case 'fearful':
+        return { text: 'Fear', color: '#9C27B0', bgColor: '#F3E5F5', icon: <SentimentVeryDissatisfied /> };
+      case 'surprise':
+      case 'surprised':
+        return { text: 'Surprise', color: '#FF9800', bgColor: '#FFF3E0', icon: <SentimentNeutral /> };
+      case 'neutral':
+      default:
+        return { text: 'Neutral', color: '#607D8B', bgColor: '#ECEFF1', icon: <SentimentNeutral /> };
     }
   };
 
-  const clearHistory = () => {
-    setMessages([]);
-    showSuccess('Chat history cleared.');
-  };
+  // Render analysis result cards
+  const renderAnalysisCards = (result: SingleAnalysisResult) => {
+    if (result.error) {
+      return <Alert severity="error">{result.error}</Alert>;
+    }
 
-  const getSentimentColor = (score: number) => {
-    if (score > 0.3) return 'success';
-    if (score < -0.3) return 'error';
-    return 'warning';
-  };
+    const emotionInfo = getEmotionInfo(result.primary_emotion);
+    const sentimentPercentage = ((result.sentiment_score + 1) / 2 * 100).toFixed(0);
 
-  const getMentalStateColor = (state: string) => {
-    const colors: { [key: string]: string } = {
-      confident: 'primary',
-      stressed: 'error',
-      anxious: 'warning',
-      calm: 'success',
-      excited: 'secondary',
-      frustrated: 'error',
-    };
-    return colors[state] || 'default';
-  };
-
-  // Calculate trends
-  const sentimentTrend = messages.slice(0, 10).reverse().map((msg, index) => ({
-    x: index + 1,
-    y: msg.analysis.sentiment.score,
-  }));
-
-  const emotionData = messages.length > 0 ? 
-    messages[0].analysis.emotions.slice(0, 5).map(emotion => ({
-      emotion: emotion.emotion,
-      confidence: Math.round(emotion.confidence * 100),
-    })) : [];
-
-  const averageSentiment = messages.length > 0 ? 
-    messages.reduce((sum, msg) => sum + msg.analysis.sentiment.score, 0) / messages.length : 0;
-
-  return (
-    <Box>
-      {/* Header */}
-      <Box sx={{ textAlign: 'center', mb: 4, mt: 2, animation: 'fadeIn 1.2s cubic-bezier(0.4,0,0.2,1)', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(-30px)' }, to: { opacity: 1, transform: 'none' } } }}>
-        <Typography
-          variant="h3"
-          component="h1"
-          sx={{
-            fontWeight: 700,
-            mb: 2,
-            background: 'linear-gradient(90deg, #6366f1, #7c3aed, #06b6d4, #f59e42, #6366f1)',
-            backgroundSize: '200% auto',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            animation: 'gradientMove 3s linear infinite',
-            '@keyframes gradientMove': {
-              '0%': { backgroundPosition: '0% 50%' },
-              '50%': { backgroundPosition: '100% 50%' },
-              '100%': { backgroundPosition: '0% 50%' },
-            },
-            position: 'relative',
-            zIndex: 1,
-          }}
-        >
-          Chat Mental State Analysis
-        </Typography>
-        <Box
-          sx={{
-            width: 320,
-            maxWidth: '80vw',
-            height: 6,
-            mx: 'auto',
-            borderRadius: 3,
-            background: 'linear-gradient(90deg, #6366f1, #7c3aed, #06b6d4, #f59e42, #6366f1)',
-            backgroundSize: '200% auto',
-            animation: 'underlineMove 3s linear infinite',
-            '@keyframes underlineMove': {
-              '0%': { backgroundPosition: '0% 50%' },
-              '50%': { backgroundPosition: '100% 50%' },
-              '100%': { backgroundPosition: '0% 50%' },
-            },
-            mt: 1,
-            mb: 3,
-            opacity: 0.85,
-          }}
-        />
-        <Typography variant="h6" color="text.secondary">
-          Analyze emotional patterns and mental states from text conversations
-        </Typography>
-      </Box>
-
-      <Grid container spacing={4}>
-        {/* Chat Input */}
-        <Grid item xs={12} lg={8}>
-          <Card sx={{ mb: 4 }}>
-            <CardContent>
-              <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-                Message Analysis
+    return (
+      <Grid container spacing={2} sx={{ mt: 2 }}>
+        {/* Emotion Card */}
+        <Grid item xs={6} sm={3}>
+          <Card sx={{ bgcolor: emotionInfo.bgColor, border: `1px solid ${emotionInfo.color}` }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Avatar sx={{ bgcolor: emotionInfo.color, mx: 'auto', mb: 1 }}>
+                {emotionInfo.icon}
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: emotionInfo.color }}>
+                {emotionInfo.text}
               </Typography>
-              
-              <Box sx={{ position: 'relative', mb: 3 }}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={4}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Type your message here to analyze emotional content..."
-                  disabled={loading}
-                  inputProps={{ maxLength: 500 }}
-                />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 12,
-                    backgroundColor: 'background.paper',
-                    px: 1,
-                  }}
-                >
-                  {inputText.length}/500
-                </Typography>
-              </Box>
-              
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button
-                  variant="contained"
-                  startIcon={loading ? <LoadingSpinner size={16} /> : <Send />}
-                  onClick={analyzeMessage}
-                  disabled={!inputText.trim() || loading}
-                  sx={{ flex: 1 }}
-                >
-                  {loading ? 'Analyzing...' : 'Analyze Message'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<Clear />}
-                  onClick={clearHistory}
-                  disabled={messages.length === 0}
-                >
-                  Clear History
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-
-          {/* Message History */}
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                  Conversation Analysis
-                </Typography>
-                <Chip
-                  label={`${messages.length} messages`}
-                  color="primary"
-                  variant="outlined"
-                />
-              </Box>
-              
-              <Box sx={{ maxHeight: 600, overflow: 'auto' }}>
-                {messages.length === 0 ? (
-                  <Box
-                    sx={{
-                      textAlign: 'center',
-                      py: 8,
-                      color: 'text.secondary',
-                    }}
-                  >
-                    <Psychology sx={{ fontSize: 64, mb: 2, opacity: 0.5 }} />
-                    <Typography variant="h6">No messages analyzed yet</Typography>
-                    <Typography variant="body2">
-                      Start typing to analyze emotional content
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {messages.map((message, index) => (
-                      <Paper
-                        key={message.id}
-                        variant="outlined"
-                        sx={{
-                          p: 3,
-                          backgroundColor: 'grey.50',
-                          position: 'relative',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Message {messages.length - index} • {new Date(message.timestamp).toLocaleTimeString()}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Chip
-                              label={message.analysis.sentiment.label}
-                              size="small"
-                              variant="filled"
-                              color={getSentimentColor(message.analysis.sentiment.score)}
-                              sx={{
-                                ...(theme.palette.mode === 'dark' && {
-                                  color: '#fff',
-                                  backgroundColor:
-                                    getSentimentColor(message.analysis.sentiment.score) === 'success'
-                                      ? '#388e3c'
-                                      : getSentimentColor(message.analysis.sentiment.score) === 'error'
-                                      ? '#d32f2f'
-                                      : '#fbc02d',
-                                  border: '1px solid rgba(255,255,255,0.2)',
-                                }),
-                                fontWeight: 600,
-                                letterSpacing: 0.5,
-                              }}
-                            />
-                            <Chip
-                              label={message.analysis.mentalState}
-                              size="small"
-                              variant="filled"
-                              color={getMentalStateColor(message.analysis.mentalState) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
-                              sx={{
-                                ...(theme.palette.mode === 'dark' && {
-                                  color: '#fff',
-                                  backgroundColor:
-                                    getMentalStateColor(message.analysis.mentalState) === 'success'
-                                      ? '#388e3c'
-                                      : getMentalStateColor(message.analysis.mentalState) === 'error'
-                                      ? '#d32f2f'
-                                      : getMentalStateColor(message.analysis.mentalState) === 'warning'
-                                      ? '#fbc02d'
-                                      : '#1976d2', // fallback for primary
-                                  border: '1px solid rgba(255,255,255,0.2)',
-                                }),
-                                fontWeight: 600,
-                                letterSpacing: 0.5,
-                              }}
-                            />
-                          </Box>
-                        </Box>
-                        
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            mb: 2,
-                            p: 2,
-                            backgroundColor: 'background.paper',
-                            borderRadius: 1,
-                            borderLeft: 4,
-                            borderColor: 'primary.main',
-                          }}
-                        >
-                          "{message.text}"
-                        </Typography>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">
-                              Dominant emotion: <strong>{message.analysis.emotions[0]?.emotion}</strong>
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                              Sentiment score: <strong>{message.analysis.sentiment.score.toFixed(2)}</strong>
-                            </Typography>
-                          </Box>
-                          <IconButton
-                            size="small"
-                            onClick={() => setMessages(prev => prev.filter(m => m.id !== message.id))}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      </Paper>
-                    ))}
-                  </Box>
-                )}
-              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Primary Emotion
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Analytics Sidebar */}
-        <Grid item xs={12} lg={4}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                  Overall Insights
-                </Typography>
-                
-                <Box
-                  sx={{
-                    p: 3,
-                    borderRadius: 2,
-                    background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-                    color: 'white',
-                    textAlign: 'center',
-                    mb: 3,
-                  }}
-                >
-                  <Psychology sx={{ fontSize: 40, mb: 1 }} />
-                  <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                    Average Sentiment
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {averageSentiment.toFixed(2)}
-                  </Typography>
-                </Box>
-                
-                {messages.length > 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Messages
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {messages.length}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Latest State
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, textTransform: 'capitalize' }}
-                      >
-                        {messages[0]?.analysis.mentalState}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Trend
-                      </Typography>
-                      <TrendingUp fontSize="small" color="success" />
-                    </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
+        {/* Sentiment Score Card */}
+        <Grid item xs={6} sm={3}>
+          <Card sx={{ bgcolor: '#E3F2FD', border: '1px solid #2196F3' }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Avatar sx={{ bgcolor: '#2196F3', mx: 'auto', mb: 1 }}>
+                <TrendingUp />
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#2196F3' }}>
+                {sentimentPercentage}%
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Sentiment Score
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-            {emotionData.length > 0 && (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                    Current Emotions
-                  </Typography>
-                  <BarChart
-                    dataset={emotionData}
-                    yAxis={[{ scaleType: 'band', dataKey: 'emotion' }]}
-                    series={[{ dataKey: 'confidence', label: 'Confidence %' }]}
-                    layout="horizontal"
-                    height={200}
-                  />
-                </CardContent>
-              </Card>
-            )}
-          </Box>
+        {/* Mental State Card */}
+        <Grid item xs={6} sm={3}>
+          <Card sx={{ bgcolor: '#FFFDE7', border: '1px solid #FBC02D' }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Avatar sx={{ bgcolor: '#FBC02D', mx: 'auto', mb: 1 }}>
+                <ChatBubbleOutline />
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#F57C00' }}>
+                {result.mental_state || 'N/A'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Mental State
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Word Count Card */}
+        <Grid item xs={6} sm={3}>
+          <Card sx={{ bgcolor: '#F3E5F5', border: '1px solid #9C27B0' }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Avatar sx={{ bgcolor: '#9C27B0', mx: 'auto', mb: 1 }}>
+                <MessageOutlined />
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#9C27B0' }}>
+                {wordCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Word Count
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
+    );
+  };
 
-      {/* Sentiment Trend */}
-      {sentimentTrend.length > 1 && (
-        <Card sx={{ mt: 4 }}>
-          <CardContent>
-            <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-              Sentiment Trend
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Track emotional changes over conversation
-            </Typography>
-            <LineChart
-              series={[
-                {
-                  data: sentimentTrend.map(point => point.y),
-                  label: 'Sentiment Score',
-                  color: '#2563eb',
-                },
-              ]}
-              xAxis={[{
-                data: sentimentTrend.map(point => point.x),
-                label: 'Message Number',
-              }]}
-              yAxis={[{
-                min: -1,
-                max: 1,
-                label: 'Sentiment Score',
-              }]}
-              height={300}
+  const handleBatchAnalysis = async () => {
+    if (!selectedFile) return;
+
+    setBatchLoading(true);
+    setBatchError(null);
+    
+    try {
+      console.log('Starting complete analysis for:', selectedFile.name);
+      
+      // Complete analysis (matches main.py flow exactly)
+      const result = await analyzeChatFile(selectedFile);
+      console.log('Complete analysis result:', result);
+      console.log('✅ Overall Summary:', result.summary);
+      console.log('✅ Message Analysis:', result.analyzed_messages?.length, 'messages');
+      console.log('✅ Mental States Data:', result.mental_states_data?.length, 'data points');
+      console.log('✅ Sentiment Trend Data:', result.sentiment_trend_data?.length, 'data points');
+      
+      setBatchResult(result);
+      console.log('✅ Results displayed successfully');
+      
+    } catch (error) {
+      console.error('❌ Complete analysis error:', error);
+      setBatchError(error instanceof Error ? error.message : 'Analysis failed');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    setBatchResult(null);
+    setBatchError(null);
+    // Clear the file input
+    const fileInput = document.getElementById('batch-file-input') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  return (
+    <Box sx={{ p: 3, minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+      {/* Header */}
+      <Paper sx={{ p: 3, mb: 3, textAlign: 'center' }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: '#673AB7', mb: 1 }}>
+          🔍 Chat Message Analyzer
+        </Typography>
+        <Typography variant="h6" sx={{ color: '#616161' }}>
+          Analyze your messages for sentiment, emotions, and mental state insights
+        </Typography>
+      </Paper>
+
+      {/* Tabs */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs value={tab} onChange={handleTabChange} variant="fullWidth">
+          <Tab 
+            label="Simple Analysis" 
+            value="simple" 
+            icon={<MessageOutlined />}
+            iconPosition="start"
+          />
+          <Tab 
+            label="Batch Analysis" 
+            value="batch" 
+            icon={<Analytics />}
+            iconPosition="start"
+          />
+        </Tabs>
+      </Paper>
+
+      {/* Simple Analysis Tab */}
+      {tab === 'simple' && (
+        <Paper sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
+          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <MessageOutlined color="primary" />
+            Simple Message Analysis
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Quick analysis using the basic chat service (chat/chat/services → port 9000)
+          </Typography>
+          
+          <form onSubmit={handleSimpleSubmit}>
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              value={text}
+              onChange={handleTextChange}
+              placeholder="Type your message here..."
+              disabled={loading}
+              sx={{ mb: 2 }}
             />
-          </CardContent>
-        </Card>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Characters: {charCount} | Words: {wordCount}
+              </Typography>
+              <Button 
+                type="submit" 
+                variant="contained" 
+                disabled={loading || !text.trim()}
+                startIcon={loading ? <CircularProgress size={20} /> : <MessageOutlined />}
+              >
+                {loading ? 'Analyzing...' : 'Analyze Message'}
+              </Button>
+            </Box>
+          </form>
+
+          {result && renderAnalysisCards(result)}
+        </Paper>
+      )}
+
+      {/* Batch Analysis Tab */}
+      {tab === 'batch' && (
+        <Paper sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Analytics color="primary" />
+            Batch Chat Analysis
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Upload a JSON file with multiple messages for comprehensive analysis and visualizations (mental_state_analyzer → port 8003)
+          </Typography>
+
+          {/* Sample JSON Format */}
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Expected JSON format:</Typography>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+{`{
+  "person_id": "user_123",
+  "messages": [
+    {"text": "I'm feeling great today!", "timestamp": "2024-01-01T10:00:00Z"},
+    {"text": "Work is stressing me out.", "timestamp": "2024-01-01T11:00:00Z"}
+  ]
+}`}
+            </Typography>
+          </Alert>
+
+          {/* File Upload */}
+          <Box sx={{ mb: 3 }}>
+            <input
+              id="batch-file-input"
+              type="file"
+              accept=".json"
+              onChange={handleBatchFileChange}
+              style={{ display: 'none' }}
+            />
+            <label htmlFor="batch-file-input">
+              <Button 
+                variant="outlined" 
+                component="span" 
+                startIcon={<CloudUpload />}
+                sx={{ mb: 2 }}
+              >
+                Choose JSON File
+              </Button>
+            </label>
+
+            {selectedFile && (
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Typography variant="body2">
+                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                  </Typography>
+                  <Tooltip title="Remove file">
+                    <IconButton size="small" onClick={clearFile}>
+                      <Delete />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+                <Button
+                  variant="contained"
+                  onClick={handleBatchAnalysis}
+                  disabled={batchLoading}
+                  startIcon={batchLoading ? <CircularProgress size={20} /> : <Send />}
+                  sx={{ mb: 2 }}
+                >
+                  {batchLoading ? 'Analyzing...' : 'Analyze File'}
+                </Button>
+              </Box>
+            )}
+          </Box>
+
+          {/* Loading State */}
+          {batchLoading && (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <CircularProgress size={60} />
+              <Typography variant="h6" sx={{ mt: 2 }}>
+                Analyzing your messages...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Error State */}
+          {batchError && <Alert severity="error" sx={{ mb: 3 }}>{batchError}</Alert>}
+
+          {/* Batch Results */}
+          {batchResult && (
+            <Box sx={{ mt: 3 }}>
+              {/* Analysis Summary */}
+              <Card sx={{ mb: 3, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    📊 Analysis Summary
+                    <Chip label={`${batchResult.summary.total_messages} messages`} color="primary" size="small" />
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                        🧠 Mental State Distribution:
+                      </Typography>
+                      {Object.entries(batchResult.summary.mental_state_distribution || {}).map(([state, count]) => (
+                        <Typography key={state} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                          • <strong>{state}:</strong> {String(count)}
+                        </Typography>
+                      ))}
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body1" sx={{ mb: 1 }}>
+                        <strong>💭 Average Sentiment:</strong> {batchResult.summary.average_sentiment}
+                      </Typography>
+                      <Typography variant="body1" sx={{ mb: 1 }}>
+                        <strong>😊 Most Common Emotion:</strong> {batchResult.summary.most_common_emotion}
+                      </Typography>
+                      {batchResult.summary.time_span && (
+                        <Box>
+                          <Typography variant="body2" sx={{ mb: 0.5 }}>
+                            <strong>⏰ Time Span:</strong>
+                          </Typography>
+                          <Typography variant="body2" sx={{ ml: 2, fontSize: '0.8rem' }}>
+                            From: {batchResult.summary.time_span.start}
+                          </Typography>
+                          <Typography variant="body2" sx={{ ml: 2, fontSize: '0.8rem' }}>
+                            To: {batchResult.summary.time_span.end}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Grid>
+                  </Grid>
+
+                  {/* Success Message */}
+                  {batchResult.success && (
+                    <Alert severity="success" sx={{ mt: 2 }}>
+                      {batchResult.message}
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Interactive React Visualizations */}
+              {(batchResult.mental_states_data?.length > 0 || batchResult.sentiment_trend_data?.length > 0) && (
+                <Card sx={{ mb: 3 }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      📈 Interactive Visualizations (React Charts)
+                    </Typography>
+                    <Grid container spacing={3}>
+                      {batchResult.mental_states_data?.length > 0 && (
+                        <Grid item xs={12} lg={6}>
+                          <MentalStatesChart data={batchResult.mental_states_data} />
+                        </Grid>
+                      )}
+                      {batchResult.sentiment_trend_data?.length > 0 && (
+                        <Grid item xs={12} lg={6}>
+                          <SentimentTrendChart data={batchResult.sentiment_trend_data} />
+                        </Grid>
+                      )}
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Message Details Table */}
+              {Array.isArray(batchResult.analyzed_messages) && batchResult.analyzed_messages.length > 0 && (
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      📝 Detailed Message Analysis
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Timestamp</TableCell>
+                            <TableCell>Text</TableCell>
+                            <TableCell>Person ID</TableCell>
+                            <TableCell>Sentiment</TableCell>
+                            <TableCell>Emotion</TableCell>
+                            <TableCell>Mental State</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {batchResult.analyzed_messages.map((msg, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell sx={{ fontSize: '0.75rem' }}>{msg.timestamp}</TableCell>
+                              <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {msg.text}
+                              </TableCell>
+                              <TableCell>{msg.person_id}</TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={`${((msg.sentiment_score + 1) / 2 * 100).toFixed(0)}%`}
+                                  size="small"
+                                  color={msg.sentiment_score > 0 ? 'success' : msg.sentiment_score < 0 ? 'error' : 'default'}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={msg.primary_emotion}
+                                  size="small"
+                                  sx={{ bgcolor: getEmotionInfo(msg.primary_emotion).bgColor }}
+                                />
+                              </TableCell>
+                              <TableCell>{msg.mental_state}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              )}
+            </Box>
+          )}
+        </Paper>
       )}
     </Box>
   );

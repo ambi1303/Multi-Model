@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import * as yup from 'yup';
 import {
   Box,
   Typography,
@@ -10,36 +10,21 @@ import {
   Button,
   Slider,
   Alert,
-
   Paper,
 } from '@mui/material';
 import {
   Assignment,
-  TrendingUp,
   Refresh,
-  Warning,
-  CheckCircle,
 } from '@mui/icons-material';
 import { RadarChart } from '@mui/x-charts';
-import { BarChart } from '@mui/x-charts/BarChart';
-import { BurnoutSurveyData, BurnoutResult } from '../types';
+import { BurnoutResult } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
 import api from '../services/api';
 import { useTheme } from '@mui/material/styles';
 
-const schema = yup.object({
-  workload: yup.number().required().min(1).max(10),
-  workLifeBalance: yup.number().required().min(1).max(10),
-  jobSatisfaction: yup.number().required().min(1).max(10),
-  stressLevel: yup.number().required().min(1).max(10),
-  supportSystem: yup.number().required().min(1).max(10),
-  sleepQuality: yup.number().required().min(1).max(10),
-  energyLevel: yup.number().required().min(1).max(10),
-  motivation: yup.number().required().min(1).max(10),
-  additionalComments: yup.string().max(500),
-});
+
 
 const questions = [
   { key: 'designation', label: 'Designation Level (1-5)', min: 1, max: 5 },
@@ -65,22 +50,40 @@ const likertQuestions = [
 ];
 
 // Helper to map categorical values to numbers for radar chart
-const mapRadarValue = (key: string, value: any) => {
+const mapRadarValue = (key: string, value: string | number) => {
   if (key === 'companyType') return value === 'Product' ? 2 : 1;
   if (key === 'wfhSetupAvailable') return value === 'No' ? 2 : 1;
   if (key === 'gender') return value === 'Female' ? 2 : 1;
   return typeof value === 'number' ? value : 0;
 };
 
+interface FormData {
+  designation: number;
+  resourceAllocation: number;
+  mentalFatigueScore: number;
+  companyType: string;
+  wfhSetupAvailable: string;
+  gender: string;
+  q1: number;
+  q2: number;
+  q3: number;
+  q4: number;
+  q5: number;
+  q6: number;
+  q7: number;
+  q8: number;
+  q9: number;
+  q10: number;
+}
+
 export const BurnoutSurvey: React.FC = () => {
   const [result, setResult] = useState<BurnoutResult | null>(null);
-  const [lastSubmitted, setLastSubmitted] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const { showSuccess, showError } = useNotification();
   const { addAnalysisResult } = useAppStore();
   const theme = useTheme();
 
-  const { control, handleSubmit, watch, reset, formState: { errors } } = useForm<any>({
+  const { control, handleSubmit, watch, reset } = useForm<FormData>({
     defaultValues: {
       designation: 1,
       resourceAllocation: 5,
@@ -95,7 +98,7 @@ export const BurnoutSurvey: React.FC = () => {
 
   const watchedValues = watch();
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
       const payload = {
@@ -126,7 +129,13 @@ export const BurnoutSurvey: React.FC = () => {
       
       // Map backend response to UI format
       const backendResult = response.data;
-      const mappedResult = {
+      const mappedResult: BurnoutResult = {
+        "Employee ID": backendResult["Employee ID"] || "anonymous",
+        "Predicted Burn Rate": backendResult["Predicted Burn Rate"] || 0,
+        "Survey Score": backendResult["Survey Score"] || "",
+        "Mental Health Summary": backendResult["Mental Health Summary"] || "",
+        "Recommendations": Array.isArray(backendResult["Recommendations"]) ? backendResult["Recommendations"] : [],
+        // UI mapping properties
         riskLevel: backendResult["Survey Score"]?.includes("High Risk") ? "High" :
                    backendResult["Survey Score"]?.includes("Medium Risk") ? "Medium" : "Low",
         score: (backendResult["Predicted Burn Rate"] || 0) / 10, // Backend returns percentage, UI expects decimal for *10 calculation
@@ -139,7 +148,6 @@ export const BurnoutSurvey: React.FC = () => {
       };
       
       setResult(mappedResult);
-      setLastSubmitted(data);
       addAnalysisResult('survey', mappedResult);
       showSuccess('Survey analyzed successfully!');
     } catch (err) {
