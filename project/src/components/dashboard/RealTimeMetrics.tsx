@@ -146,7 +146,8 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
       <Card
         sx={{
           height: '100%',
-          background: `linear-gradient(135deg, ${metric.color}15 0%, ${metric.color}25 100%)`,
+          backgroundColor: `${metric.color}15`,
+          backgroundImage: `linear-gradient(135deg, ${metric.color}15 0%, ${metric.color}25 100%)`,
           backdropFilter: 'blur(20px)',
           border: `2px solid ${metric.color}30`,
           borderRadius: 4,
@@ -168,7 +169,8 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
             transform: 'translate(-50%, -50%)',
             width: '200%',
             height: '200%',
-            background: `radial-gradient(circle, ${metric.color}20 0%, transparent 70%)`,
+            backgroundColor: `${metric.color}20`,
+            backgroundImage: `radial-gradient(circle, ${metric.color}20 0%, transparent 70%)`,
             zIndex: 0,
           }}
         />
@@ -184,7 +186,8 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
             >
               <Avatar
                 sx={{
-                  background: `linear-gradient(135deg, ${metric.color} 0%, ${metric.color}80 100%)`,
+                  backgroundColor: metric.color,
+                  backgroundImage: `linear-gradient(135deg, ${metric.color} 0%, ${metric.color}80 100%)`,
                   width: 48,
                   height: 48,
                   mr: 2,
@@ -195,20 +198,13 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
             </motion.div>
             
             <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
                 {metric.label}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                <motion.div
-                  key={metric.value}
-                  initial={{ scale: 1.3, color: metric.color }}
-                  animate={{ scale: 1, color: 'inherit' }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1 }}>
-                    {metric.value}{metric.unit}
-                  </Typography>
-                </motion.div>
+                <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1 }}>
+                  {metric.value}{metric.unit}
+                </Typography>
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -220,7 +216,7 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
             </Box>
           </Box>
           
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+          <Typography variant="caption" sx={{ mb: 2, display: 'block', color: 'text.secondary' }}>
             {metric.description}
           </Typography>
           
@@ -236,9 +232,10 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
                 sx={{
                   height: 8,
                   borderRadius: 4,
-                  background: 'rgba(255,255,255,0.1)',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
                   '& .MuiLinearProgress-bar': {
-                    background: `linear-gradient(90deg, ${metric.color} 0%, ${metric.color}80 100%)`,
+                    backgroundColor: metric.color,
+                    backgroundImage: `linear-gradient(90deg, ${metric.color} 0%, ${metric.color}80 100%)`,
                     borderRadius: 4,
                   },
                 }}
@@ -280,7 +277,7 @@ export const RealTimeMetrics: React.FC = () => {
             fontWeight: 700,
             mb: 3,
             textAlign: 'center',
-            background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+            backgroundImage: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',

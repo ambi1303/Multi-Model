@@ -12,9 +12,10 @@ interface AppState {
     speech: any[];
     chat: any[];
     survey: any[];
+    'enhanced-survey': any[];
   };
-  addAnalysisResult: (type: 'video' | 'speech' | 'chat' | 'survey', result: any) => void;
-  clearHistory: (type?: 'video' | 'speech' | 'chat' | 'survey') => void;
+  addAnalysisResult: (type: 'video' | 'speech' | 'chat' | 'survey' | 'enhanced-survey', result: any) => void;
+  clearHistory: (type?: 'video' | 'speech' | 'chat' | 'survey' | 'enhanced-survey') => void;
   
   // User Preferences
   preferences: {
@@ -38,19 +39,20 @@ export const useAppStore = create<AppState>()(
         speech: [],
         chat: [],
         survey: [],
+        'enhanced-survey': [],
       },
       addAnalysisResult: (type, result) =>
         set((state) => ({
           analysisHistory: {
             ...state.analysisHistory,
-            [type]: [result, ...state.analysisHistory[type]].slice(0, 50), // Keep last 50
+            [type]: [result, ...(state.analysisHistory[type] || [])].slice(0, 50), // Keep last 50, handle undefined case
           },
         })),
       clearHistory: (type) =>
         set((state) => ({
           analysisHistory: type
             ? { ...state.analysisHistory, [type]: [] }
-            : { video: [], speech: [], chat: [], survey: [] },
+            : { video: [], speech: [], chat: [], survey: [], 'enhanced-survey': [] },
         })),
       
       // User Preferences

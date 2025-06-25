@@ -20,6 +20,7 @@ import {
   Chat,
   Assignment,
   TrendingUp,
+  Star,
 } from '@mui/icons-material';
 
 interface NavigationItem {
@@ -36,6 +37,7 @@ const navigationItems: NavigationItem[] = [
   { label: 'Speech Analysis', path: '/speech', icon: <Mic /> },
   { label: 'Chat Analysis', path: '/chat', icon: <Chat /> },
   { label: 'Burnout Survey', path: '/survey', icon: <Assignment /> },
+  { label: 'Enhanced Survey', path: '/enhanced-survey', icon: <Star />, badge: 'NEW' },
   { label: 'Analytics', path: '/analytics', icon: <TrendingUp /> },
 ];
 

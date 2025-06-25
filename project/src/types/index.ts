@@ -96,6 +96,47 @@ export interface ApiError {
   message: string;
   code?: string;
   details?: any;
+  statusCode?: number;
+  endpoint?: string;
+  timestamp?: string;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  success: boolean;
+  message?: string;
+  timestamp?: string;
+}
+
+// Health Check Types
+export interface ServiceStatus {
+  status: string;
+  latency?: number;
+  version?: string;
+  lastChecked?: string;
+}
+
+export interface HealthCheckResponse {
+  status: string;
+  version: string;
+  timestamp: string;
+  uptime?: number;
+  services: {
+    [key: string]: ServiceStatus;
+  };
+  system?: {
+    memory_mb?: number;
+    cpu_percent?: number;
+  };
+}
+
+export interface MetricsData {
+  requestCount: number;
+  errorRate: number;
+  avgResponseTime: number;
+  serviceStatus: {
+    [key: string]: boolean;
+  };
 }
 
 // Form Types

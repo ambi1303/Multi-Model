@@ -1,35 +1,34 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  Button, 
-  Typography, 
-  Paper, 
-  TextField, 
-  CircularProgress, 
-  Grid, 
-  Tabs, 
-  Tab, 
-  Alert, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
+import {
+  Box,
+  Button,
+  Typography,
+  Paper,
+  TextField,
+  CircularProgress,
+  Grid,
+  Tabs,
+  Tab,
+  Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
   TableRow,
   Card,
   CardContent,
-  Divider,
   Chip,
   Avatar,
   IconButton,
-  Tooltip
+  Tooltip,
+  Divider,
+  Stack
 } from '@mui/material';
-import { 
-  analyzeSingleChatMessage, 
-  analyzeBatchChatMessages,
-  getBatchChatVisualizations,
+import {
+  analyzeSingleChatMessage,
   analyzeChatFile,
-  CompleteAnalysisResponse
+  analyzeBatchChatMessages
 } from '../services/api';
 import MentalStatesChart from '../components/charts/MentalStatesChart';
 import SentimentTrendChart from '../components/charts/SentimentTrendChart';
@@ -42,10 +41,13 @@ import {
   SentimentNeutral,
   ChatBubbleOutline,
   CloudUpload,
-  Visibility,
   TrendingUp,
   Delete,
-  Send
+  Send,
+  Add,
+  PlayArrow,
+  Description,
+  TextSnippet
 } from '@mui/icons-material';
 
 interface SingleAnalysisResult {
@@ -97,28 +99,34 @@ interface BatchAnalysisResult {
   message: string;
 }
 
-interface VisualizationData {
-  mentalStatesImg: string;
-  sentimentTrendImg: string;
-  summary: any;
+interface MessageInput {
+  id: string;
+  text: string;
+  person_id: string;
 }
 
 export const ChatAnalysis: React.FC = () => {
   const [tab, setTab] = useState<'simple' | 'batch'>('simple');
-  
+
   // Single message state
   const [text, setText] = useState('');
   const [charCount, setCharCount] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SingleAnalysisResult | null>(null);
-  
+
   // Batch analysis state
+  const [batchMode, setBatchMode] = useState<'file' | 'manual'>('manual');
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchAnalysisResult | null>(null);
   const [batchError, setBatchError] = useState<string | null>(null);
-  const [batchFileName, setBatchFileName] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  // Manual message input state
+  const [messages, setMessages] = useState<MessageInput[]>([
+    { id: '1', text: '', person_id: 'user_1' },
+    { id: '2', text: '', person_id: 'user_1' }
+  ]);
 
   // Tab switch handler
   const handleTabChange = (_: any, value: string) => {
@@ -126,7 +134,6 @@ export const ChatAnalysis: React.FC = () => {
     setResult(null);
     setBatchResult(null);
     setBatchError(null);
-    setBatchFileName('');
     setSelectedFile(null);
   };
 
@@ -138,14 +145,45 @@ export const ChatAnalysis: React.FC = () => {
     setWordCount(newText.trim().split(/\s+/).filter(word => word.length > 0).length);
   };
 
+  // Message input handlers
+  const handleMessageChange = (id: string, field: 'text' | 'person_id', value: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === id ? { ...msg, [field]: value } : msg
+    ));
+  };
+
+  const addMessage = () => {
+    const newId = (Math.max(...messages.map(m => parseInt(m.id))) + 1).toString();
+    setMessages(prev => [...prev, { id: newId, text: '', person_id: 'user_1' }]);
+  };
+
+  const removeMessage = (id: string) => {
+    if (messages.length > 1) {
+      setMessages(prev => prev.filter(msg => msg.id !== id));
+    }
+  };
+
+  // Convert manual messages to JSON format
+  const convertMessagesToJson = () => {
+    const validMessages = messages.filter(msg => msg.text.trim().length > 0);
+    return {
+      person_id: "batch_user",
+      messages: validMessages.map((msg, index) => ({
+        text: msg.text.trim(),
+        timestamp: new Date(Date.now() + index * 1000).toISOString(),
+        person_id: msg.person_id
+      }))
+    };
+  };
+
   // Simple analysis submit
   const handleSimpleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) return;
-    
+
     setLoading(true);
     setResult(null);
-    
+
     try {
       const data = await analyzeSingleChatMessage({ text: text.trim() });
       setResult(data);
@@ -160,15 +198,12 @@ export const ChatAnalysis: React.FC = () => {
   const handleBatchFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setBatchError(null);
     setBatchResult(null);
-    
+
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    setSelectedFile(file);
-    setBatchFileName(file.name);
-  };
 
-  // Note: Visualizations are now included directly in the analysis response
+    setSelectedFile(file);
+  };
 
   // Helper function to get emotion info
   const getEmotionInfo = (emotion: string) => {
@@ -223,7 +258,7 @@ export const ChatAnalysis: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Sentiment Score Card */}
+        {/* Sentiment Card */}
         <Grid item xs={6} sm={3}>
           <Card sx={{ bgcolor: '#E3F2FD', border: '1px solid #2196F3' }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
@@ -242,13 +277,13 @@ export const ChatAnalysis: React.FC = () => {
 
         {/* Mental State Card */}
         <Grid item xs={6} sm={3}>
-          <Card sx={{ bgcolor: '#FFFDE7', border: '1px solid #FBC02D' }}>
+          <Card sx={{ bgcolor: '#FFF3E0', border: '1px solid #FF9800' }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Avatar sx={{ bgcolor: '#FBC02D', mx: 'auto', mb: 1 }}>
+              <Avatar sx={{ bgcolor: '#FF9800', mx: 'auto', mb: 1 }}>
                 <ChatBubbleOutline />
               </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#F57C00' }}>
-                {result.mental_state || 'N/A'}
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#FF9800' }}>
+                {result.mental_state}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Mental State
@@ -262,7 +297,7 @@ export const ChatAnalysis: React.FC = () => {
           <Card sx={{ bgcolor: '#F3E5F5', border: '1px solid #9C27B0' }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Avatar sx={{ bgcolor: '#9C27B0', mx: 'auto', mb: 1 }}>
-                <MessageOutlined />
+                <TextSnippet />
               </Avatar>
               <Typography variant="h6" sx={{ fontWeight: 600, color: '#9C27B0' }}>
                 {wordCount}
@@ -278,27 +313,38 @@ export const ChatAnalysis: React.FC = () => {
   };
 
   const handleBatchAnalysis = async () => {
-    if (!selectedFile) return;
-
     setBatchLoading(true);
     setBatchError(null);
-    
+
     try {
-      console.log('Starting complete analysis for:', selectedFile.name);
+      let result;
       
-      // Complete analysis (matches main.py flow exactly)
-      const result = await analyzeChatFile(selectedFile);
-      console.log('Complete analysis result:', result);
-      console.log('✅ Overall Summary:', result.summary);
-      console.log('✅ Message Analysis:', result.analyzed_messages?.length, 'messages');
-      console.log('✅ Mental States Data:', result.mental_states_data?.length, 'data points');
-      console.log('✅ Sentiment Trend Data:', result.sentiment_trend_data?.length, 'data points');
-      
+      if (batchMode === 'file' && selectedFile) {
+        console.log('Starting file analysis for:', selectedFile.name);
+        result = await analyzeChatFile(selectedFile);
+      } else if (batchMode === 'manual') {
+        const validMessages = messages.filter(msg => msg.text.trim().length > 0);
+        if (validMessages.length === 0) {
+          throw new Error('Please add at least one message');
+        }
+        
+        console.log('Starting manual batch analysis for:', validMessages.length, 'messages');
+        const jsonData = convertMessagesToJson();
+        
+        // Create a temporary JSON file for the analysis
+        const jsonBlob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
+        const jsonFile = new File([jsonBlob], 'manual_messages.json', { type: 'application/json' });
+        
+        result = await analyzeChatFile(jsonFile);
+      } else {
+        throw new Error('Please select a file or add messages');
+      }
+
+      console.log('Batch analysis result:', result);
       setBatchResult(result);
-      console.log('✅ Results displayed successfully');
-      
+
     } catch (error) {
-      console.error('❌ Complete analysis error:', error);
+      console.error('❌ Batch analysis error:', error);
       setBatchError(error instanceof Error ? error.message : 'Analysis failed');
     } finally {
       setBatchLoading(false);
@@ -316,6 +362,15 @@ export const ChatAnalysis: React.FC = () => {
     }
   };
 
+  const clearMessages = () => {
+    setMessages([
+      { id: '1', text: '', person_id: 'user_1' },
+      { id: '2', text: '', person_id: 'user_1' }
+    ]);
+    setBatchResult(null);
+    setBatchError(null);
+  };
+
   return (
     <Box sx={{ p: 3, minHeight: '100vh', bgcolor: '#f5f5f5' }}>
       {/* Header */}
@@ -331,15 +386,15 @@ export const ChatAnalysis: React.FC = () => {
       {/* Tabs */}
       <Paper sx={{ mb: 3 }}>
         <Tabs value={tab} onChange={handleTabChange} variant="fullWidth">
-          <Tab 
-            label="Simple Analysis" 
-            value="simple" 
+          <Tab
+            label="Single Message"
+            value="simple"
             icon={<MessageOutlined />}
             iconPosition="start"
           />
-          <Tab 
-            label="Batch Analysis" 
-            value="batch" 
+          <Tab
+            label="Batch Input"
+            value="batch"
             icon={<Analytics />}
             iconPosition="start"
           />
@@ -356,7 +411,7 @@ export const ChatAnalysis: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Quick analysis using the basic chat service (chat/chat/services → port 9000)
           </Typography>
-          
+
           <form onSubmit={handleSimpleSubmit}>
             <TextField
               fullWidth
@@ -368,14 +423,14 @@ export const ChatAnalysis: React.FC = () => {
               disabled={loading}
               sx={{ mb: 2 }}
             />
-            
+
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="body2" color="text.secondary">
                 Characters: {charCount} | Words: {wordCount}
               </Typography>
-              <Button 
-                type="submit" 
-                variant="contained" 
+              <Button
+                type="submit"
+                variant="contained"
                 disabled={loading || !text.trim()}
                 startIcon={loading ? <CircularProgress size={20} /> : <MessageOutlined />}
               >
@@ -393,69 +448,235 @@ export const ChatAnalysis: React.FC = () => {
         <Paper sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
           <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Analytics color="primary" />
-            Batch Chat Analysis
+            Batch Analysis
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Upload a JSON file with multiple messages for comprehensive analysis and visualizations (mental_state_analyzer → port 8003)
+            Analyze multiple messages at once for comparative insights
           </Typography>
 
-          {/* Sample JSON Format */}
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Expected JSON format:</Typography>
-            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-{`{
+          {/* Batch Mode Selection */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* JSON File Upload Option */}
+            <Grid item xs={12} md={6}>
+              <Card 
+                sx={{ 
+                  p: 3, 
+                  cursor: 'pointer',
+                  border: batchMode === 'file' ? '2px solid #1976d2' : '1px solid #e0e0e0',
+                  bgcolor: batchMode === 'file' ? '#f3f8ff' : 'white',
+                  '&:hover': { bgcolor: '#f8f9fa' }
+                }}
+                onClick={() => setBatchMode('file')}
+              >
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <Avatar sx={{ 
+                    bgcolor: batchMode === 'file' ? '#1976d2' : '#e0e0e0', 
+                    width: 60, 
+                    height: 60, 
+                    mb: 2 
+                  }}>
+                    <Description sx={{ fontSize: 30 }} />
+                  </Avatar>
+                  <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
+                    JSON File Upload
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Upload a JSON file with pre-formatted messages
+                  </Typography>
+                  {batchMode === 'file' && (
+                    <Chip label="Selected" color="primary" size="small" sx={{ mt: 1 }} />
+                  )}
+                </Box>
+              </Card>
+            </Grid>
+
+            {/* Manual Message Input Option */}
+            <Grid item xs={12} md={6}>
+              <Card 
+                sx={{ 
+                  p: 3, 
+                  cursor: 'pointer',
+                  border: batchMode === 'manual' ? '2px solid #4caf50' : '1px solid #e0e0e0',
+                  bgcolor: batchMode === 'manual' ? '#f1f8e9' : 'white',
+                  '&:hover': { bgcolor: '#f8f9fa' }
+                }}
+                onClick={() => setBatchMode('manual')}
+              >
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <Avatar sx={{ 
+                    bgcolor: batchMode === 'manual' ? '#4caf50' : '#e0e0e0', 
+                    width: 60, 
+                    height: 60, 
+                    mb: 2 
+                  }}>
+                    <TextSnippet sx={{ fontSize: 30 }} />
+                  </Avatar>
+                  <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
+                    Multiple Messages
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Add messages manually and convert to JSON
+                  </Typography>
+                  {batchMode === 'manual' && (
+                    <Chip label="Active" color="success" size="small" sx={{ mt: 1 }} />
+                  )}
+                </Box>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ mb: 3 }} />
+
+          {/* JSON File Upload Mode */}
+          {batchMode === 'file' && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                📁 JSON File Upload
+              </Typography>
+              
+              {/* Sample JSON Format */}
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Expected JSON format:</Typography>
+                <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                  {`{
   "person_id": "user_123",
   "messages": [
     {"text": "I'm feeling great today!", "timestamp": "2024-01-01T10:00:00Z"},
     {"text": "Work is stressing me out.", "timestamp": "2024-01-01T11:00:00Z"}
   ]
 }`}
-            </Typography>
-          </Alert>
+                </Typography>
+              </Alert>
 
-          {/* File Upload */}
-          <Box sx={{ mb: 3 }}>
-            <input
-              id="batch-file-input"
-              type="file"
-              accept=".json"
-              onChange={handleBatchFileChange}
-              style={{ display: 'none' }}
-            />
-            <label htmlFor="batch-file-input">
-              <Button 
-                variant="outlined" 
-                component="span" 
-                startIcon={<CloudUpload />}
-                sx={{ mb: 2 }}
-              >
-                Choose JSON File
-              </Button>
-            </label>
+              {/* File Upload */}
+              <Box sx={{ mb: 3 }}>
+                <input
+                  id="batch-file-input"
+                  type="file"
+                  accept=".json"
+                  onChange={handleBatchFileChange}
+                  style={{ display: 'none' }}
+                />
+                <label htmlFor="batch-file-input">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUpload />}
+                    sx={{ mb: 2 }}
+                  >
+                    Choose JSON File
+                  </Button>
+                </label>
 
-            {selectedFile && (
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <Typography variant="body2">
-                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                  </Typography>
-                  <Tooltip title="Remove file">
-                    <IconButton size="small" onClick={clearFile}>
-                      <Delete />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
+                {selectedFile && (
+                  <Box sx={{ mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <Typography variant="body2">
+                        {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                      </Typography>
+                      <Tooltip title="Remove file">
+                        <IconButton size="small" onClick={clearFile}>
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {/* Manual Message Input Mode */}
+          {batchMode === 'manual' && (
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6">
+                  ✏️ Multiple Message Input
+                </Typography>
                 <Button
-                  variant="contained"
-                  onClick={handleBatchAnalysis}
-                  disabled={batchLoading}
-                  startIcon={batchLoading ? <CircularProgress size={20} /> : <Send />}
-                  sx={{ mb: 2 }}
+                  variant="outlined"
+                  startIcon={<Add />}
+                  onClick={addMessage}
+                  size="small"
                 >
-                  {batchLoading ? 'Analyzing...' : 'Analyze File'}
+                  Add Message
                 </Button>
               </Box>
-            )}
+
+              <Stack spacing={2} sx={{ mb: 3 }}>
+                {messages.map((message, index) => (
+                  <Card key={message.id} sx={{ p: 2, bgcolor: '#fafafa' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                      <Typography variant="body2" sx={{ 
+                        minWidth: 80, 
+                        fontWeight: 600, 
+                        color: 'primary.main',
+                        mt: 1
+                      }}>
+                        Message {index + 1}
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={2}
+                        placeholder={`Enter message ${index + 1}...`}
+                        value={message.text}
+                        onChange={(e) => handleMessageChange(message.id, 'text', e.target.value)}
+                        variant="outlined"
+                        size="small"
+                      />
+                      <TextField
+                        sx={{ minWidth: 120 }}
+                        placeholder="Person ID"
+                        value={message.person_id}
+                        onChange={(e) => handleMessageChange(message.id, 'person_id', e.target.value)}
+                        variant="outlined"
+                        size="small"
+                      />
+                      {messages.length > 1 && (
+                        <Tooltip title="Remove message">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => removeMessage(message.id)}
+                            color="error"
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </Card>
+                ))}
+              </Stack>
+
+              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Button
+                  variant="outlined"
+                  onClick={clearMessages}
+                  startIcon={<Delete />}
+                  color="error"
+                >
+                  Clear All
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
+                  {messages.filter(m => m.text.trim()).length} messages ready for analysis
+                </Typography>
+              </Box>
+            </Box>
+          )}
+
+          {/* Analyze Button */}
+          <Box sx={{ mb: 3 }}>
+            <Button
+              variant="contained"
+              onClick={handleBatchAnalysis}
+              disabled={batchLoading || (batchMode === 'file' && !selectedFile) || (batchMode === 'manual' && messages.filter(m => m.text.trim()).length === 0)}
+              startIcon={batchLoading ? <CircularProgress size={20} /> : <PlayArrow />}
+              size="large"
+              sx={{ px: 4 }}
+            >
+              {batchLoading ? 'Analyzing...' : 'Start Batch Analysis'}
+            </Button>
           </Box>
 
           {/* Loading State */}
@@ -481,7 +702,7 @@ export const ChatAnalysis: React.FC = () => {
                     📊 Analysis Summary
                     <Chip label={`${batchResult.summary.total_messages} messages`} color="primary" size="small" />
                   </Typography>
-                  
+
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
@@ -493,7 +714,7 @@ export const ChatAnalysis: React.FC = () => {
                         </Typography>
                       ))}
                     </Grid>
-                    
+
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body1" sx={{ mb: 1 }}>
                         <strong>💭 Average Sentiment:</strong> {batchResult.summary.average_sentiment}
@@ -577,14 +798,14 @@ export const ChatAnalysis: React.FC = () => {
                               </TableCell>
                               <TableCell>{msg.person_id}</TableCell>
                               <TableCell>
-                                <Chip 
+                                <Chip
                                   label={`${((msg.sentiment_score + 1) / 2 * 100).toFixed(0)}%`}
                                   size="small"
                                   color={msg.sentiment_score > 0 ? 'success' : msg.sentiment_score < 0 ? 'error' : 'default'}
                                 />
                               </TableCell>
                               <TableCell>
-                                <Chip 
+                                <Chip
                                   label={msg.primary_emotion}
                                   size="small"
                                   sx={{ bgcolor: getEmotionInfo(msg.primary_emotion).bgColor }}

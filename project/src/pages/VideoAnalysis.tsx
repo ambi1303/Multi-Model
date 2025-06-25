@@ -55,10 +55,10 @@ export const VideoAnalysis: React.FC = () => {
     if (isActive) stop(); // Stop camera when switching tabs
   };
 
-  function aggregateResults(results) {
+  function aggregateResults(results: VideoAnalysisResult[]): VideoAnalysisResult | null {
     if (!results.length) return null;
     // Count emotions
-    const emotionCounts = {};
+    const emotionCounts: Record<string, number> = {};
     let totalConfidence = 0;
     let total = 0;
     results.forEach(r => {

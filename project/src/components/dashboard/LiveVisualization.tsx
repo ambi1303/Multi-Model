@@ -85,7 +85,8 @@ const EmotionBubble: React.FC<{ emotion: EmotionData; index: number }> = ({ emot
             width: size,
             height: size,
             borderRadius: '50%',
-            background: `linear-gradient(135deg, ${emotion.color}40 0%, ${emotion.color}80 100%)`,
+            backgroundColor: `${emotion.color}40`,
+            backgroundImage: `linear-gradient(135deg, ${emotion.color}40 0%, ${emotion.color}80 100%)`,
             backdropFilter: 'blur(20px)',
             border: `3px solid ${emotion.color}60`,
             display: 'flex',
@@ -112,7 +113,8 @@ const EmotionBubble: React.FC<{ emotion: EmotionData; index: number }> = ({ emot
               position: 'absolute',
               width: '100%',
               height: '100%',
-              background: `radial-gradient(circle, ${emotion.color}40 0%, transparent 70%)`,
+              backgroundColor: `${emotion.color}40`,
+              backgroundImage: `radial-gradient(circle, ${emotion.color}40 0%, transparent 70%)`,
             }}
           />
 
@@ -162,7 +164,7 @@ const EmotionBubble: React.FC<{ emotion: EmotionData; index: number }> = ({ emot
               label={`${emotion.trend > 0 ? '+' : ''}${emotion.trend.toFixed(1)}%`}
               size="small"
               sx={{
-                background: emotion.trend > 0 ? '#4CAF50' : emotion.trend < 0 ? '#f44336' : '#9E9E9E',
+                backgroundColor: emotion.trend > 0 ? '#4CAF50' : emotion.trend < 0 ? '#f44336' : '#9E9E9E',
                 color: 'white',
                 fontSize: '0.6rem',
                 height: 20,
@@ -181,7 +183,8 @@ export const LiveVisualization: React.FC = () => {
   return (
     <Card
       sx={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: 4,
@@ -203,7 +206,8 @@ export const LiveVisualization: React.FC = () => {
             >
               <Avatar
                 sx={{
-                  background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
+                  backgroundColor: '#FF6B6B',
+                  backgroundImage: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
                   mr: 2,
                 }}
               >
@@ -238,7 +242,8 @@ export const LiveVisualization: React.FC = () => {
               width: 20 + Math.random() * 40,
               height: 20 + Math.random() * 40,
               borderRadius: '50%',
-              background: `linear-gradient(135deg, ${['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'][i % 4]}40 0%, transparent 100%)`,
+              backgroundColor: `${['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'][i % 4]}40`,
+              backgroundImage: `linear-gradient(135deg, ${['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'][i % 4]}40 0%, transparent 100%)`,
               zIndex: 0,
             }}
           />

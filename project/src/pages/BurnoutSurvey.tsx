@@ -24,8 +24,6 @@ import { useAppStore } from '../store/useAppStore';
 import api from '../services/api';
 import { useTheme } from '@mui/material/styles';
 
-
-
 const questions = [
   { key: 'designation', label: 'Designation Level (1-5)', min: 1, max: 5 },
   { key: 'resourceAllocation', label: 'Resource Allocation (1-10)', min: 1, max: 10 },
@@ -35,7 +33,6 @@ const questions = [
   { key: 'gender', label: 'Gender (Male=1, Female=2)', min: 1, max: 2 },
 ];
 
-// Add Likert questions
 const likertQuestions = [
   { key: 'q1', label: 'I feel happy and relaxed while doing my job. (1-5)' },
   { key: 'q2', label: 'I frequently feel anxious or stressed because of my work. (1-5)' },
@@ -49,12 +46,64 @@ const likertQuestions = [
   { key: 'q10', label: 'I feel my personal time and work–life balance are respected by the organization. (1-5)' },
 ];
 
-// Helper to map categorical values to numbers for radar chart
-const mapRadarValue = (key: string, value: string | number) => {
+const mapRadarValue = (key: string, value: string | number): number => {
   if (key === 'companyType') return value === 'Product' ? 2 : 1;
   if (key === 'wfhSetupAvailable') return value === 'No' ? 2 : 1;
   if (key === 'gender') return value === 'Female' ? 2 : 1;
   return typeof value === 'number' ? value : 0;
+};
+
+const mapBackendResponse = (backendResult: any): BurnoutResult => {
+  return {
+    "Employee ID": backendResult["Employee ID"] || "anonymous",
+    "Predicted Burn Rate": backendResult["Predicted Burn Rate"] || 0,
+    "Survey Score": backendResult["Survey Score"] || "",
+    "Mental Health Summary": backendResult["Mental Health Summary"] || "",
+    "Recommendations": Array.isArray(backendResult["Recommendations"]) ? backendResult["Recommendations"] : [],
+    riskLevel: backendResult["Survey Score"]?.includes("High Risk") ? "High" :
+      backendResult["Survey Score"]?.includes("Medium Risk") ? "Medium" : "Low",
+    score: (backendResult["Predicted Burn Rate"] || 0) / 10,
+    recommendations: Array.isArray(backendResult["Recommendations"]) ? backendResult["Recommendations"] : [],
+    breakdown: [],
+    employeeId: backendResult["Employee ID"] || "anonymous",
+    surveyScore: backendResult["Survey Score"] || "",
+    mentalHealthSummary: backendResult["Mental Health Summary"] || "",
+    burnRate: backendResult["Predicted Burn Rate"] || 0
+  };
+};
+
+const createPayload = (data: FormData) => {
+  return {
+    employee: {
+      designation: Number(data.designation),
+      resource_allocation: Number(data.resourceAllocation),
+      mental_fatigue_score: Number(data.mentalFatigueScore),
+      company_type: data.companyType,
+      wfh_setup_available: data.wfhSetupAvailable,
+      gender: data.gender,
+    },
+    survey: {
+      q1: Number(data.q1),
+      q2: Number(data.q2),
+      q3: Number(data.q3),
+      q4: Number(data.q4),
+      q5: Number(data.q5),
+      q6: Number(data.q6),
+      q7: Number(data.q7),
+      q8: Number(data.q8),
+      q9: Number(data.q9),
+      q10: Number(data.q10),
+    },
+    employee_id: data.employee_id || undefined,
+  };
+};
+
+const formatScore = (score: number | undefined): string => {
+  return typeof score === 'number' && !isNaN(score) ? (score * 10).toFixed(0) : '--';
+};
+
+const isValidRadarData = (data: any[]): boolean => {
+  return Array.isArray(data) && data.length > 0 && data.every(d => typeof d.value === 'number' && !isNaN(d.value));
 };
 
 interface FormData {
@@ -74,6 +123,7 @@ interface FormData {
   q8: number;
   q9: number;
   q10: number;
+  employee_id?: string;
 }
 
 export const BurnoutSurvey: React.FC = () => {
@@ -91,7 +141,6 @@ export const BurnoutSurvey: React.FC = () => {
       companyType: 'Service',
       wfhSetupAvailable: 'Yes',
       gender: 'Male',
-      // Add default values for Likert questions
       q1: 3, q2: 3, q3: 3, q4: 3, q5: 3, q6: 3, q7: 3, q8: 3, q9: 3, q10: 3,
     },
   });
@@ -101,52 +150,12 @@ export const BurnoutSurvey: React.FC = () => {
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
-      const payload = {
-        employee: {
-          designation: Number(data.designation),
-          resource_allocation: Number(data.resourceAllocation),
-          mental_fatigue_score: Number(data.mentalFatigueScore),
-          company_type: data.companyType,
-          wfh_setup_available: data.wfhSetupAvailable,
-          gender: data.gender,
-        },
-        survey: {
-          q1: Number(data.q1),
-          q2: Number(data.q2),
-          q3: Number(data.q3),
-          q4: Number(data.q4),
-          q5: Number(data.q5),
-          q6: Number(data.q6),
-          q7: Number(data.q7),
-          q8: Number(data.q8),
-          q9: Number(data.q9),
-          q10: Number(data.q10),
-        },
-        employee_id: data.employee_id || undefined,
-      };
+      const payload = createPayload(data);
       console.log('Sending payload:', payload);
       const response = await api.post('/analyze-survey', payload);
-      
-      // Map backend response to UI format
-      const backendResult = response.data;
-      const mappedResult: BurnoutResult = {
-        "Employee ID": backendResult["Employee ID"] || "anonymous",
-        "Predicted Burn Rate": backendResult["Predicted Burn Rate"] || 0,
-        "Survey Score": backendResult["Survey Score"] || "",
-        "Mental Health Summary": backendResult["Mental Health Summary"] || "",
-        "Recommendations": Array.isArray(backendResult["Recommendations"]) ? backendResult["Recommendations"] : [],
-        // UI mapping properties
-        riskLevel: backendResult["Survey Score"]?.includes("High Risk") ? "High" :
-                   backendResult["Survey Score"]?.includes("Medium Risk") ? "Medium" : "Low",
-        score: (backendResult["Predicted Burn Rate"] || 0) / 10, // Backend returns percentage, UI expects decimal for *10 calculation
-        recommendations: Array.isArray(backendResult["Recommendations"]) ? backendResult["Recommendations"] : [],
-        breakdown: [], // No breakdown data from backend yet
-        employeeId: backendResult["Employee ID"] || "anonymous",
-        surveyScore: backendResult["Survey Score"] || "",
-        mentalHealthSummary: backendResult["Mental Health Summary"] || "",
-        burnRate: backendResult["Predicted Burn Rate"] || 0
-      };
-      
+
+      const mappedResult = mapBackendResponse(response.data);
+
       setResult(mappedResult);
       addAnalysisResult('survey', mappedResult);
       showSuccess('Survey analyzed successfully!');
@@ -163,15 +172,13 @@ export const BurnoutSurvey: React.FC = () => {
     setResult(null);
   };
 
-  // Prepare radar chart data for preview (form) or for results (last submitted)
   const radarData = questions.map(q => ({
     axis: q.key,
-    value: mapRadarValue(q.key, watchedValues[q.key]),
+    value: mapRadarValue(q.key, watchedValues[q.key as keyof typeof watchedValues] ?? 0),
   }));
 
   return (
     <Box>
-      {/* Header */}
       <Box sx={{ textAlign: 'center', mb: 4 }}>
         <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 2 }}>
           Employee Burnout Assessment
@@ -183,7 +190,6 @@ export const BurnoutSurvey: React.FC = () => {
 
       {!result ? (
         <Grid container spacing={4}>
-          {/* Survey Form */}
           <Grid item xs={12} lg={8}>
             <Card>
               <CardContent>
@@ -195,7 +201,6 @@ export const BurnoutSurvey: React.FC = () => {
                 </Typography>
                 <form onSubmit={handleSubmit(onSubmit)}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {/* Designation Level (1-5) */}
                     <Controller
                       name="designation"
                       control={control}
@@ -206,7 +211,6 @@ export const BurnoutSurvey: React.FC = () => {
                         </Box>
                       )}
                     />
-                    {/* Resource Allocation (1-10) */}
                     <Controller
                       name="resourceAllocation"
                       control={control}
@@ -217,7 +221,6 @@ export const BurnoutSurvey: React.FC = () => {
                         </Box>
                       )}
                     />
-                    {/* Mental Fatigue Score (1-10) */}
                     <Controller
                       name="mentalFatigueScore"
                       control={control}
@@ -228,7 +231,6 @@ export const BurnoutSurvey: React.FC = () => {
                         </Box>
                       )}
                     />
-                    {/* Company Type */}
                     <Controller
                       name="companyType"
                       control={control}
@@ -242,7 +244,6 @@ export const BurnoutSurvey: React.FC = () => {
                         </Box>
                       )}
                     />
-                    {/* WFH Setup Available */}
                     <Controller
                       name="wfhSetupAvailable"
                       control={control}
@@ -256,7 +257,6 @@ export const BurnoutSurvey: React.FC = () => {
                         </Box>
                       )}
                     />
-                    {/* Gender */}
                     <Controller
                       name="gender"
                       control={control}
@@ -270,7 +270,6 @@ export const BurnoutSurvey: React.FC = () => {
                         </Box>
                       )}
                     />
-                    {/* Likert Questions */}
                     <Box sx={{ mt: 4, mb: 2 }}>
                       <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                         Mental Health Assessment Questions
@@ -282,12 +281,21 @@ export const BurnoutSurvey: React.FC = () => {
                     {likertQuestions.map(q => (
                       <Controller
                         key={q.key}
-                        name={q.key}
+                        name={q.key as keyof FormData}
                         control={control}
                         render={({ field }) => (
                           <Box sx={{ mb: 2 }}>
                             <Typography sx={{ mb: 1 }}>{q.label}</Typography>
-                            <Slider {...field} min={1} max={5} step={1} marks valueLabelDisplay="auto" />
+                            <Slider 
+                              value={typeof field.value === 'number' ? field.value : 1}
+                              onChange={(_, value) => field.onChange(value)}
+                              onBlur={field.onBlur}
+                              min={1} 
+                              max={5} 
+                              step={1} 
+                              marks 
+                              valueLabelDisplay="auto" 
+                            />
                           </Box>
                         )}
                       />
@@ -317,7 +325,6 @@ export const BurnoutSurvey: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* Live Preview */}
           <Grid item xs={12} lg={4}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <Card>
@@ -325,7 +332,7 @@ export const BurnoutSurvey: React.FC = () => {
                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                     Assessment Preview
                   </Typography>
-                  {Array.isArray(radarData) && radarData.length > 0 && radarData.every(d => typeof d.value === 'number' && !isNaN(d.value)) ? (
+                  {isValidRadarData(radarData) ? (
                     <RadarChart
                       series={[
                         {
@@ -377,13 +384,12 @@ export const BurnoutSurvey: React.FC = () => {
         </Grid>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {/* Results Header */}
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
                 Your burnout assessment indicates a <strong>{(result.riskLevel || '').toLowerCase()}</strong> risk level
               </Typography>
-              
+
               <Paper
                 variant="outlined"
                 sx={{
@@ -397,21 +403,20 @@ export const BurnoutSurvey: React.FC = () => {
                   Overall Score:
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {typeof result.score === 'number' && !isNaN(result.score) ? (result.score * 10).toFixed(0) : '--'}%
+                  {formatScore(result.score)}%
                 </Typography>
               </Paper>
             </CardContent>
           </Card>
 
           <Grid container spacing={4}>
-            {/* Radar Chart for Assessment Preview (after results) */}
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                     Assessment Preview
                   </Typography>
-                  {Array.isArray(radarData) && radarData.length > 0 && radarData.every(d => typeof d.value === 'number' && !isNaN(d.value)) ? (
+                  {isValidRadarData(radarData) ? (
                     <RadarChart
                       series={[
                         {
@@ -432,7 +437,6 @@ export const BurnoutSurvey: React.FC = () => {
               </Card>
             </Grid>
 
-            {/* Risk Breakdown - Mental Health Summary */}
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
@@ -442,7 +446,7 @@ export const BurnoutSurvey: React.FC = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                     Analysis by category
                   </Typography>
-                  
+
                   {result.mentalHealthSummary ? (
                     <Paper
                       variant="outlined"
@@ -463,15 +467,13 @@ export const BurnoutSurvey: React.FC = () => {
               </Card>
             </Grid>
 
-            {/* Recommendations */}
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
                   <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-                
                     Personalized Recommendations
                   </Typography>
-                  
+
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {(result.recommendations || []).map((rec, index) => (
                       <Paper
@@ -505,13 +507,13 @@ export const BurnoutSurvey: React.FC = () => {
                         <Typography variant="body1">{rec}</Typography>
                       </Paper>
                     ))}
-                    
+
                     <Alert severity="warning" sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                         Important Note
                       </Typography>
                       <Typography variant="body2">
-                        This assessment is for informational purposes only. If you're experiencing severe burnout symptoms, 
+                        This assessment is for informational purposes only. If you're experiencing severe burnout symptoms,
                         consider consulting with a healthcare professional or your HR department.
                       </Typography>
                     </Alert>
@@ -531,8 +533,6 @@ export const BurnoutSurvey: React.FC = () => {
               Take Assessment Again
             </Button>
           </Box>
-
-
         </Box>
       )}
     </Box>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -7,6 +7,7 @@ import {
   Box,
   useMediaQuery,
   useTheme as useMuiTheme,
+  Popover,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -16,6 +17,7 @@ import {
   AccountCircle,
 } from '@mui/icons-material';
 import { useTheme } from '../../contexts/ThemeContext';
+import { ServiceStatus } from '../common/ServiceStatus';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -25,6 +27,17 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const muiTheme = useMuiTheme();
   const { mode, toggleTheme } = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
+  const [statusAnchorEl, setStatusAnchorEl] = useState<HTMLElement | null>(null);
+
+  const handleStatusClick = (event: React.MouseEvent<HTMLElement>) => {
+    setStatusAnchorEl(event.currentTarget);
+  };
+
+  const handleStatusClose = () => {
+    setStatusAnchorEl(null);
+  };
+
+  const statusPopoverOpen = Boolean(statusAnchorEl);
 
   return (
     <AppBar
@@ -84,6 +97,29 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Service Status Indicator */}
+          <Box sx={{ mr: 1, cursor: 'pointer' }} onClick={handleStatusClick}>
+            <ServiceStatus />
+          </Box>
+          
+          <Popover
+            open={statusPopoverOpen}
+            anchorEl={statusAnchorEl}
+            onClose={handleStatusClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+          >
+            <Box sx={{ p: 1 }}>
+              <ServiceStatus showDetails={true} refreshInterval={30000} />
+            </Box>
+          </Popover>
+
           <IconButton onClick={toggleTheme} color="inherit">
             {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
           </IconButton>

@@ -154,7 +154,8 @@ const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activit
           p: 2,
           mb: 1,
           borderRadius: 3,
-          background: `linear-gradient(135deg, ${activity.color}15 0%, ${activity.color}25 100%)`,
+          backgroundColor: `${activity.color}15`,
+          backgroundImage: `linear-gradient(135deg, ${activity.color}15 0%, ${activity.color}25 100%)`,
           backdropFilter: 'blur(10px)',
           border: `1px solid ${activity.color}30`,
           position: 'relative',
@@ -178,7 +179,8 @@ const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activit
             left: 0,
             right: 0,
             bottom: 0,
-            background: `radial-gradient(circle at 20% 50%, ${activity.color}20 0%, transparent 70%)`,
+            backgroundColor: `${activity.color}20`,
+            backgroundImage: `radial-gradient(circle at 20% 50%, ${activity.color}20 0%, transparent 70%)`,
             zIndex: 0,
           }}
         />
@@ -195,16 +197,12 @@ const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activit
 
         <Box sx={{ flexGrow: 1, zIndex: 1 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            <motion.span
-              initial={{ color: activity.color }}
-              animate={{ color: 'inherit' }}
-              transition={{ duration: 0.5 }}
-            >
+            <span style={{ color: activity.color }}>
               {activity.user}
-            </motion.span>{' '}
+            </span>{' '}
             {activity.message}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             {timeString}
           </Typography>
         </Box>
@@ -219,7 +217,8 @@ const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activit
             sx={{
               width: 32,
               height: 32,
-              background: `linear-gradient(135deg, ${activity.color} 0%, ${activity.color}80 100%)`,
+              backgroundColor: activity.color,
+              backgroundImage: `linear-gradient(135deg, ${activity.color} 0%, ${activity.color}80 100%)`,
             }}
           >
             {activity.icon}
@@ -267,13 +266,14 @@ export const ActivityPulse: React.FC = () => {
   return (
     <Card
       sx={{
-        background: 'linear-gradient(135deg, rgba(69,183,209,0.1) 0%, rgba(150,206,180,0.1) 100%)',
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: 4,
         height: 400,
         display: 'flex',
         flexDirection: 'column',
+        backgroundColor: 'rgba(69,183,209,0.1)',
+        backgroundImage: 'linear-gradient(135deg, rgba(69,183,209,0.1) 0%, rgba(150,206,180,0.1) 100%)',
       }}
     >
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -354,10 +354,11 @@ export const ActivityPulse: React.FC = () => {
               mt: 2,
               p: 1,
               borderRadius: 2,
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
             }}
           >
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               <Bolt sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
               System pulse: {pulseCount} beats
             </Typography>

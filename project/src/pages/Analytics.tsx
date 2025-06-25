@@ -8,13 +8,11 @@ import {
   Tabs,
   Tab,
   Button,
-  Chip,
   Alert,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  TextField,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -23,8 +21,6 @@ import {
   Download,
   Refresh,
   FilterList,
-  DateRange,
-  TrendingUp,
   Warning,
   Info,
 } from '@mui/icons-material';
@@ -206,7 +202,7 @@ export const Analytics: React.FC = () => {
                       label="Start Date"
                       value={filters.dateRange.start}
                       onChange={(date) => handleFilterChange('dateRange', { ...filters.dateRange, start: date })}
-                      renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
@@ -214,7 +210,7 @@ export const Analytics: React.FC = () => {
                       label="End Date"
                       value={filters.dateRange.end}
                       onChange={(date) => handleFilterChange('dateRange', { ...filters.dateRange, end: date })}
-                      renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
@@ -315,7 +311,7 @@ export const Analytics: React.FC = () => {
               scrollButtons="auto"
               sx={{ borderBottom: 1, borderColor: 'divider' }}
             >
-              {tabs.map((tab, index) => (
+              {tabs.map((tab) => (
                 <Tab
                   key={tab.value}
                   icon={tab.icon}

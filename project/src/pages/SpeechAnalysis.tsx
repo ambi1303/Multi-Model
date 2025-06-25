@@ -17,15 +17,12 @@ import {
   Refresh,
   VolumeUp,
 } from '@mui/icons-material';
-import { PieChart } from '@mui/x-charts/PieChart';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { speechApi } from '../services/speechApi';
 import { SpeechAnalysisResult } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
-import { useTheme } from '@mui/material/styles';
-
 export const SpeechAnalysis: React.FC = () => {
   const [analysis, setAnalysis] = useState<SpeechAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +30,7 @@ export const SpeechAnalysis: React.FC = () => {
   const { addAnalysisResult } = useAppStore();
   
   const { isRecording, audioBlob, duration, error, start, stop, reset } = useAudioRecorder();
-  const theme = useTheme();
+  
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -88,17 +85,8 @@ export const SpeechAnalysis: React.FC = () => {
     setAnalysis(null);
   };
 
-  const getSentimentColor = (score: number) => {
-    if (score > 0.3) return 'success';
-    if (score < -0.3) return 'error';
-    return 'warning';
-  };
 
-  const getSentimentLabel = (score: number) => {
-    if (score > 0.3) return 'Positive';
-    if (score < -0.3) return 'Negative';
-    return 'Neutral';
-  };
+
 
   const formatWellnessContent = (content: string) => {
     if (!content) return '';
@@ -161,11 +149,8 @@ export const SpeechAnalysis: React.FC = () => {
     return <Box>{formattedSections}</Box>;
   };
 
-  const pieData = analysis?.emotions.slice(0, 5).map((emotion, index) => ({
-    id: index,
-    value: Math.round(emotion.confidence * 100),
-    label: emotion.emotion,
-  })) || [];
+
+
 
   return (
     <Box>
