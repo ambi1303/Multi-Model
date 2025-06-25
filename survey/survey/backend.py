@@ -1,27 +1,35 @@
 import os
-print("RUNNING FILE:", os.path.abspath(__file__))
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List, Dict
 import pandas as pd
 import pickle
 import os
 import json
+import time
+import psutil
 from datetime import datetime
 from survey_predict import train_models
 import logging
 import httpx
 from dotenv import load_dotenv
+from prometheus_client import Counter, Histogram, Gauge, generate_latest
 
 # Load environment variables from .env file
 load_dotenv()
-print(f"GEMINI_API_KEY loaded: {'Yes' if os.getenv('GEMINI_API_KEY') else 'No'}")
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Prometheus metrics
+REQUESTS = Counter('survey_requests_total', 'Total survey analysis requests', ['endpoint'])
+PROCESSING_TIME = Histogram('survey_processing_seconds', 'Time spent processing survey requests', ['endpoint'])
+ERROR_COUNT = Counter('survey_errors_total', 'Total errors in survey analysis', ['endpoint', 'error_type'])
+MEMORY_USAGE = Gauge('survey_memory_usage_bytes', 'Memory usage of the survey service')
+CPU_USAGE = Gauge('survey_cpu_usage_percent', 'CPU usage of the survey service')
 
 app = FastAPI(
     title="Employee Burnout Prediction Backend",
@@ -39,6 +47,11 @@ app.add_middleware(
     expose_headers=["*"],  # Expose all headers
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Update system metrics
+def update_system_metrics():
+    MEMORY_USAGE.set(psutil.Process(os.getpid()).memory_info().rss)
+    CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent())
 
 @app.on_event("startup")
 async def startup_event():
@@ -68,8 +81,6 @@ class EmployeeData(BaseModel):
     company_type: Literal["Service", "Product"] = Field(..., description="Type of company")
     wfh_setup_available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
     gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
-
-print("LOADED EmployeeData model fields:", EmployeeData.__fields__.keys())
 
 class PredictionResponse(BaseModel):
     burn_rate: float
@@ -110,6 +121,33 @@ class AnalyzeSurveyRequest(BaseModel):
     survey: SurveyLikertData
     employee_id: Optional[str] = None
 
+# Add new data models for separate endpoints
+class EmployeeAnalysisResponse(BaseModel):
+    burnout_score: int = Field(..., description="Burnout score percentage (0-100)")
+    burnout_label: str = Field(..., description="Risk classification label")
+    model_used: str = Field(..., description="ML model used for prediction")
+    prediction_confidence: str = Field(..., description="Confidence level of prediction")
+    employee_id: Optional[str] = None
+    analysis_timestamp: str = Field(..., description="Timestamp of analysis")
+
+class SurveyAnalysisResponse(BaseModel):
+    risk_level: str = Field(..., description="Risk level based on survey responses")
+    assessment_method: str = Field(..., description="Assessment method used")
+    total_questions: int = Field(..., description="Number of questions analyzed")
+    analysis_timestamp: str = Field(..., description="Timestamp of analysis")
+
+class CombinedAnalysisRequest(BaseModel):
+    employee: EmployeeData
+    survey: SurveyLikertData
+    employee_id: Optional[str] = None
+
+class CombinedAnalysisResponse(BaseModel):
+    mental_health_summary: str = Field(..., description="AI-generated mental health summary")
+    recommendations: List[str] = Field(..., description="Personalized recommendations")
+    source: str = Field(..., description="Source of analysis (AI or fallback)")
+    employee_id: Optional[str] = None
+    analysis_timestamp: str = Field(..., description="Timestamp of analysis")
+
 # Store predictions history
 predictions_history = []
 
@@ -131,17 +169,31 @@ def save_prediction(employee_data: dict, prediction: float, stress_level: str):
 async def root():
     return {"message": "Welcome to Employee Burnout Prediction Backend"}
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    update_system_metrics()
+    return {"status": "healthy", "message": "Survey API is running"}
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics."""
+    update_system_metrics()
+    return Response(content=generate_latest(), media_type="text/plain")
+
 @app.post("/train", tags=["Model Training"])
 async def train(background_tasks: BackgroundTasks):
     """
     Train the machine learning models using the training data.
     This will create/update the model files in the models directory.
     """
+    REQUESTS.labels(endpoint='train').inc()
     try:
         # Run training in background
         background_tasks.add_task(train_models)
         return {"message": "Model training started in background"}
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='train', error_type='general').inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
@@ -149,6 +201,9 @@ async def predict(employee: EmployeeData):
     """
     Predict burnout rate for an employee using the trained model.
     """
+    REQUESTS.labels(endpoint='predict').inc()
+    start_time = time.time()
+    
     try:
         # Convert input to DataFrame
         input_data = {
@@ -178,6 +233,7 @@ async def predict(employee: EmployeeData):
         model_path = os.path.join(models_dir, 'linear_regression.pkl')
         
         if not os.path.exists(scaler_path) or not os.path.exists(model_path):
+            ERROR_COUNT.labels(endpoint='predict', error_type='models_not_found').inc()
             raise HTTPException(status_code=400, detail="Models not trained yet. Please train the models first.")
 
         with open(scaler_path, 'rb') as f:
@@ -187,9 +243,12 @@ async def predict(employee: EmployeeData):
 
         # Scale the input
         input_scaled = scaler.transform(input_df)
+        
+        # Convert scaled input back to DataFrame with feature names to avoid the warning
+        input_scaled_df = pd.DataFrame(input_scaled, columns=input_df.columns)
 
         # Predict
-        prediction = model.predict(input_scaled)[0]
+        prediction = model.predict(input_scaled_df)[0]
 
         # Determine stress level based on burn rate
         if prediction < 0.3:
@@ -210,28 +269,45 @@ async def predict(employee: EmployeeData):
 
         # Save prediction to history
         save_prediction(input_data, prediction, stress_level)
+        
+        # Update metrics
+        update_system_metrics()
 
         return response
 
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='predict', error_type='general').inc()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='predict').observe(time.time() - start_time)
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse, tags=["Prediction"])
 async def predict_batch(batch_request: BatchPredictionRequest):
     """
     Predict burnout rates for multiple employees at once.
     """
-    predictions = []
-    for employee in batch_request.employees:
-        prediction = await predict(employee)
-        predictions.append(prediction)
-    return {"predictions": predictions}
+    REQUESTS.labels(endpoint='predict_batch').inc()
+    start_time = time.time()
+    
+    try:
+        predictions = []
+        for employee in batch_request.employees:
+            prediction = await predict(employee)
+            predictions.append(prediction)
+        return {"predictions": predictions}
+    except Exception as e:
+        ERROR_COUNT.labels(endpoint='predict_batch', error_type='general').inc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='predict_batch').observe(time.time() - start_time)
 
 @app.get("/predictions/history", tags=["History"])
 async def get_prediction_history():
     """
     Get the history of all predictions made.
     """
+    REQUESTS.labels(endpoint='predictions_history').inc()
+    update_system_metrics()
     return {"predictions": predictions_history}
 
 @app.get("/models/metrics", response_model=List[ModelMetrics], tags=["Model Information"])
@@ -239,6 +315,7 @@ async def get_model_metrics():
     """
     Get performance metrics for all trained models.
     """
+    REQUESTS.labels(endpoint='model_metrics').inc()
     metrics = []
     try:
         # Load metrics from file or calculate them
@@ -255,8 +332,10 @@ async def get_model_metrics():
                 "r2_score": 0.918
             }
         ]
+        update_system_metrics()
         return metrics
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='model_metrics', error_type='general').inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze", tags=["Integration"])
@@ -264,109 +343,469 @@ async def analyze(employee: EmployeeData):
     """
     Wrapper for /predict to support integration with the common backend.
     """
+    REQUESTS.labels(endpoint='analyze').inc()
+    start_time = time.time()
+    
     try:
         logger.info(f"Received survey data for analysis: {employee.dict()}")
         result = await predict(employee)
         logger.info(f"Survey analysis completed successfully: {result}")
         return result
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze', error_type='general').inc()
         logger.error(f"Error in survey analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze').observe(time.time() - start_time)
 
 @app.post("/analyze-survey", tags=["Survey"])
 async def analyze_survey(request: AnalyzeSurveyRequest):
+    REQUESTS.labels(endpoint='analyze_survey').inc()
+    start_time = time.time()
+    
     try:
-        # 1. Compute survey score and risk level
+        # 1. ML MODEL PREDICTION - Burnout Risk from AI Model
+        burn_result = await predict(request.employee)
+        ml_burn_rate = burn_result["burn_rate"]  # 0.0 to 1.0
+        ml_burn_percentage = round(ml_burn_rate * 100)  # Convert to percentage
+        
+        # Use the stress level directly from /predict endpoint (the source of truth)
+        ml_stress_label = burn_result["stress_level"]
+
+        # 2. LIKERT SURVEY ANALYSIS - 10 Questions Analysis
         survey_scores = [
             request.survey.q1, request.survey.q2, request.survey.q3, request.survey.q4, request.survey.q5,
             request.survey.q6, request.survey.q7, request.survey.q8, request.survey.q9, request.survey.q10
         ]
-        total_score = sum(survey_scores)
-        if total_score > 40:
-            risk_level = "Low Risk"
-        elif total_score >= 25:
-            risk_level = "Medium Risk"
-        else:
-            risk_level = "High Risk"
+        survey_total_score = sum(survey_scores)
+        
+        # Survey risk level classification based on specified ranges
+        # Total Score Range | Label
+        # 1 – 17           | Low
+        # 18 – 34          | Medium  
+        # 35 – 50          | High
+        if survey_total_score <= 17:
+            survey_risk_label = "Low"
+        elif survey_total_score <= 34:
+            survey_risk_label = "Medium"
+        else:  # 35-50
+            survey_risk_label = "High"
 
-        # 2. Predict burn rate using ML model (reuse predict logic)
-        burn_result = await predict(request.employee)
-        burn_rate = burn_result["burn_rate"]
-
-        # 3. Call Gemini for summary and recommendations
+        # 3. PERSONALIZED SUGGESTIONS - Gemini API Integration
         gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-        summary = ""
-        recommendations = []
+        personalized_summary = ""
+        personalized_recommendations = []
         
         if gemini_api_key:
             try:
+                # Enhanced prompt for better personalization
                 prompt = f"""
-                Given this employee's structured data: {request.employee.dict()} and these 10 survey responses (Likert scores 1-5): {survey_scores}, provide a short summary of the mental health status, signs of burnout, and suggest 2 wellness tips personalized to this profile. Respond in JSON with keys: "Mental Health Summary", "Recommendations" (as a list of 2 strings).
+                Analyze this employee's profile and survey responses for personalized mental health insights:
+                
+                Employee Profile:
+                - Designation Level: {request.employee.designation}/5
+                - Resource Allocation: {request.employee.resource_allocation}/10
+                - Mental Fatigue Score: {request.employee.mental_fatigue_score}/10
+                - Company Type: {request.employee.company_type}
+                - WFH Setup: {request.employee.wfh_setup_available}
+                - Gender: {request.employee.gender}
+                
+                Survey Responses (1=Strongly Disagree, 5=Strongly Agree):
+                1. Feel happy and relaxed: {request.survey.q1}
+                2. Feel anxious/stressed: {request.survey.q2}
+                3. Emotionally exhausted: {request.survey.q3}
+                4. Feel motivated: {request.survey.q4}
+                5. Sense of accomplishment: {request.survey.q5}
+                6. Feel detached: {request.survey.q6}
+                7. Manageable workload: {request.survey.q7}
+                8. Control over tasks: {request.survey.q8}
+                9. Team support: {request.survey.q9}
+                10. Work-life balance respected: {request.survey.q10}
+                
+                ML Prediction: {ml_burn_percentage}% burnout risk ({ml_stress_label})
+                Survey Assessment: {survey_risk_label}
+                
+                Provide personalized analysis and recommendations in JSON format:
+                {{
+                    "Mental Health Summary": "Detailed analysis of current mental health state based on all factors",
+                    "Recommendations": ["Specific recommendation 1", "Specific recommendation 2", "Specific recommendation 3"]
+                }}
                 """
+                
                 gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_api_key
                 gemini_payload = {
                     "contents": [{"parts": [{"text": prompt}]}]
                 }
+                
                 async with httpx.AsyncClient() as client:
                     gemini_resp = await client.post(gemini_url, json=gemini_payload, timeout=30)
                     gemini_resp.raise_for_status()
                     gemini_data = gemini_resp.json()
+                    
                     # Parse Gemini response
                     try:
                         import re, json as pyjson
-                        # Try to extract JSON from Gemini response
                         text = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        # Extract JSON from response
                         match = re.search(r'\{.*\}', text, re.DOTALL)
                         if match:
                             parsed = pyjson.loads(match.group(0))
-                            summary = parsed.get("Mental Health Summary", "")
-                            recommendations = parsed.get("Recommendations", [])
+                            personalized_summary = parsed.get("Mental Health Summary", "")
+                            personalized_recommendations = parsed.get("Recommendations", [])
                         else:
-                            summary = text
-                            recommendations = []
-                    except Exception:
-                        summary = "Could not parse Gemini response."
-                        recommendations = []
-            except Exception as e:
-                logger.warning(f"Gemini API failed: {str(e)}, using fallback")
-                # Fallback summary and recommendations based on risk level
-                if risk_level == "High Risk":
-                    summary = "Analysis indicates high stress levels and potential burnout risk. Immediate attention to work-life balance is recommended."
-                    recommendations = [
-                        "Consider speaking with a mental health professional or counselor",
-                        "Implement stress reduction techniques like meditation or regular breaks"
+                            # Fallback if no JSON found
+                            personalized_summary = text
+                            personalized_recommendations = [
+                                "Focus on stress management techniques",
+                                "Consider professional counseling if needed",
+                                "Maintain work-life balance"
+                            ]
+                    except Exception as parse_error:
+                        logger.warning(f"Failed to parse Gemini response: {parse_error}")
+                        personalized_summary = "AI analysis completed successfully but response format needs adjustment."
+                        personalized_recommendations = [
+                            "Prioritize self-care and mental health",
+                            "Seek support from colleagues and supervisors",
+                            "Consider professional guidance if stress persists"
+                        ]
+                        
+            except Exception as gemini_error:
+                logger.warning(f"Gemini API failed: {str(gemini_error)}, using enhanced fallback")
+                
+                # Enhanced fallback based on combined ML + Survey results
+                if survey_risk_label == "High Risk" or ml_stress_label == "Very High Burnout Risk":
+                    personalized_summary = f"Analysis indicates significant stress levels with {ml_burn_percentage}% burnout risk from ML model and {survey_risk_label} from survey responses. Immediate attention to mental health and work-life balance is strongly recommended."
+                    personalized_recommendations = [
+                        "Seek immediate support from mental health professionals or employee assistance programs",
+                        "Discuss workload adjustment with your manager or HR department",
+                        "Implement daily stress reduction practices like meditation or deep breathing exercises"
                     ]
-                elif risk_level == "Medium Risk":
-                    summary = "Analysis shows moderate stress levels with some areas of concern. Proactive wellness measures are advised."
-                    recommendations = [
-                        "Focus on improving work-life balance and setting boundaries",
-                        "Engage in regular physical activity and maintain social connections"
+                elif survey_risk_label == "Medium Risk" or ml_stress_label in ["Medium Burnout Risk", "High Burnout Risk"]:
+                    personalized_summary = f"Analysis shows moderate stress levels with {ml_burn_percentage}% burnout risk. Proactive wellness measures and lifestyle adjustments are advised to prevent escalation."
+                    personalized_recommendations = [
+                        "Establish clear boundaries between work and personal time",
+                        "Engage in regular physical activity and maintain social connections outside work",
+                        "Practice stress management techniques and consider mindfulness training"
                     ]
                 else:
-                    summary = "Analysis indicates relatively low stress levels with good overall mental health indicators."
-                    recommendations = [
-                        "Continue maintaining current healthy work habits",
-                        "Regular self-assessment and stress monitoring is beneficial"
+                    personalized_summary = f"Analysis indicates relatively manageable stress levels with {ml_burn_percentage}% burnout risk. Continue current positive practices while monitoring for changes."
+                    personalized_recommendations = [
+                        "Maintain current healthy work habits and coping strategies",
+                        "Continue regular self-assessment and stress monitoring",
+                        "Build resilience through continuous learning and skill development"
                     ]
         else:
-            # No API key - use basic fallback
-            summary = f"Survey analysis completed. Risk level: {risk_level}. Consider professional consultation for detailed assessment."
-            recommendations = [
-                "Regular stress monitoring and self-care practices",
-                "Seek professional guidance if symptoms persist"
+            # No Gemini API key - provide structured fallback
+            personalized_summary = f"Comprehensive analysis completed using ML prediction ({ml_burn_percentage}% burnout risk) and survey assessment ({survey_risk_label}). Professional consultation recommended for detailed personalized guidance."
+            personalized_recommendations = [
+                "Implement regular stress monitoring and self-care practices",
+                "Seek professional guidance for personalized mental health strategies",
+                "Maintain open communication with supervisors about workload and support needs"
             ]
 
-        # 4. Compose response
-        return {
-            "Employee ID": request.employee_id or "anonymous",
-            "Predicted Burn Rate": round(burn_rate * 100),
-            "Survey Score": f"{total_score} ({risk_level})",
-            "Mental Health Summary": summary,
-            "Recommendations": recommendations
+        # Update metrics
+        update_system_metrics()
+        
+        # 4. STRUCTURED RESPONSE - Clear Separation of Results
+        response = {
+            # ML MODEL RESULTS (Score + Label)
+            "ml_model_result": {
+                "burnout_score": ml_burn_percentage,  # 0-100%
+                "burnout_label": ml_stress_label,
+                "model_used": "Linear Regression",
+                "prediction_confidence": "High" if ml_burn_rate > 0.2 else "Medium"
+            },
+            
+            # LIKERT SURVEY RESULTS (Label Only)
+            "survey_result": {
+                "risk_level": survey_risk_label,
+                "assessment_method": "10-Question Likert Scale",
+                "total_questions": 10
+            },
+            
+            # PERSONALIZED SUGGESTIONS (Gemini-Powered)
+            "personalized_insights": {
+                "mental_health_summary": personalized_summary,
+                "recommendations": personalized_recommendations,
+                "source": "Gemini AI" if gemini_api_key and personalized_summary else "Rule-based Fallback"
+            },
+            
+            # METADATA
+            "metadata": {
+                "employee_id": request.employee_id or "anonymous",
+                "analysis_timestamp": datetime.now().isoformat(),
+                "api_version": "2.0"
+            }
         }
+        
+        return response
+        
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze_survey', error_type='general').inc()
         logger.error(f"Error in analyze-survey: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze_survey').observe(time.time() - start_time)
+
+@app.post("/analyze-employee", response_model=EmployeeAnalysisResponse, tags=["Separate Analysis"])
+async def analyze_employee(employee: EmployeeData, employee_id: Optional[str] = None):
+    """
+    Analyze employee data using ML model only - returns burnout prediction with score and label.
+    """
+    REQUESTS.labels(endpoint='analyze_employee').inc()
+    start_time = time.time()
+    
+    try:
+        # Get ML model prediction directly from /predict endpoint
+        burn_result = await predict(employee)
+        ml_burn_rate = burn_result["burn_rate"]  # 0.0 to 1.0
+        ml_burn_percentage = round(ml_burn_rate * 100)  # Convert to percentage
+        
+        # Use the stress level directly from /predict endpoint (the source of truth)
+        ml_stress_label = burn_result["stress_level"]
+
+        # Update metrics
+        update_system_metrics()
+        
+        return EmployeeAnalysisResponse(
+            burnout_score=ml_burn_percentage,
+            burnout_label=ml_stress_label,
+            model_used=burn_result["model_used"],
+            prediction_confidence="High" if ml_burn_rate > 0.2 else "Medium",
+            employee_id=employee_id,
+            analysis_timestamp=datetime.now().isoformat()
+        )
+        
+    except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze_employee', error_type='general').inc()
+        logger.error(f"Error in analyze-employee: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze_employee').observe(time.time() - start_time)
+
+@app.post("/analyze-survey-questions", response_model=SurveyAnalysisResponse, tags=["Separate Analysis"])
+async def analyze_survey_questions(survey: SurveyLikertData):
+    """
+    Analyze Likert scale survey questions only - returns risk level label (no score exposed).
+    """
+    REQUESTS.labels(endpoint='analyze_survey_questions').inc()
+    start_time = time.time()
+    
+    try:
+        # Calculate survey scores
+        survey_scores = [
+            survey.q1, survey.q2, survey.q3, survey.q4, survey.q5,
+            survey.q6, survey.q7, survey.q8, survey.q9, survey.q10
+        ]
+        survey_total_score = sum(survey_scores)
+        
+        # Survey risk level classification based on your specified ranges
+        # Total Score Range | Label
+        # 1 – 17           | Low
+        # 18 – 34          | Medium  
+        # 35 – 50          | High
+        if survey_total_score <= 17:
+            survey_risk_label = "Low"
+        elif survey_total_score <= 34:
+            survey_risk_label = "Medium"
+        else:  # 35-50
+            survey_risk_label = "High"
+
+        # Update metrics
+        update_system_metrics()
+        
+        return SurveyAnalysisResponse(
+            risk_level=survey_risk_label,
+            assessment_method="10-Question Likert Scale",
+            total_questions=10,
+            analysis_timestamp=datetime.now().isoformat()
+        )
+        
+    except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze_survey_questions', error_type='general').inc()
+        logger.error(f"Error in analyze-survey-questions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze_survey_questions').observe(time.time() - start_time)
+
+@app.post("/analyze-combined", response_model=CombinedAnalysisResponse, tags=["Separate Analysis"])
+async def analyze_combined(request: CombinedAnalysisRequest):
+    """
+    Combine employee and survey data for AI-powered personalized insights and recommendations.
+    """
+    REQUESTS.labels(endpoint='analyze_combined').inc()
+    start_time = time.time()
+    
+    try:
+        # Get ML prediction for context directly from /predict endpoint
+        burn_result = await predict(request.employee)
+        ml_burn_rate = burn_result["burn_rate"]
+        ml_burn_percentage = round(ml_burn_rate * 100)
+        
+        # Use the stress level directly from /predict endpoint (the source of truth)
+        ml_stress_label = burn_result["stress_level"]
+        
+        # Get survey analysis for context
+        survey_scores = [
+            request.survey.q1, request.survey.q2, request.survey.q3, request.survey.q4, request.survey.q5,
+            request.survey.q6, request.survey.q7, request.survey.q8, request.survey.q9, request.survey.q10
+        ]
+        survey_total_score = sum(survey_scores)
+        
+        # Survey risk level classification based on specified ranges
+        # Total Score Range | Label
+        # 1 – 17           | Low
+        # 18 – 34          | Medium  
+        # 35 – 50          | High
+        if survey_total_score <= 17:
+            survey_risk_label = "Low"
+        elif survey_total_score <= 34:
+            survey_risk_label = "Medium"
+        else:  # 35-50
+            survey_risk_label = "High"
+
+        # AI-Powered Personalized Analysis
+        gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        personalized_summary = ""
+        personalized_recommendations = []
+        analysis_source = "Rule-based Fallback"
+        
+        if gemini_api_key:
+            try:
+                prompt = f"""
+                You are a mental health expert analyzing an employee's burnout risk and stress levels. Provide personalized insights based on both ML model prediction and survey responses.
+
+                EMPLOYEE PROFILE:
+                - Designation Level: {request.employee.designation}/5 (1=entry level, 5=senior executive)
+                - Resource Allocation: {request.employee.resource_allocation}/10 (workload distribution)
+                - Mental Fatigue Score: {request.employee.mental_fatigue_score}/10 (current mental exhaustion)
+                - Company Type: {request.employee.company_type}
+                - WFH Setup Available: {request.employee.wfh_setup_available}
+                - Gender: {request.employee.gender}
+
+                ML MODEL ANALYSIS:
+                - Burnout Rate: {ml_burn_rate:.4f} ({ml_burn_percentage}%)
+                - AI Prediction: {ml_stress_label}
+                - Model Used: {burn_result["model_used"]}
+
+                SURVEY ANALYSIS:
+                - Total Score: {survey_total_score}/50
+                - Survey Classification: {survey_risk_label}
+                - Score Breakdown (1=Strongly Disagree, 5=Strongly Agree):
+                  * Feel happy and relaxed at work: {request.survey.q1}/5
+                  * Feel anxious/stressed due to work: {request.survey.q2}/5
+                  * Feel emotionally exhausted after work: {request.survey.q3}/5
+                  * Feel motivated and excited about work: {request.survey.q4}/5
+                  * Feel sense of accomplishment: {request.survey.q5}/5
+                  * Feel detached/indifferent about work: {request.survey.q6}/5
+                  * Workload is manageable: {request.survey.q7}/5
+                  * Have control over tasks: {request.survey.q8}/5
+                  * Receive team/manager support: {request.survey.q9}/5
+                  * Work-life balance is respected: {request.survey.q10}/5
+
+                ANALYSIS CORRELATION:
+                - ML Model says: {ml_stress_label}
+                - Survey indicates: {survey_risk_label} risk level
+                - Agreement level: {"High" if (ml_stress_label.lower() in survey_risk_label.lower() or survey_risk_label.lower() in ml_stress_label.lower()) else "Moderate"}
+
+                Please provide a comprehensive analysis in JSON format:
+                {{
+                    "Mental Health Summary": "Detailed 2-3 sentence analysis combining ML prediction ({ml_burn_percentage}% burnout risk) and survey results ({survey_total_score}/50 points, {survey_risk_label} risk). Explain any discrepancies between AI model and self-reported survey.",
+                    "Recommendations": [
+                        "Specific actionable recommendation based on highest risk factors",
+                        "Workplace-specific suggestion considering company type and WFH setup",
+                        "Personal wellness strategy tailored to their designation level and mental fatigue",
+                        "Long-term prevention strategy based on survey responses"
+                    ]
+                }}
+                """
+                
+                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_api_key
+                gemini_payload = {
+                    "contents": [{"parts": [{"text": prompt}]}]
+                }
+                
+                async with httpx.AsyncClient() as client:
+                    gemini_resp = await client.post(gemini_url, json=gemini_payload, timeout=30)
+                    gemini_resp.raise_for_status()
+                    gemini_data = gemini_resp.json()
+                    
+                    # Parse Gemini response
+                    try:
+                        import re, json as pyjson
+                        text = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        # Extract JSON from response
+                        match = re.search(r'\{.*\}', text, re.DOTALL)
+                        if match:
+                            parsed = pyjson.loads(match.group(0))
+                            personalized_summary = parsed.get("Mental Health Summary", "")
+                            personalized_recommendations = parsed.get("Recommendations", [])
+                            analysis_source = "Gemini AI"
+                        else:
+                            personalized_summary = text
+                            personalized_recommendations = [
+                                "Focus on stress management techniques",
+                                "Consider professional counseling if needed",
+                                "Maintain work-life balance"
+                            ]
+                            analysis_source = "Gemini AI (Unstructured)"
+                    except Exception as parse_error:
+                        logger.warning(f"Failed to parse Gemini response: {parse_error}")
+                        personalized_summary = "AI analysis completed but response format needs adjustment."
+                        personalized_recommendations = [
+                            "Prioritize self-care and mental health",
+                            "Seek support from colleagues and supervisors",
+                            "Consider professional guidance if stress persists"
+                        ]
+                        analysis_source = "Gemini AI (Parse Error)"
+                        
+            except Exception as gemini_error:
+                logger.warning(f"Gemini API failed: {str(gemini_error)}, using enhanced fallback")
+                # Continue to fallback logic below
+        
+        # Enhanced fallback if Gemini fails or no API key
+        if not personalized_summary:
+            if survey_risk_label == "High Risk" or ml_stress_label == "Very High Burnout Risk":
+                personalized_summary = f"Analysis indicates significant stress levels with {ml_burn_percentage}% burnout risk from ML model and {survey_risk_label} from survey responses. Immediate attention to mental health and work-life balance is strongly recommended."
+                personalized_recommendations = [
+                    "Seek immediate support from mental health professionals or employee assistance programs",
+                    "Discuss workload adjustment with your manager or HR department",
+                    "Implement daily stress reduction practices like meditation or deep breathing exercises"
+                ]
+            elif survey_risk_label == "Medium Risk" or ml_stress_label in ["Medium Burnout Risk", "High Burnout Risk"]:
+                personalized_summary = f"Analysis shows moderate stress levels with {ml_burn_percentage}% burnout risk. Proactive wellness measures and lifestyle adjustments are advised to prevent escalation."
+                personalized_recommendations = [
+                    "Establish clear boundaries between work and personal time",
+                    "Engage in regular physical activity and maintain social connections outside work",
+                    "Practice stress management techniques and consider mindfulness training"
+                ]
+            else:
+                personalized_summary = f"Analysis indicates relatively manageable stress levels with {ml_burn_percentage}% burnout risk. Continue current positive practices while monitoring for changes."
+                personalized_recommendations = [
+                    "Maintain current healthy work habits and coping strategies",
+                    "Continue regular self-assessment and stress monitoring",
+                    "Build resilience through continuous learning and skill development"
+                ]
+
+        # Update metrics
+        update_system_metrics()
+        
+        return CombinedAnalysisResponse(
+            mental_health_summary=personalized_summary,
+            recommendations=personalized_recommendations,
+            source=analysis_source,
+            employee_id=request.employee_id,
+            analysis_timestamp=datetime.now().isoformat()
+        )
+        
+    except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze_combined', error_type='general').inc()
+        logger.error(f"Error in analyze-combined: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze_combined').observe(time.time() - start_time)
 
 if __name__ == "__main__":
     import uvicorn

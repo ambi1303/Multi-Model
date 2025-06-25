@@ -4,4 +4,6 @@ pandas
 scikit-learn
 pydantic
 python-dotenv
-httpx 
+httpx
+prometheus-client
+psutil 

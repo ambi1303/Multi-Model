@@ -2,11 +2,20 @@
 
 This project predicts employee burnout rates using machine learning models trained on survey data.
 
+## Features
+
+- Employee burnout prediction using machine learning
+- Survey analysis with mental health recommendations
+- FastAPI REST API with comprehensive endpoints
+- Prometheus metrics for monitoring
+- Batch prediction capabilities
+- Integration with Gemini AI for personalized recommendations
+
 ## Setup
 
 1. Install required packages:
 ```bash
-pip install pandas numpy scikit-learn
+pip install -r requirements.txt
 ```
 
 2. Make sure you have the following files in your directory:
@@ -16,33 +25,47 @@ pip install pandas numpy scikit-learn
 
 ## Usage
 
-1. First, train the models:
+### Start the API server
+
 ```bash
-python survey_predict.py
-```
-This will create and save the trained models in the `models/` directory.
+# On Windows
+start_service.bat
 
-2. To predict burnout for an employee, edit the employee data in `predict_employee.py`:
-```python
-employee = {
-    'Designation': 2.0,              # 1-5 (1 being lowest)
-    'Resource Allocation': 5.0,      # 1-10
-    'Mental Fatigue Score': 6.5,     # 1-10
-    'Company Type': 'Service',       # 'Service' or 'Product'
-    'WFH Setup Available': 'Yes',    # 'Yes' or 'No'
-    'Gender': 'Male'                 # 'Male' or 'Female'
-}
+# On Linux/Mac
+python -m uvicorn backend:app --host 0.0.0.0 --port 8004
 ```
 
-3. Run the prediction:
+### Test the API
+
 ```bash
-python predict_employee.py
+python test_api.py
 ```
 
-## Output
-The script will show:
-- Predicted Burn Rate (as percentage)
-- Stress Level (Low/Medium/High/Very High)
+### Run load test
+
+```bash
+python test_api.py --load-test 50
+```
+
+## API Endpoints
+
+- `POST /predict`: Predict burnout for a single employee
+- `POST /predict/batch`: Predict burnout for multiple employees
+- `POST /analyze`: Integration endpoint for common backend
+- `POST /analyze-survey`: Analyze survey responses with recommendations
+- `GET /predictions/history`: Get prediction history
+- `GET /models/metrics`: Get model performance metrics
+- `GET /health`: Health check endpoint
+- `GET /metrics`: Prometheus metrics endpoint
+
+## Monitoring
+
+The service exposes Prometheus metrics at `/metrics` for:
+- Request counts
+- Processing time
+- Error counts
+- Memory usage
+- CPU usage
 
 ## Stress Level Thresholds
 - Low Stress: 0-30%

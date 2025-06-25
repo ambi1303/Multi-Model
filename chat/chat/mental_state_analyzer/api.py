@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -7,14 +6,25 @@ import json
 import os
 import tempfile
 import base64
+import time
+import psutil
 from src.emotion_detector import EmotionDetector
 from src.data_loader import DataLoader
 from src.visualizer import Visualizer
 from starlette.middleware.cors import CORSMiddleware
+from prometheus_client import Counter, Histogram, Gauge, generate_latest
+from starlette.responses import Response
+
+# Prometheus metrics
+REQUESTS = Counter('chat_requests_total', 'Total chat analysis requests', ['endpoint'])
+PROCESSING_TIME = Histogram('chat_processing_seconds', 'Time spent processing chat requests', ['endpoint'])
+ERROR_COUNT = Counter('chat_errors_total', 'Total errors in chat analysis', ['endpoint', 'error_type'])
+MEMORY_USAGE = Gauge('chat_memory_usage_bytes', 'Memory usage of the chat service')
+CPU_USAGE = Gauge('chat_cpu_usage_percent', 'CPU usage of the chat service')
 
 app = FastAPI(
     title="Mental State Analyzer API",
-    description="API for analyzing mental states from chat messages - matches main.py flow",
+    description="API for analyzing mental states from chat messages",
     version="1.0.0"
 )
 
@@ -48,11 +58,11 @@ app.add_middleware(
     max_age=3600,
 )
 
-# Initialize components (exactly like main.py)
+# Initialize components
 emotion_detector = EmotionDetector()
 visualizer = Visualizer()
 
-# Create output directory if it doesn't exist (exactly like main.py)
+# Create output directory if it doesn't exist
 os.makedirs('outputs', exist_ok=True)
 
 def image_to_base64(image_path: str) -> str:
@@ -62,6 +72,11 @@ def image_to_base64(image_path: str) -> str:
             return base64.b64encode(img_file.read()).decode('utf-8')
     except Exception:
         return ""
+
+# Update system metrics
+def update_system_metrics():
+    MEMORY_USAGE.set(psutil.Process(os.getpid()).memory_info().rss)
+    CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent())
 
 class CompleteAnalysisResponse(BaseModel):
     # Overall summary (from visualizer.generate_summary)
@@ -89,13 +104,13 @@ class SingleMessageResponse(BaseModel):
 @app.post("/analyze-complete", response_model=CompleteAnalysisResponse)
 async def analyze_complete(file: UploadFile = File(...)):
     """
-    Complete analysis following the exact main.py flow:
-    1. Load JSON file → DataLoader
-    2. Analyze messages → EmotionDetector  
-    3. Generate summary → Visualizer
-    4. Create visualizations → Visualizer
+    Complete analysis of a chat JSON file:
+    1. Load JSON file
+    2. Analyze messages
+    3. Generate summary
+    4. Create visualizations
     
-    Expected JSON format (same as main.py):
+    Expected JSON format:
     {
         "person_id": "user_123",
         "messages": [
@@ -104,18 +119,22 @@ async def analyze_complete(file: UploadFile = File(...)):
         ]
     }
     """
+    REQUESTS.labels(endpoint='analyze-complete').inc()
+    start_time = time.time()
+    
     try:
         print(f"[API] Received file: {file.filename}")
         
         # Validate file type
         if not file.filename.endswith('.json'):
+            ERROR_COUNT.labels(endpoint='analyze-complete', error_type='invalid_file_type').inc()
             raise HTTPException(status_code=400, detail="Only JSON files are supported")
         
         # Read and parse uploaded file
         contents = await file.read()
         print(f"[API] File size: {len(contents)} bytes")
         
-        # Create temporary file for DataLoader (exactly like main.py)
+        # Create temporary file for DataLoader
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
             temp_file.write(contents.decode('utf-8'))
             temp_file_path = temp_file.name
@@ -123,19 +142,17 @@ async def analyze_complete(file: UploadFile = File(...)):
         try:
             print(f"[API] Created temp file: {temp_file_path}")
             
-            # === EXACT MAIN.PY FLOW ===
-            
-            # 1. Load and preprocess data (exactly like main.py)
+            # 1. Load and preprocess data
             data_loader = DataLoader(temp_file_path)
             raw_data = data_loader.load_data()
             messages = data_loader.preprocess_messages(raw_data)
             print(f"[API] Loaded {len(messages)} messages")
             
-            # 2. Analyze messages (exactly like main.py)
+            # 2. Analyze messages
             analyzed_messages = emotion_detector.analyze_messages(messages)
             print(f"[API] Analyzed {len(analyzed_messages)} messages")
             
-            # 3. Generate visualizations (exactly like main.py)
+            # 3. Generate visualizations
             mental_states_path = 'outputs/mental_states.png'
             sentiment_trend_path = 'outputs/sentiment_trend.png'
             
@@ -143,11 +160,11 @@ async def analyze_complete(file: UploadFile = File(...)):
             visualizer.plot_sentiment_trend(analyzed_messages, sentiment_trend_path)
             print(f"[API] Generated visualizations")
             
-            # 4. Generate summary (exactly like main.py)
+            # 4. Generate summary
             summary = visualizer.generate_summary(analyzed_messages)
             print(f"[API] Generated summary")
             
-            # 5. Save results (exactly like main.py)
+            # 5. Save results
             results = {
                 'analyzed_messages': analyzed_messages,
                 'summary': summary
@@ -157,10 +174,6 @@ async def analyze_complete(file: UploadFile = File(...)):
                 json.dump(results, f, indent=2, default=str)
             print(f"[API] Saved results to outputs/api_results.json")
             
-            # Convert images to base64 for frontend
-            mental_states_b64 = image_to_base64(mental_states_path)
-            sentiment_trend_b64 = image_to_base64(sentiment_trend_path)
-            
             # Format timestamps for JSON serialization
             for msg in analyzed_messages:
                 if isinstance(msg.get('timestamp'), datetime):
@@ -168,7 +181,7 @@ async def analyze_complete(file: UploadFile = File(...)):
             
             print(f"[API] Analysis complete - returning response")
             
-            return CompleteAnalysisResponse(
+            response = CompleteAnalysisResponse(
                 summary=summary,
                 analyzed_messages=analyzed_messages,
                 mental_states_data=visualizer.get_mental_states_data(analyzed_messages),
@@ -177,17 +190,27 @@ async def analyze_complete(file: UploadFile = File(...)):
                 message=f"Successfully analyzed {len(analyzed_messages)} messages"
             )
             
+            # Update metrics
+            update_system_metrics()
+            
+            return response
+            
         finally:
             # Clean up temporary file
             os.unlink(temp_file_path)
             
     except json.JSONDecodeError:
+        ERROR_COUNT.labels(endpoint='analyze-complete', error_type='json_decode').inc()
         raise HTTPException(status_code=400, detail="Invalid JSON format in uploaded file")
     except FileNotFoundError:
+        ERROR_COUNT.labels(endpoint='analyze-complete', error_type='file_not_found').inc()
         raise HTTPException(status_code=400, detail="File processing error")
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze-complete', error_type='general').inc()
         print(f"[API] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-complete').observe(time.time() - start_time)
 
 @app.post("/analyze/single", response_model=SingleMessageResponse)
 async def analyze_single_message(request: SingleMessageRequest):
@@ -195,20 +218,19 @@ async def analyze_single_message(request: SingleMessageRequest):
     Analyze a single message for emotion, sentiment, and mental state.
     This endpoint handles individual messages without requiring file upload.
     """
+    REQUESTS.labels(endpoint='analyze/single').inc()
+    start_time = time.time()
+    
     try:
         print(f"[API] Single message analysis for: {request.text[:50]}...")
-        
-        # Create a simple message structure
-        message_data = {
-            'text': request.text,
-            'person_id': request.person_id,
-            'timestamp': datetime.now()
-        }
         
         # Analyze the single message using the existing get_mental_state method
         analysis = emotion_detector.get_mental_state(request.text)
         
         print(f"[API] Single message analysis complete: {analysis}")
+        
+        # Update metrics
+        update_system_metrics()
         
         return SingleMessageResponse(
             primary_emotion=analysis.get('primary_emotion', 'neutral'),
@@ -220,20 +242,25 @@ async def analyze_single_message(request: SingleMessageRequest):
         )
         
     except Exception as e:
+        ERROR_COUNT.labels(endpoint='analyze/single', error_type='general').inc()
         print(f"[API] Single message analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Single message analysis failed: {str(e)}")
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze/single').observe(time.time() - start_time)
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    update_system_metrics()
     return {"status": "healthy", "message": "Mental State Analyzer API is running"}
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics."""
+    update_system_metrics()
+    return Response(content=generate_latest(), media_type="text/plain")
 
 if __name__ == "__main__":
     import uvicorn
     print("Starting Mental State Analyzer API...")
-    print("This API follows the exact main.py flow:")
-    print("1. JSON file → DataLoader → preprocess_messages")
-    print("2. EmotionDetector → analyze_messages (table)")
-    print("3. Visualizer → generate_summary (overall summary)")
-    print("4. Visualizer → plot charts (pie + line)")
     uvicorn.run(app, host="0.0.0.0", port=8003) 

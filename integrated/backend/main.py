@@ -1,19 +1,18 @@
-from fastapi import FastAPI, File, UploadFile, Form, Body, Request, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, Body, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import requests
 import logging
-from pydantic import BaseModel, Field
-from typing import Literal
-import pandas as pd
-import pickle
+import logging.handlers
+import yaml
 import os
 from datetime import datetime, timedelta
 import tempfile
 import subprocess
 import wave
-from vosk import Model, KaldiRecognizer
-from textblob import TextBlob
+from pydantic import BaseModel, Field
+from typing import Literal, Dict, Any, Optional, List
+import pandas as pd
 import json
 import aiohttp
 from aiohttp import ClientSession, FormData
@@ -21,49 +20,164 @@ import asyncio
 from functools import lru_cache
 from cachetools import TTLCache, cached
 from fastapi import APIRouter
+import time
+import psutil
+from prometheus_client import Counter, Histogram, Gauge, generate_latest
 
-app = FastAPI()
+# Load configuration from YAML file
+def load_config():
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        # Return default config
+        return {
+            "backend_urls": {
+                "video": "http://localhost:8001/analyze-emotion",
+                "stt": "http://localhost:8002/analyze-speech",
+                "chat": "http://localhost:8003/analyze/single",
+                "survey": "http://localhost:8004/analyze"
+            },
+            "logging": {
+                "level": "INFO",
+                "format": '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                "file": "app.log"
+            },
+            "cache": {
+                "maxsize": 100,
+                "ttl": 300
+            },
+            "security": {
+                "cors_origins": ["*"],
+                "allowed_methods": ["GET", "POST", "OPTIONS"],
+                "allowed_headers": ["*"]
+            },
+            "monitoring": {
+                "prometheus_enabled": True,
+                "metrics_path": "/metrics",
+                "health_check_path": "/health"
+            },
+            "error_handling": {
+                "max_retries": 3,
+                "retry_delay": 1,
+                "timeout": 30
+            }
+        }
 
-# Configure CORS with more permissive settings
+# Load configuration
+config = load_config()
+
+# Set up logging
+logging_config = config.get("logging", {})
+log_level = getattr(logging, logging_config.get("level", "INFO"))
+log_format = logging_config.get("format", '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_file = logging_config.get("file", "app.log")
+
+logger = logging.getLogger("integrated_backend")
+logger.setLevel(log_level)
+
+# Add file handler
+file_handler = logging.handlers.RotatingFileHandler(
+    log_file, maxBytes=10485760, backupCount=3
+)
+file_handler.setFormatter(logging.Formatter(log_format))
+logger.addHandler(file_handler)
+
+# Add console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter(log_format))
+logger.addHandler(console_handler)
+
+# Create FastAPI app
+app = FastAPI(
+    title="Integrated Analysis Backend",
+    description="API for integrated emotion, speech, chat, and survey analysis",
+    version="1.0.0"
+)
+
+# Prometheus metrics
+REQUESTS = Counter('integrated_requests_total', 'Total requests', ['endpoint'])
+PROCESSING_TIME = Histogram('integrated_processing_seconds', 'Time spent processing requests', ['endpoint'])
+ERROR_COUNT = Counter('integrated_errors_total', 'Total errors', ['endpoint', 'error_type'])
+MEMORY_USAGE = Gauge('integrated_memory_usage_bytes', 'Memory usage of the service')
+CPU_USAGE = Gauge('integrated_cpu_usage_percent', 'CPU usage of the service')
+BACKEND_UP = Gauge('integrated_backend_up', 'Backend service availability', ['service'])
+
+# Configure CORS with settings from config
+security_config = config.get("security", {})
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
+    allow_origins=security_config.get("cors_origins", ["*"]),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=security_config.get("allowed_methods", ["*"]),
+    allow_headers=security_config.get("allowed_headers", ["*"]),
     expose_headers=["*"],
     max_age=3600,
 )
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Config: URLs of the existing model backends
-VIDEO_BACKEND_URL = "http://localhost:8001/analyze-emotion"
-STT_BACKEND_URL = "http://localhost:8002/analyze-speech"
-CHAT_BACKEND_URL = "http://localhost:8003/analyze/single"
-SURVEY_BACKEND_URL = "http://localhost:8004/analyze"
-
-# Create a session pool for HTTP requests
-session = None
-
-# Create a TTL cache with 5 minutes expiration
-cache = TTLCache(maxsize=100, ttl=300)
+# Backend URLs from config
+backend_urls = config.get("backend_urls", {})
+VIDEO_BACKEND_URL = backend_urls.get("video", "http://localhost:8001/analyze-emotion")
+STT_BACKEND_URL = backend_urls.get("stt", "http://localhost:8002/analyze-speech")
+CHAT_BACKEND_URL = backend_urls.get("chat", "http://localhost:8003/analyze/single")
+SURVEY_BACKEND_URL = backend_urls.get("survey", "http://localhost:8004/analyze")
 
 # In-memory storage for video analytics (for demo; replace with DB for production)
 video_analysis_results = []
+
+# Update system metrics
+def update_system_metrics():
+    """Update Prometheus metrics for system resource usage"""
+    MEMORY_USAGE.set(psutil.Process(os.getpid()).memory_info().rss)
+    CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent())
+
+# Check backend availability
+async def check_backend_availability():
+    """Check if all backend services are available"""
+    backends = {
+        "video": VIDEO_BACKEND_URL.split("/analyze")[0],
+        "stt": STT_BACKEND_URL.split("/analyze")[0],
+        "chat": CHAT_BACKEND_URL.split("/analyze")[0],
+        "survey": SURVEY_BACKEND_URL.split("/analyze")[0]
+    }
+    
+    for name, url in backends.items():
+        try:
+            health_url = f"{url}/health"
+            async with session.get(health_url, timeout=2) as resp:
+                if resp.status == 200:
+                    BACKEND_UP.labels(service=name).set(1)
+                else:
+                    BACKEND_UP.labels(service=name).set(0)
+        except Exception:
+            BACKEND_UP.labels(service=name).set(0)
 
 @app.on_event("startup")
 async def startup_event():
     global session
     session = ClientSession()
     logger.info("Application started with in-memory caching")
+    
+    # Initialize backend availability metrics
+    for service in ["video", "stt", "chat", "survey"]:
+        BACKEND_UP.labels(service=service).set(0)
+    
+    # Schedule periodic backend checks
+    asyncio.create_task(periodic_backend_check())
+
+async def periodic_backend_check():
+    """Periodically check backend availability"""
+    while True:
+        await check_backend_availability()
+        await asyncio.sleep(30)  # Check every 30 seconds
 
 @app.on_event("shutdown")
 async def shutdown_event():
     if session:
         await session.close()
+    logger.info("Application shutting down")
 
 # Data model for burnout prediction
 class EmployeeData(BaseModel):
@@ -74,76 +188,287 @@ class EmployeeData(BaseModel):
     wfh_setup_available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
     gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
 
-class PredictionResponse(BaseModel):
-    burn_rate: float
-    stress_level: str
-    model_used: str
-    prediction_time: str
+class HealthCheck(BaseModel):
+    status: str
+    version: str
+    timestamp: str
+    uptime: float
+    backends: Dict[str, bool]
+    system: Dict[str, float]
 
-# Initialize Vosk model (global, so it's loaded once)
-VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), "vosk-model-small-en-us-0.15")
-vosk_model = None
-if os.path.exists(VOSK_MODEL_PATH):
-    vosk_model = Model(VOSK_MODEL_PATH)
-else:
-    print(f"Vosk model not found at {VOSK_MODEL_PATH}")
-
-def convert_webm_to_wav(input_path, output_path):
-    try:
-        command = [
-            'ffmpeg', '-i', input_path,
-            '-acodec', 'pcm_s16le',
-            '-ac', '1',
-            '-ar', '16000',
-            '-y',
-            output_path
-        ]
-        subprocess.run(command, check=True, capture_output=True)
-        return True
-    except Exception as e:
-        print(f"Error converting audio: {e}")
-        return False
+# Startup time for uptime calculation
+startup_time = time.time()
 
 @app.get("/")
-def health_check():
-    return {"status": "ok"}
+def root():
+    """Root endpoint with API information"""
+    return {
+        "message": "Integrated Analysis API",
+        "version": "1.0.0",
+        "endpoints": {
+            "/analyze-video": "POST - Analyze emotion from video",
+            "/analyze-speech": "POST - Analyze speech audio",
+            "/analyze-chat": "POST - Analyze chat text",
+            "/analyze-survey": "POST - Analyze survey data",
+            "/analyze-all": "POST - Analyze multiple data sources",
+            "/health": "GET - Health check endpoint",
+            "/metrics": "GET - Prometheus metrics endpoint"
+        }
+    }
 
-# Cache frequently accessed data
-@lru_cache(maxsize=100)
-def get_cached_model(model_name: str):
-    # Implement model caching logic here
-    pass
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    update_system_metrics()
+    
+    # Check backend availability
+    backends = {}
+    for service in ["video", "stt", "chat", "survey"]:
+        backends[service] = BACKEND_UP.labels(service=service)._value.get() == 1
+    
+    return HealthCheck(
+        status="healthy",
+        version="1.0.0",
+        timestamp=datetime.now().isoformat(),
+        uptime=time.time() - startup_time,
+        backends=backends,
+        system={
+            "memory_mb": psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024),
+            "cpu_percent": psutil.Process(os.getpid()).cpu_percent()
+        }
+    )
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics"""
+    update_system_metrics()
+    return Response(content=generate_latest(), media_type="text/plain")
+
+@app.post("/load-test")
+async def load_test(request: Request):
+    """
+    Load testing endpoint to simulate traffic for performance testing.
+    This endpoint will simulate requests to all backend services.
+    """
+    REQUESTS.labels(endpoint='load-test').inc()
+    start_time = time.time()
+    
+    try:
+        # Get test parameters from request
+        data = await request.json()
+        test_type = data.get("test_type", "all")  # all, video, speech, chat, survey
+        iterations = min(int(data.get("iterations", 5)), 20)  # Limit to 20 iterations max
+        
+        results = {
+            "test_type": test_type,
+            "iterations": iterations,
+            "results": []
+        }
+        
+        # Simulate load based on test type
+        if test_type in ["all", "video"]:
+            # Simulate video analysis requests
+            for i in range(iterations):
+                try:
+                    # Use a sample image for testing
+                    sample_path = os.path.join(os.path.dirname(__file__), "models", "sample_face.jpg")
+                    if not os.path.exists(sample_path):
+                        logger.warning(f"Sample image not found at {sample_path}")
+                        continue
+                        
+                    with open(sample_path, "rb") as f:
+                        files = {"file": ("sample_face.jpg", f, "image/jpeg")}
+                        async with session.post(VIDEO_BACKEND_URL, files=files) as resp:
+                            if resp.status == 200:
+                                results["results"].append({
+                                    "service": "video",
+                                    "iteration": i,
+                                    "status": "success",
+                                    "time": time.time() - start_time
+                                })
+                            else:
+                                results["results"].append({
+                                    "service": "video",
+                                    "iteration": i,
+                                    "status": "error",
+                                    "error": f"Status code: {resp.status}"
+                                })
+                except Exception as e:
+                    results["results"].append({
+                        "service": "video",
+                        "iteration": i,
+                        "status": "error",
+                        "error": str(e)
+                    })
+        
+        if test_type in ["all", "speech"]:
+            # Simulate speech analysis requests
+            for i in range(iterations):
+                try:
+                    # Use a sample audio file for testing
+                    sample_path = os.path.join(os.path.dirname(__file__), "models", "sample_audio.wav")
+                    if not os.path.exists(sample_path):
+                        logger.warning(f"Sample audio not found at {sample_path}")
+                        continue
+                        
+                    with open(sample_path, "rb") as f:
+                        files = {"audio_file": ("sample_audio.wav", f, "audio/wav")}
+                        async with session.post(STT_BACKEND_URL, files=files) as resp:
+                            if resp.status == 200:
+                                results["results"].append({
+                                    "service": "speech",
+                                    "iteration": i,
+                                    "status": "success",
+                                    "time": time.time() - start_time
+                                })
+                            else:
+                                results["results"].append({
+                                    "service": "speech",
+                                    "iteration": i,
+                                    "status": "error",
+                                    "error": f"Status code: {resp.status}"
+                                })
+                except Exception as e:
+                    results["results"].append({
+                        "service": "speech",
+                        "iteration": i,
+                        "status": "error",
+                        "error": str(e)
+                    })
+        
+        if test_type in ["all", "chat"]:
+            # Simulate chat analysis requests
+            for i in range(iterations):
+                try:
+                    # Sample chat message for testing
+                    message = {"text": "This is a test message for load testing. I'm feeling happy today!"}
+                    async with session.post(CHAT_BACKEND_URL, json=message) as resp:
+                        if resp.status == 200:
+                            results["results"].append({
+                                "service": "chat",
+                                "iteration": i,
+                                "status": "success",
+                                "time": time.time() - start_time
+                            })
+                        else:
+                            results["results"].append({
+                                "service": "chat",
+                                "iteration": i,
+                                "status": "error",
+                                "error": f"Status code: {resp.status}"
+                            })
+                except Exception as e:
+                    results["results"].append({
+                        "service": "chat",
+                        "iteration": i,
+                        "status": "error",
+                        "error": str(e)
+                    })
+        
+        if test_type in ["all", "survey"]:
+            # Simulate survey analysis requests
+            for i in range(iterations):
+                try:
+                    # Sample employee data for testing
+                    employee_data = {
+                        "designation": 3,
+                        "resource_allocation": 7,
+                        "mental_fatigue_score": 5,
+                        "company_type": "Service",
+                        "wfh_setup_available": "Yes",
+                        "gender": "Male"
+                    }
+                    async with session.post(SURVEY_BACKEND_URL, json=employee_data) as resp:
+                        if resp.status == 200:
+                            results["results"].append({
+                                "service": "survey",
+                                "iteration": i,
+                                "status": "success",
+                                "time": time.time() - start_time
+                            })
+                        else:
+                            results["results"].append({
+                                "service": "survey",
+                                "iteration": i,
+                                "status": "error",
+                                "error": f"Status code: {resp.status}"
+                            })
+                except Exception as e:
+                    results["results"].append({
+                        "service": "survey",
+                        "iteration": i,
+                        "status": "error",
+                        "error": str(e)
+                    })
+        
+        # Calculate summary statistics
+        success_count = sum(1 for r in results["results"] if r["status"] == "success")
+        error_count = sum(1 for r in results["results"] if r["status"] == "error")
+        avg_time = sum(r.get("time", 0) for r in results["results"] if "time" in r) / max(success_count, 1)
+        
+        results["summary"] = {
+            "total_requests": len(results["results"]),
+            "success_count": success_count,
+            "error_count": error_count,
+            "success_rate": success_count / max(len(results["results"]), 1) * 100,
+            "average_time": avg_time
+        }
+        
+        # Update metrics
+        update_system_metrics()
+        
+        return results
+    except Exception as e:
+        ERROR_COUNT.labels(endpoint='load-test', error_type='general').inc()
+        logger.error(f"Error during load testing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Load testing failed: {str(e)}")
+    finally:
+        PROCESSING_TIME.labels(endpoint='load-test').observe(time.time() - start_time)
 
 @app.post("/analyze-video")
 async def analyze_video(file: UploadFile = File(...)):
-    file_bytes = await file.read()
-    form = FormData()
-    form.add_field(
-        name="file",
-        value=file_bytes,
-        filename=file.filename,
-        content_type=file.content_type or "application/octet-stream"
-    )
-    async with session.post(VIDEO_BACKEND_URL, data=form) as resp:
-        try:
-            data = await resp.json()
-            # Store result for analytics (in-memory)
-            video_analysis_results.append({
-                "timestamp": datetime.now().isoformat(),
-                "dominant_emotion": data.get("dominantEmotion"),
-                "confidence": data.get("confidence", 0),
-                # Add more fields as needed
-            })
-        except Exception as e:
-            logger.error(f"Error decoding JSON from video backend: {e}")
-            data = {"error": "Invalid JSON from video backend"}
-        logger.info(f"Video backend response: {data}")
-        return JSONResponse(content=data, status_code=resp.status)
+    """Analyze emotion from video"""
+    REQUESTS.labels(endpoint='analyze-video').inc()
+    start_time = time.time()
+    
+    try:
+        file_bytes = await file.read()
+        form = FormData()
+        form.add_field(
+            name="file",
+            value=file_bytes,
+            filename=file.filename,
+            content_type=file.content_type or "application/octet-stream"
+        )
+        async with session.post(VIDEO_BACKEND_URL, data=form) as resp:
+            try:
+                data = await resp.json()
+                # Store result for analytics (in-memory)
+                video_analysis_results.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "dominant_emotion": data.get("dominant_emotion"),
+                    "emotion_scores": data.get("emotion_scores", {}),
+                    "analysis_time": data.get("analysis_time")
+                })
+            except Exception as e:
+                logger.error(f"Error decoding JSON from video backend: {e}")
+                ERROR_COUNT.labels(endpoint='analyze-video', error_type='json_decode').inc()
+                data = {"error": "Invalid JSON from video backend"}
+            logger.info(f"Video backend response: {data}")
+            return JSONResponse(content=data, status_code=resp.status)
+    except Exception as e:
+        logger.error(f"Error in analyze-video: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-video', error_type='general').inc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-video').observe(time.time() - start_time)
 
 @app.post("/analyze-speech")
 async def analyze_speech(audio_file: UploadFile = File(...)):
-    # Proxy the audio file to the STT backend (port 8002)
-    stt_url = "http://localhost:8002/analyze-speech"
+    """Analyze speech audio"""
+    REQUESTS.labels(endpoint='analyze-speech').inc()
+    start_time = time.time()
+    
     try:
         # Read the uploaded file
         file_bytes = await audio_file.read()
@@ -154,24 +479,33 @@ async def analyze_speech(audio_file: UploadFile = File(...)):
             filename=audio_file.filename,
             content_type=audio_file.content_type or "application/octet-stream"
         )
-        async with session.post(stt_url, data=form) as resp:
+        async with session.post(STT_BACKEND_URL, data=form) as resp:
             data = await resp.json()
             return JSONResponse(content=data, status_code=resp.status)
     except Exception as e:
         logger.error(f"Error proxying to STT backend: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-speech', error_type='general').inc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-speech').observe(time.time() - start_time)
 
 @app.post("/analyze-chat")
 async def analyze_chat(request: Request):
+    """Analyze chat text"""
+    REQUESTS.labels(endpoint='analyze-chat').inc()
+    start_time = time.time()
+    
     try:
         payload = await request.json()
         logger.info(f"Parsed JSON payload: {payload}")
     except Exception as e:
         logger.error(f"Failed to parse JSON: {e}")
+        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='json_parse').inc()
         return JSONResponse(content={"error": "Invalid JSON body"}, status_code=400)
 
     text = payload.get("text")
     if not text or not isinstance(text, str) or not text.strip():
+        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='validation').inc()
         return JSONResponse(content={"error": "Field 'text' is required and must be a non-empty string."}, status_code=422)
 
     chat_payload = {
@@ -181,12 +515,23 @@ async def analyze_chat(request: Request):
     headers = {"Content-Type": "application/json"}
     logger.info(f"Forwarding to {CHAT_BACKEND_URL} with payload: {chat_payload}")
     
-    async with session.post(CHAT_BACKEND_URL, json=chat_payload, headers=headers) as resp:
-        logger.info(f"Chat backend response: {resp.status} {await resp.text()}")
-        return JSONResponse(content=await resp.json(), status_code=resp.status)
+    try:
+        async with session.post(CHAT_BACKEND_URL, json=chat_payload, headers=headers) as resp:
+            logger.info(f"Chat backend response: {resp.status} {await resp.text()}")
+            return JSONResponse(content=await resp.json(), status_code=resp.status)
+    except Exception as e:
+        logger.error(f"Error in analyze-chat: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='general').inc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-chat').observe(time.time() - start_time)
 
 @app.post("/analyze-survey")
 async def analyze_survey(request: Request):
+    """Analyze survey data"""
+    REQUESTS.labels(endpoint='analyze-survey').inc()
+    start_time = time.time()
+    
     try:
         raw_body = await request.body()
         logger.info(f"Raw incoming request body: {raw_body}")
@@ -194,6 +539,7 @@ async def analyze_survey(request: Request):
             data = await request.json()
         except Exception as e:
             logger.error(f"Failed to parse JSON: {e}")
+            ERROR_COUNT.labels(endpoint='analyze-survey', error_type='json_parse').inc()
             return JSONResponse(content={"error": "Invalid JSON body", "raw_body": raw_body.decode()}, status_code=400)
         logger.info(f"Parsed JSON data: {data}")
         
@@ -208,6 +554,7 @@ async def analyze_survey(request: Request):
                 logger.info(f"Survey backend response body: {response_text}")
                 if resp.status != 200:
                     logger.error(f"Survey backend error: {response_text}")
+                    ERROR_COUNT.labels(endpoint='analyze-survey', error_type='backend_error').inc()
                     return JSONResponse(content={"error": response_text}, status_code=resp.status)
                 try:
                     response_data = await resp.json()
@@ -215,6 +562,7 @@ async def analyze_survey(request: Request):
                     return JSONResponse(content=response_data, status_code=resp.status)
                 except Exception as e:
                     logger.error(f"Error parsing survey response: {str(e)}")
+                    ERROR_COUNT.labels(endpoint='analyze-survey', error_type='response_parse').inc()
                     return JSONResponse(content={"error": "Error parsing survey response", "response_text": response_text}, status_code=500)
         else:
             # Old format - validate and forward to old analyze endpoint
@@ -222,6 +570,7 @@ async def analyze_survey(request: Request):
                 employee = EmployeeData(**data)
             except Exception as e:
                 logger.error(f"Failed to parse EmployeeData: {e}")
+                ERROR_COUNT.labels(endpoint='analyze-survey', error_type='validation').inc()
                 return JSONResponse(content={"error": f"Invalid EmployeeData: {e}", "parsed_data": data}, status_code=422)
             logger.info(f"Parsed EmployeeData: {employee}")
             # Forward to survey backend
@@ -232,6 +581,7 @@ async def analyze_survey(request: Request):
                 logger.info(f"Survey backend response body: {response_text}")
                 if resp.status != 200:
                     logger.error(f"Survey backend error: {response_text}")
+                    ERROR_COUNT.labels(endpoint='analyze-survey', error_type='backend_error').inc()
                     return JSONResponse(content={"error": response_text}, status_code=resp.status)
                 try:
                     response_data = await resp.json()
@@ -239,124 +589,140 @@ async def analyze_survey(request: Request):
                     return JSONResponse(content=response_data, status_code=resp.status)
                 except Exception as e:
                     logger.error(f"Error parsing survey response: {str(e)}")
+                    ERROR_COUNT.labels(endpoint='analyze-survey', error_type='response_parse').inc()
                     return JSONResponse(content={"error": "Error parsing survey response", "response_text": response_text}, status_code=500)
     except aiohttp.ClientError as e:
         logger.error(f"Connection error in analyze-survey: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-survey', error_type='connection').inc()
         return JSONResponse(content={"error": "Survey service unavailable"}, status_code=503)
     except Exception as e:
         logger.error(f"Error in analyze-survey: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-survey', error_type='general').inc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-survey').observe(time.time() - start_time)
 
 @app.post("/analyze-all")
-async def analyze_all(file: UploadFile = File(None), audio_file: UploadFile = File(None), text: str = Form(None), person_id: str = Form(None)):
-    results = {}
-    tasks = []
+async def analyze_all(request: Request):
+    """Analyze data from multiple sources"""
+    REQUESTS.labels(endpoint='analyze-all').inc()
+    start_time = time.time()
     
-    if file:
-        files = {"file": (file.filename, await file.read(), file.content_type)}
-        tasks.append(session.post(VIDEO_BACKEND_URL, files=files))
-    
-    if audio_file:
-        files = {"audio_file": (audio_file.filename, await audio_file.read(), audio_file.content_type)}
-        tasks.append(session.post(STT_BACKEND_URL, files=files))
-    
-    if text:
-        data = {"text": text}
-        if person_id:
-            data["person_id"] = person_id
-        tasks.append(session.post(CHAT_BACKEND_URL, json=data))
-    
-    # Survey is assumed to not require input
-    tasks.append(session.post(SURVEY_BACKEND_URL))
-    
-    # Execute all requests concurrently
-    responses = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Process responses
-    for i, resp in enumerate(responses):
-        if isinstance(resp, Exception):
-            logger.error(f"Error in request {i}: {str(resp)}")
-            continue
+    try:
+        data = await request.json()
+        results = {}
+        
+        # Process video if provided
+        if "video_data" in data:
+            # Implementation for video analysis
+            pass
             
-        try:
-            data = await resp.json()
-            if i == 0 and file:
-                results["video"] = data
-            elif i == 1 and audio_file:
-                results["speech"] = data
-            elif i == 2 and text:
-                results["chat"] = data
-            elif i == 3:
-                results["survey"] = data
-        except Exception as e:
-            logger.error(f"Error processing response {i}: {str(e)}")
-    
-    return results
+        # Process speech if provided
+        if "speech_data" in data:
+            # Implementation for speech analysis
+            pass
+            
+        # Process chat if provided
+        if "chat_data" in data and isinstance(data["chat_data"], str):
+            chat_payload = {
+                "text": data["chat_data"],
+                "person_id": data.get("person_id", "user_api")
+            }
+            async with session.post(CHAT_BACKEND_URL, json=chat_payload) as resp:
+                if resp.status == 200:
+                    results["chat_analysis"] = await resp.json()
+                    
+        # Process survey if provided
+        if "survey_data" in data and isinstance(data["survey_data"], dict):
+            async with session.post(SURVEY_BACKEND_URL, json=data["survey_data"]) as resp:
+                if resp.status == 200:
+                    results["survey_analysis"] = await resp.json()
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error in analyze-all: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-all', error_type='general').inc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-all').observe(time.time() - start_time)
 
-# Debug endpoint to echo payload
 @app.post("/debug/echo")
 async def debug_echo(request: Request):
-    body = await request.body()
+    """Debug endpoint to echo request data"""
     try:
-        json_body = await request.json()
-    except Exception:
-        json_body = None
-    return {"raw_body": body.decode(), "json_body": json_body}
+        body = await request.body()
+        return {
+            "method": request.method,
+            "url": str(request.url),
+            "headers": dict(request.headers),
+            "body": body.decode(),
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/dashboard-stats")
 async def dashboard_stats():
+    """Get statistics for the dashboard"""
     # In a real app, fetch these from a database or analytics service
-    import random
-    today = datetime.now()
-    trend = []
-    for i in range(7):
-        day = today - timedelta(days=6-i)
-        trend.append({
-            "date": day.strftime("%b %d"),
-            "stress": random.randint(60, 80)
-        })
+    update_system_metrics()
+    
+    # Check backend availability
+    await check_backend_availability()
+    
     return {
-        "work_hours": 8,
-        "meeting_load": 0,
-        "stress_score": random.randint(0, 100),
-        "work_life_balance": 100,
-        "stress_trend": trend
+        "stats": {
+            "total_analyses": sum([
+                REQUESTS.labels(endpoint='analyze-video')._value.get(),
+                REQUESTS.labels(endpoint='analyze-speech')._value.get(),
+                REQUESTS.labels(endpoint='analyze-chat')._value.get(),
+                REQUESTS.labels(endpoint='analyze-survey')._value.get(),
+            ]),
+            "error_rate": sum([
+                ERROR_COUNT.labels(endpoint='analyze-video', error_type='general')._value.get(),
+                ERROR_COUNT.labels(endpoint='analyze-speech', error_type='general')._value.get(),
+                ERROR_COUNT.labels(endpoint='analyze-chat', error_type='general')._value.get(),
+                ERROR_COUNT.labels(endpoint='analyze-survey', error_type='general')._value.get(),
+            ]) / max(1, sum([
+                REQUESTS.labels(endpoint='analyze-video')._value.get(),
+                REQUESTS.labels(endpoint='analyze-speech')._value.get(),
+                REQUESTS.labels(endpoint='analyze-chat')._value.get(),
+                REQUESTS.labels(endpoint='analyze-survey')._value.get(),
+            ])),
+            "backend_status": {
+                "video": BACKEND_UP.labels(service="video")._value.get() == 1,
+                "speech": BACKEND_UP.labels(service="stt")._value.get() == 1,
+                "chat": BACKEND_UP.labels(service="chat")._value.get() == 1,
+                "survey": BACKEND_UP.labels(service="survey")._value.get() == 1,
+            },
+        },
+        "recent_emotions": [
+            {"emotion": result.get("dominant_emotion", "unknown"), "timestamp": result.get("timestamp")}
+            for result in video_analysis_results[-10:] if "dominant_emotion" in result
+        ],
     }
-
-@app.post("/analyze/multiple")
-async def analyze_multiple(request: Request):
-    try:
-        payload = await request.json()
-        logger.info(f"Proxying /analyze/multiple to chat backend with payload: {payload}")
-        async with session.post("http://localhost:8003/analyze/multiple", json=payload) as resp:
-            data = await resp.json()
-            logger.info(f"Chat backend /analyze/multiple response: {data}")
-            return JSONResponse(content=data, status_code=resp.status)
-    except Exception as e:
-        logger.error(f"Error proxying to chat backend: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/api/video/analytics")
 async def video_analytics():
+    """Get video analytics data"""
+    REQUESTS.labels(endpoint='video-analytics').inc()
+    
     # Aggregate confidence distribution
-    bins = ["0-20%", "20-40%", "40-60%", "60-80%", "80-100%"]
-    bin_counts = [0] * 5
-    for r in video_analysis_results:
-        c = r.get("confidence", 0)
-        idx = min(int(c * 5), 4)
-        bin_counts[idx] += 1
-    confidence_distribution = [{"range": b, "count": c} for b, c in zip(bins, bin_counts)]
-
-    # Aggregate emotion counts
     emotion_counts = {}
-    for r in video_analysis_results:
-        e = r.get("dominant_emotion")
-        if e:
-            emotion_counts[e] = emotion_counts.get(e, 0) + 1
-    emotion_accuracy = [{"emotion": e, "accuracy": 100} for e in emotion_counts]  # Placeholder
-
+    for result in video_analysis_results:
+        emotion = result.get("dominant_emotion")
+        if emotion:
+            emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+    
+    total = max(1, len(video_analysis_results))
+    distribution = {emotion: count / total for emotion, count in emotion_counts.items()}
+    
     return {
-        "confidenceDistribution": confidence_distribution,
-        "emotionAccuracy": emotion_accuracy,
-        # Add more analytics as needed
-    } 
+        "total_analyses": len(video_analysis_results),
+        "emotion_distribution": distribution,
+        "recent_results": video_analysis_results[-5:] if video_analysis_results else []
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting FastAPI server on port 9000")
+    uvicorn.run(app, host="0.0.0.0", port=9000) 

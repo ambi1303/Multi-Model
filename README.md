@@ -15,6 +15,11 @@ This project is an integrated platform for analyzing emotion and mental state us
   - Emotion detection from transcribed text
 - **Chat Analysis**: Mental state analysis from chat messages
 - **Survey Analysis**: Employee burnout prediction using machine learning models
+- **Performance Monitoring**:
+  - Prometheus metrics for all services
+  - Health check endpoints
+  - Profiling capabilities
+  - Load testing tools
 
 ## Project Structure
 
@@ -155,6 +160,64 @@ npm start
    - Fill out the employee survey form
    - Submit to get burnout prediction and stress level analysis
 
+## Performance Monitoring
+
+The system includes comprehensive performance monitoring and profiling capabilities:
+
+### Prometheus Metrics
+
+All services expose Prometheus metrics at the `/metrics` endpoint:
+- Request counts by endpoint
+- Processing time histograms
+- Error counts by type
+- Memory and CPU usage
+
+Example:
+```
+curl http://localhost:9000/metrics
+```
+
+### Health Checks
+
+All services provide health check endpoints at `/health`:
+- Service status
+- Backend availability (for integrated service)
+- System resource usage
+
+Example:
+```
+curl http://localhost:9000/health
+```
+
+### Profiling
+
+The STT service includes profiling capabilities:
+
+1. **On-demand profiling** for individual requests:
+```
+curl -X POST "http://localhost:8002/analyze-speech?profile=true" -F "audio_file=@your_audio.wav"
+```
+
+2. **System-wide profiling report**:
+```
+curl http://localhost:8002/profile-report
+```
+
+### Load Testing
+
+The integrated backend includes a load testing endpoint for performance testing:
+
+```
+curl -X POST http://localhost:9000/load-test -H "Content-Type: application/json" -d '{"test_type": "all", "iterations": 5}'
+```
+
+Options for `test_type`:
+- `all`: Test all services
+- `video`: Test only video service
+- `speech`: Test only speech service
+- `chat`: Test only chat service
+- `survey`: Test only survey service
+
 ## Troubleshooting
 
 1. **Camera/Microphone Access**:
@@ -173,12 +236,18 @@ npm start
    - Ensure all backend services are running
    - Check browser console for specific CORS error messages
 
+5. **Monitoring Issues**:
+   - Ensure all services have the required dependencies (prometheus_client, psutil)
+   - Check if the metrics endpoints are accessible
+   - Verify that the integrated backend can reach all service health endpoints
+
 ## Development
 
 - Each service has its own virtual environment for isolation
 - Backend services use FastAPI for API endpoints
 - Frontend uses React with Material-UI components
 - All services communicate through the integrated backend
+- Performance monitoring is integrated into all services
 
 ## Contributing
 

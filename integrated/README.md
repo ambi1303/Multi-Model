@@ -1,39 +1,120 @@
-# Integrated Multi-Modal Emotion & Mental State Analyzer
+# Integrated Analysis Service
 
-This directory provides a unified interface (frontend and backend) to interact with all four emotion/mental state analysis models (video, speech, chat, survey) in this project. It acts as an API gateway and dashboard, forwarding requests to the existing model backends and aggregating results.
+This directory contains the Integrated Analysis service for the Multi-Model project. The service acts as a central API gateway that coordinates analysis requests across all the specialized microservices.
 
-## Structure
+## Overview
+
+The Integrated Analysis service provides a unified API for:
+- Video emotion analysis
+- Speech-to-text and speech analysis
+- Chat/text sentiment analysis
+- Employee burnout survey analysis
+
+It routes requests to the appropriate specialized services and aggregates results.
+
+## Directory Structure
 
 ```
 integrated/
-├── backend/      # FastAPI API gateway
-│   ├── main.py
-│   └── requirements.txt
-└── frontend/     # React unified dashboard (to be implemented)
+├── backend/               # Backend API gateway
+│   ├── main.py            # FastAPI application with routing logic
+│   ├── config.yaml        # Configuration file
+│   ├── requirements.txt   # Python dependencies
+│   ├── test_api.py        # Test script for the API
+│   ├── start_service.bat  # Startup script
+│   └── models/            # Optional local models
+├── frontend/              # React frontend application
+│   ├── src/               # React source code
+│   ├── public/            # Static assets
+│   └── package.json       # NPM dependencies
+└── README.md              # This file
 ```
 
 ## Features
-- Unified API endpoints for video, speech, chat, and survey analysis
-- Aggregated analysis endpoint (`/analyze-all`)
-- No changes to the original model code
 
-## How It Works
-- The backend exposes endpoints for each modality and forwards requests to the respective model backends (which must be running separately).
-- The frontend (to be implemented) will provide a dashboard to interact with all modalities.
+- API gateway pattern for unified access to all analysis services
+- Health check endpoint for monitoring service status
+- Prometheus metrics for observability
+- Proper error handling and logging
+- Dashboard statistics endpoint for frontend visualization
+- Caching for improved performance
 
-## Running the Backend
+## Backend API Endpoints
 
-1. Install dependencies:
-   ```bash
-   cd integrated/backend
-   pip install -r requirements.txt
-   ```
-2. Start the API gateway:
-   ```bash
-   uvicorn main:app --reload --port 9000
-   ```
-3. Make sure the original model backends are running on their respective ports (see `main.py` for URLs).
+- `POST /analyze-video` - Analyze emotion from video
+- `POST /analyze-speech` - Analyze speech audio
+- `POST /analyze-chat` - Analyze chat text
+- `POST /analyze-survey` - Analyze survey data
+- `POST /analyze-all` - Analyze multiple data sources at once
+- `GET /dashboard-stats` - Get statistics for the dashboard
+- `GET /api/video/analytics` - Get video analytics data
+- `GET /health` - Health check endpoint
+- `GET /metrics` - Prometheus metrics endpoint
 
-## Note
-- This integration does **not** modify or import code from the original model directories. All communication is via HTTP APIs.
-- You can extend the frontend to provide a unified user experience for all modalities. 
+## Getting Started
+
+### Backend Setup
+
+1. Navigate to the backend directory:
+```bash
+cd backend
+```
+
+2. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Start the service:
+```bash
+# On Windows
+start_service.bat
+
+# On Unix/Linux
+python -m uvicorn main:app --host 0.0.0.0 --port 9000
+```
+
+The API will be available at http://localhost:9000
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+```bash
+cd frontend
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start the development server:
+```bash
+npm start
+```
+
+The frontend will be available at http://localhost:3000
+
+## Testing
+
+Use the provided test script to verify the API functionality:
+```bash
+cd backend
+python test_api.py --url http://localhost:9000 --text "I'm feeling great today!"
+```
+
+## Integration with Other Services
+
+This service integrates with the following microservices:
+- Video Emotion Analysis (port 8001)
+- Speech Analysis (port 8002)
+- Chat/Text Analysis (port 8003)
+- Survey Analysis (port 8004)
+
+Make sure these services are running before starting the integrated service. 

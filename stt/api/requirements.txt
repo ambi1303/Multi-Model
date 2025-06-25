@@ -14,3 +14,4 @@ pyaudio
 python-dotenv
 textblob 
 groq
+prometheus_client==0.17.1

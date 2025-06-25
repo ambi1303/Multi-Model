@@ -1,14 +1,15 @@
 # Mental State Analyzer
 
-A Python-based tool for analyzing mental states and emotions from chat messages using natural language processing and machine learning.
+A service for analyzing emotions, sentiment, and mental states from chat messages.
 
 ## Features
 
 - Emotion detection using transformer models
-- Sentiment analysis
-- Mental state classification
-- Visualization of results
-- Data preprocessing and analysis
+- Sentiment analysis using TextBlob
+- Mental state mapping based on emotions and sentiment
+- Visualization of mental states and sentiment trends
+- REST API with FastAPI
+- Prometheus metrics for monitoring
 
 ## Installation
 
@@ -31,78 +32,41 @@ pip install -r requirements.txt
 
 ## Usage
 
-This project can be used in two ways: as a command-line tool or as a FastAPI backend.
+### Run the API server
 
-### Command-Line Tool
-
-1. Place your chat data in JSON format in the `data` directory
-2. Run the analysis, specifying the input file:
 ```bash
-python main.py --input data/person_1_chat.json
+uvicorn api:app --host 0.0.0.0 --port 8003 --reload
 ```
 
-   Alternatively, you can use console input:
+### Test the API
+
 ```bash
-python main.py --console
-```
-   Follow the prompts to enter messages directly.
-
-3. Check the `outputs` directory for:
-   - Mental state distribution visualization (`mental_states.png`)
-   - Sentiment trend analysis (`sentiment_trend.png`)
-   - Detailed results in JSON format (`person_1_results.json` or `console_results.json`)
-
-### FastAPI Backend
-
-1. Install dependencies (if you haven't already):
-```bash
-pip install -r requirements.txt
+python test_api.py
 ```
 
-2. Run the FastAPI server:
+### Run load test
+
 ```bash
-cd mental_state_analyzer
-python api.py
+python test_api.py --load-test 50
 ```
-   The API will run on `http://localhost:8000` by default.
 
-3. Access the interactive API documentation (Swagger UI) at:
-   `http://localhost:8000/docs`
+## API Endpoints
 
-   Here you can test the available endpoints:
-   - **POST /analyze/single**: Analyze a single message.
-   - **POST /analyze/multiple**: Analyze multiple messages.
-   - **GET /visualizations/mental-states**: Get the mental states distribution visualization.
-   - **GET /visualizations/sentiment-trend**: Get the sentiment trend visualization.
-   - **GET /results/latest**: Get the latest analysis results from the API.
+- `POST /analyze/single`: Analyze a single chat message
+- `POST /analyze-complete`: Analyze a complete chat history file
+- `GET /health`: Health check endpoint
+- `GET /metrics`: Prometheus metrics endpoint
 
 ## Project Structure
 
-```
-mental_state_analyzer/
-├── data/               # Input data directory
-├── models/            # Model files
-├── outputs/           # Generated results
-├── src/               # Source code
-│   ├── data_loader.py
-│   ├── emotion_detector.py
-│   └── visualizer.py
-├── main.py           # Main entry point
-└── requirements.txt  # Project dependencies
-```
+- `api.py`: FastAPI application and endpoints
+- `src/`: Core functionality
+  - `data_loader.py`: JSON data loading and preprocessing
+  - `emotion_detector.py`: Emotion and sentiment analysis
+  - `visualizer.py`: Visualization and summary generation
+- `outputs/`: Generated visualizations and results
+- `test_api.py`: API testing script
 
-## Dependencies
+## Integration
 
-- pandas >= 2.0.0
-- nltk >= 3.8.1
-- textblob >= 0.17.1
-- transformers >= 4.30.0
-- torch >= 2.0.0
-- matplotlib >= 3.7.0
-- seaborn >= 0.12.0
-- scikit-learn >= 1.0.0
-
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. 
+This service is integrated with the main backend at port 9000, which forwards requests to this service on port 8003. 

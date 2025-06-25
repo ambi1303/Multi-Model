@@ -1,90 +1,69 @@
-# Real-Time Facial Emotion Recognition
+# Video Emotion Analysis API
 
-This project uses your computer's webcam to detect and analyze facial emotions in real-time. It captures your facial expressions for 10 seconds and determines the most frequently detected emotion.
+This service provides facial emotion analysis from video frames using DeepFace.
 
 ## Features
 
-- Real-time facial emotion detection
-- Live video feed with emotion display
-- 10-second emotion tracking
-- Support for 7 basic emotions:
-  - Happy
-  - Sad
-  - Angry
-  - Neutral
-  - Fear
-  - Surprise
-  - Disgust
+- Real-time emotion detection from uploaded images
+- Detailed emotion analysis with confidence scores
+- Health check endpoint for monitoring service status
+- Prometheus metrics for observability
+- Proper error handling and logging
 
-## Prerequisites
+## API Endpoints
 
-- Python 3.7 or higher
-- Webcam
-- Internet connection (for first-time setup)
+- `POST /analyze-emotion` - Analyze emotion from an uploaded image
+- `GET /health` - Health check endpoint
+- `GET /metrics` - Prometheus metrics endpoint
+- `GET /` - API information and available endpoints
 
-## Installation
+## Setup and Installation
 
-1. Clone this repository or download the files
-
-2. Create a virtual environment (recommended):
+1. Create a virtual environment:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. Install the required packages:
+2. Install dependencies:
 ```bash
-pip install opencv-python deepface
+pip install -r requirements.txt
 ```
 
-## Usage
+## Running the Service
 
-1. Make sure your webcam is connected and accessible
-
-2. Run the program:
+Start the API server:
 ```bash
-python face2.py
+python api.py
 ```
 
-3. The program will:
-   - Open your webcam
-   - Show a live feed with detected emotions
-   - Run for 10 seconds
-   - Display the most common emotion detected
+The API will be available at http://localhost:8001
 
-4. To exit early:
-   - Press 'q' on your keyboard
-   - Or wait for the 10-second duration to complete
+## Testing
 
-## Troubleshooting
+Use the provided test script to verify the API functionality:
+```bash
+python test_api.py --url http://localhost:8001 --image path/to/test/image.jpg
+```
 
-If you encounter any issues:
+## Monitoring
 
-1. **Webcam not detected**:
-   - Ensure your webcam is properly connected
-   - Check if other applications can access your webcam
-   - Try changing the camera index in the code (currently set to 0)
+The API includes Prometheus metrics for monitoring:
 
-2. **Package installation errors**:
-   - Make sure you have the latest pip version: `pip install --upgrade pip`
-   - Try installing packages individually if batch installation fails
+- `video_requests_total` - Total number of requests by endpoint
+- `video_processing_seconds` - Histogram of processing times
+- `video_errors_total` - Count of errors by type
+- `video_memory_usage_bytes` - Memory usage of the service
+- `video_cpu_usage_percent` - CPU usage of the service
 
-3. **Face detection issues**:
-   - Ensure good lighting conditions
-   - Face the camera directly
-   - Remove any obstructions (glasses, masks, etc.)
+You can scrape these metrics from the `/metrics` endpoint.
 
-## Requirements
+## Error Handling
 
-- opencv-python
-- deepface
-- collections (built-in)
-- time (built-in)
+The API provides detailed error responses with appropriate HTTP status codes:
 
-## License
+- 400 - Bad Request (invalid image format, empty image)
+- 404 - Not Found (no faces detected)
+- 500 - Internal Server Error (unexpected errors)
 
-This project is open source and available under the MIT License.
-
-## Contributing
-
-Feel free to submit issues and enhancement requests! 
+All errors are logged with detailed information for troubleshooting. 

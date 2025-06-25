@@ -2,12 +2,9 @@ import os
 import pickle
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, precision_score, recall_score, f1_score
 
 def train_models():
@@ -74,32 +71,6 @@ def train_models():
     # Save the linear regression model
     with open('models/linear_regression.pkl', 'wb') as model_file:
         pickle.dump(linear_regression_model, model_file)
-
-    # Train Random Forest model
-    random_forest_model = RandomForestRegressor(random_state=42)
-    random_forest_model.fit(X_train, y_train)
-
-    print("\nRandom Forest Regressor Performance Metrics:")
-    y_pred_rf = random_forest_model.predict(X_test)
-    print("Mean Squared Error:", mean_squared_error(y_test, y_pred_rf))
-    mse_rf = mean_squared_error(y_test, y_pred_rf)
-    print("Root Mean Squared Error:", np.sqrt(mse_rf))
-    print("Mean Absolute Error:", mean_absolute_error(y_test, y_pred_rf))
-    print("R-squared Score:", r2_score(y_test, y_pred_rf))
-
-    # Convert burn rate to binary classification
-    y_pred_rf_binary = (y_pred_rf > 0.5).astype(int)
-
-    # Calculate additional metrics for Random Forest
-    print("\nRandom Forest Regressor Additional Metrics:")
-    print("Accuracy:", accuracy_score(y_test_binary, y_pred_rf_binary))
-    print("Precision:", precision_score(y_test_binary, y_pred_rf_binary))
-    print("Recall:", recall_score(y_test_binary, y_pred_rf_binary))
-    print("F1 Score:", f1_score(y_test_binary, y_pred_rf_binary))
-
-    # Save the RandomForest model
-    with open('models/random_forest.pkl', 'wb') as rf_model_file:
-        pickle.dump(random_forest_model, rf_model_file)
 
     # Print feature names
     feature_names = X.columns.tolist()

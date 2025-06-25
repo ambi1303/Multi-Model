@@ -1,132 +1,70 @@
-# Video Emotion Recognition Application
+# Video Emotion Analysis Service
 
-A real-time facial emotion recognition application that analyzes emotions from video feed using DeepFace and provides a detailed analysis report. The application consists of a React frontend and a FastAPI backend.
+This directory contains the Video Emotion Analysis microservice for the Multi-Model project.
 
-## Features
+## Overview
 
-- Real-time emotion detection from webcam feed
-- 10-second analysis period with detailed emotion breakdown
-- Beautiful and responsive UI with loading states
-- Error handling and user feedback
-- Most frequent emotion detection
-- Emotion count statistics
+The Video Emotion Analysis service processes images/video frames to detect facial emotions using the DeepFace library. It provides a REST API for analyzing emotions from uploaded images.
 
-## Prerequisites
-
-- Python 3.11 (recommended)
-- Node.js 14.0 or higher
-- npm or yarn package manager
-
-## Project Structure
+## Directory Structure
 
 ```
 video/
-├── frontend/               # React frontend application
-│   ├── public/
-│   └── src/
-│       ├── App.js         # Main application component
-│       └── App.css        # Styling
-└── emp_face/              # FastAPI backend
-    └── api.py             # Backend API endpoints
+├── emp_face/               # Main service directory
+│   ├── api.py              # FastAPI application with emotion analysis endpoints
+│   ├── requirements.txt    # Python dependencies
+│   ├── test_api.py         # Test script for the API
+│   └── README.md           # Service-specific documentation
+└── README.md               # This file
 ```
 
-## Installation
+## Features
 
-### Backend Setup
+- Facial emotion detection from images
+- Detailed emotion analysis with confidence scores
+- Health check endpoint
+- Prometheus metrics for monitoring
+- Comprehensive error handling and logging
 
-1. Create and activate a virtual environment:
+## API Endpoints
+
+- `POST /analyze-emotion` - Analyze emotion from an uploaded image
+- `GET /health` - Health check endpoint
+- `GET /metrics` - Prometheus metrics endpoint
+- `GET /` - API information
+
+## Getting Started
+
+1. Navigate to the service directory:
+```bash
+cd emp_face
+```
+
+2. Create a virtual environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Install required Python packages:
+3. Install dependencies:
 ```bash
-pip install fastapi uvicorn opencv-python deepface python-multipart
+pip install -r requirements.txt
 ```
 
-### Frontend Setup
-
-1. Navigate to the frontend directory:
+4. Start the service:
 ```bash
-cd frontend
+python api.py
 ```
 
-2. Install dependencies:
+The API will be available at http://localhost:8001
+
+## Testing
+
+Use the provided test script to verify the API functionality:
 ```bash
-npm install
+python test_api.py --url http://localhost:8001 --image path/to/test/image.jpg
 ```
 
-## Running the Application
+## Integration with Other Services
 
-### Start the Backend
-
-1. Activate the virtual environment (if not already activated):
-```bash
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Start the FastAPI server:
-```bash
-cd emp_face
-uvicorn api:app --reload
-```
-
-The backend will be available at `http://localhost:8000`
-
-### Start the Frontend
-
-1. In a new terminal, navigate to the frontend directory:
-```bash
-cd frontend
-```
-
-2. Start the React development server:
-```bash
-npm start
-```
-
-The frontend will be available at `http://localhost:3000`
-
-## Usage
-
-1. Open your browser and navigate to `http://localhost:3000`
-2. Allow camera access when prompted
-3. Click the "Start Analysis" button to begin emotion detection
-4. The application will analyze your emotions for 10 seconds
-5. After the analysis period, you'll see a detailed report showing:
-   - Most frequent emotion detected
-   - Breakdown of all emotions detected
-6. Click "Analyze Again" to start a new analysis
-
-## Technical Details
-
-- **Frontend**: React.js with react-webcam for video capture
-- **Backend**: FastAPI with DeepFace for emotion analysis
-- **Emotion Detection**: Uses DeepFace's emotion analysis model
-- **API Communication**: Axios for HTTP requests
-- **Styling**: Custom CSS with modern design principles
-
-## Troubleshooting
-
-1. **Camera Access Issues**:
-   - Ensure your browser has permission to access the camera
-   - Check if another application is using the camera
-
-2. **Backend Connection Issues**:
-   - Verify the FastAPI server is running
-   - Check if port 8000 is available
-   - Ensure all required Python packages are installed
-
-3. **Frontend Issues**:
-   - Clear browser cache
-   - Ensure all npm packages are installed
-   - Check browser console for errors
-
-## Contributing
-
-Feel free to submit issues and enhancement requests!
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This service is designed to work with the Multi-Model system and can be integrated with other microservices through its REST API. 
