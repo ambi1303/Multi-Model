@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { checkApiHealth, HealthCheckResponse } from '../../services/api';
-import { Box, Typography, Chip, CircularProgress, Paper, Alert } from '@mui/material';
-import { CheckCircleIcon, ErrorIcon, WarningIcon } from '../../utils/icons';
+import { Box, Typography, Chip, CircularProgress, Paper } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import WarningIcon from '@mui/icons-material/Warning';
 
 interface ServiceStatusProps {
   showDetails?: boolean;
@@ -68,7 +70,7 @@ export const ServiceStatus: React.FC<ServiceStatusProps> = ({
       case 'down':
         return <ErrorIcon fontSize="small" />;
       default:
-        return null;
+        return <WarningIcon fontSize="small" />;
     }
   };
 
@@ -78,7 +80,7 @@ export const ServiceStatus: React.FC<ServiceStatusProps> = ({
 
   if (error) {
     return <Chip 
-      icon={<ErrorIcon />} 
+      icon={<ErrorIcon fontSize="small" />} 
       label="Services: Error" 
       color="error" 
       size="small" 
@@ -88,7 +90,7 @@ export const ServiceStatus: React.FC<ServiceStatusProps> = ({
 
   if (!health) {
     return <Chip 
-      icon={<WarningIcon />} 
+      icon={<WarningIcon fontSize="small" />} 
       label="Services: Unknown" 
       color="warning" 
       size="small" 

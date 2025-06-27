@@ -30,14 +30,16 @@ export const Footer: React.FC = () => {
     >
       <Box sx={{ 
         width: '100%',
-        px: 2,
-        py: 4,
+        maxWidth: '1400px',
+        mx: 'auto',
+        px: { xs: 2, sm: 3, md: 4, lg: 6 },
+        py: { xs: 3, sm: 4 },
       }}>
         <Box
           sx={{
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
-            gap: 3,
+            gap: { xs: 3, md: 4 },
             justifyContent: 'space-between',
             alignItems: { xs: 'flex-start', md: 'flex-start' },
           }}
@@ -149,8 +151,10 @@ export const Footer: React.FC = () => {
       {/* Newsletter Row */}
       <Box sx={{ 
         width: '100%',
-        px: 2,
-        py: 3,
+        maxWidth: '1400px',
+        mx: 'auto',
+        px: { xs: 2, sm: 3, md: 4, lg: 6 },
+        py: { xs: 2, sm: 3 },
         display: 'flex', 
         flexDirection: { xs: 'column', md: 'row' }, 
         alignItems: { xs: 'flex-start', md: 'center' }, 
@@ -198,7 +202,6 @@ export const Footer: React.FC = () => {
               boxShadow: 'none',
               minWidth: 'auto',
             }}
-            endIcon={<EmailIcon />}
           >
             Subscribe
           </Button>
@@ -207,34 +210,35 @@ export const Footer: React.FC = () => {
 
       <Divider sx={{ opacity: 0.3 }} />
 
-      {/* Copyright/Policies Row */}
+      {/* Copyright Row */}
       <Box sx={{ 
         width: '100%',
-        px: 2,
-        py: 2,
+        maxWidth: '1400px',
+        mx: 'auto',
+        px: { xs: 2, sm: 3, md: 4, lg: 6 },
+        py: { xs: 2, sm: 3 },
         display: 'flex', 
-        flexDirection: { xs: 'column', md: 'row' }, 
-        alignItems: { xs: 'flex-start', md: 'center' }, 
+        flexDirection: { xs: 'column', sm: 'row' }, 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
         justifyContent: 'space-between', 
-        gap: 2,
+        gap: 1,
       }}>
         <Typography variant="body2" color="text.secondary">
           © 2024 EmotiAnalyze. All rights reserved.
         </Typography>
         <Box sx={{ 
           display: 'flex', 
-          gap: 3, 
-          flexWrap: 'wrap', 
-          mt: { xs: 1, md: 0 },
-          alignItems: 'center',
+          gap: { xs: 1, sm: 2 },
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'flex-start', sm: 'center' },
         }}>
-          <Link href="#" color="text.secondary" underline="hover" variant="body2">
+          <Link href="#" color="inherit" underline="hover" variant="body2">
             Privacy Policy
           </Link>
-          <Link href="#" color="text.secondary" underline="hover" variant="body2">
+          <Link href="#" color="inherit" underline="hover" variant="body2">
             Terms of Service
           </Link>
-          <Link href="#" color="text.secondary" underline="hover" variant="body2">
+          <Link href="#" color="inherit" underline="hover" variant="body2">
             Cookie Policy
           </Link>
         </Box>

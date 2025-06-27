@@ -150,10 +150,15 @@ export const FeaturesSection: React.FC = () => {
   return (
     <Box
       sx={{
-        py: 12,
+        width: '100vw',
+        py: { xs: 8, sm: 10, md: 12 },
         background: 'linear-gradient(180deg, #0f0f23 0%, #1a1a2e 100%)',
         position: 'relative',
         overflow: 'hidden',
+        margin: 0,
+        padding: 0,
+        paddingTop: { xs: 8, sm: 10, md: 12 },
+        paddingBottom: { xs: 8, sm: 10, md: 12 },
       }}
     >
       {/* Animated Background Pattern */}
@@ -172,7 +177,16 @@ export const FeaturesSection: React.FC = () => {
         }}
       />
 
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container 
+        maxWidth={false} 
+        sx={{ 
+          position: 'relative', 
+          zIndex: 1,
+          maxWidth: '1400px',
+          mx: 'auto',
+          px: { xs: 2, sm: 3, md: 4, lg: 6 },
+        }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -183,8 +197,9 @@ export const FeaturesSection: React.FC = () => {
             variant="h2"
             sx={{
               textAlign: 'center',
+              fontSize: { xs: '2.5rem', sm: '3rem', md: '3.5rem', lg: '4rem' },
               fontWeight: 800,
-              mb: 2,
+              mb: { xs: 2, md: 3 },
               background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
@@ -199,19 +214,39 @@ export const FeaturesSection: React.FC = () => {
             sx={{
               textAlign: 'center',
               color: 'rgba(255, 255, 255, 0.7)',
-              mb: 8,
-              maxWidth: '600px',
+              mb: { xs: 6, md: 8 },
+              maxWidth: '800px',
               mx: 'auto',
+              fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.3rem' },
+              lineHeight: 1.6,
+              px: { xs: 2, sm: 0 },
             }}
           >
-            Cutting-edge AI technology meets intuitive design to deliver unprecedented 
-            emotional intelligence capabilities
+            Advanced AI-powered tools for comprehensive emotion analysis across multiple modalities
           </Typography>
         </motion.div>
 
-        <Grid container spacing={4}>
+        <Grid 
+          container 
+          spacing={{ xs: 3, sm: 4, md: 5 }} 
+          sx={{ 
+            justifyContent: 'center',
+            alignItems: 'stretch',
+          }}
+        >
           {features.map((feature, index) => (
-            <Grid item xs={12} sm={6} lg={3} key={index}>
+            <Grid 
+              item 
+              xs={12} 
+              sm={6} 
+              md={4} 
+              lg={3}
+              key={index}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
               <FeatureCard feature={feature} index={index} />
             </Grid>
           ))}

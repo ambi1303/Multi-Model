@@ -68,21 +68,48 @@ export const Home: React.FC = () => {
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Box sx={{ flex: 1 }}>
+    <Box 
+      sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minHeight: '100vh',
+        width: '100vw',
+        margin: 0,
+        padding: 0,
+        position: 'relative',
+        overflow: 'hidden',
+        '& > *': {
+          width: '100%',
+        }
+      }}
+    >
+      {/* Full-screen Hero Section */}
+      <Box 
+        sx={{ 
+          flex: 1,
+          minHeight: '100vh',
+          width: '100%',
+          position: 'relative',
+        }}
+      >
         <HeroSection onGetStarted={handleGetStarted} />
         
         {/* Invisible trigger element to detect when to load below-the-fold content */}
         <div ref={triggerRef} style={{ height: '1px', position: 'absolute', bottom: '80vh' }} />
-        
-        {shouldLoadBelowFold && (
+      </Box>
+      
+      {/* Below-the-fold content */}
+      {shouldLoadBelowFold && (
+        <Box sx={{ width: '100%' }}>
           <Suspense fallback={<LazyLoadSpinner message="Loading content..." minimal />}>
             <StatsSection />
             <FeaturesSection />
             <CTASection onGetStarted={handleGetStarted} />
           </Suspense>
-        )}
-      </Box>
+        </Box>
+      )}
+      
+      {/* Footer */}
       <Footer />
     </Box>
   );

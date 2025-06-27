@@ -7,10 +7,15 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
   return (
     <Box
       sx={{
-        py: 12,
+        width: '100vw',
+        py: { xs: 8, sm: 10, md: 12 },
         background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
         position: 'relative',
         overflow: 'hidden',
+        margin: 0,
+        padding: 0,
+        paddingTop: { xs: 8, sm: 10, md: 12 },
+        paddingBottom: { xs: 8, sm: 10, md: 12 },
       }}
     >
       {/* Animated Background */}
@@ -33,8 +38,24 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
         }}
       />
 
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        <Grid container spacing={6} alignItems="center">
+      <Container 
+        maxWidth={false} 
+        sx={{ 
+          position: 'relative', 
+          zIndex: 1,
+          maxWidth: '1400px',
+          mx: 'auto',
+          px: { xs: 2, sm: 3, md: 4, lg: 6 },
+        }}
+      >
+        <Grid 
+          container 
+          spacing={{ xs: 4, md: 6 }} 
+          alignItems="center"
+          sx={{
+            justifyContent: 'center',
+          }}
+        >
           <Grid item xs={12} md={6}>
             <motion.div
               initial={{ opacity: 0, x: -50 }}
@@ -45,12 +66,14 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
               <Typography
                 variant="h2"
                 sx={{
+                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem', lg: '3.5rem' },
                   fontWeight: 800,
-                  mb: 3,
+                  mb: { xs: 2, md: 3 },
                   background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
+                  textAlign: { xs: 'center', md: 'left' },
                 }}
               >
                 Ready to Transform Your Understanding of Human Emotion?
@@ -59,16 +82,27 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
               <Typography
                 variant="h6"
                 sx={{
+                  fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.3rem' },
                   color: 'rgba(255, 255, 255, 0.8)',
-                  mb: 4,
+                  mb: { xs: 3, md: 4 },
                   lineHeight: 1.6,
+                  textAlign: { xs: 'center', md: 'left' },
+                  px: { xs: 1, sm: 0 },
                 }}
               >
                 Join thousands of organizations already using EmotiAnalyze to unlock 
                 deeper insights into human behavior and emotional intelligence.
               </Typography>
 
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box 
+                sx={{ 
+                  display: 'flex', 
+                  gap: { xs: 2, sm: 3 }, 
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: { xs: 'stretch', sm: 'center' },
+                  justifyContent: { xs: 'center', md: 'flex-start' },
+                }}
+              >
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     variant="contained"
@@ -76,12 +110,13 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                     onClick={onGetStarted}
                     startIcon={<PlayArrowIcon />}
                     sx={{
-                      px: 4,
-                      py: 2,
-                      fontSize: '1.1rem',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 1.5, sm: 2 },
+                      fontSize: { xs: '1rem', sm: '1.1rem' },
                       fontWeight: 600,
                       background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                       boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)',
+                      minWidth: { xs: '100%', sm: 'auto' },
                       '&:hover': {
                         background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
                         boxShadow: '0 15px 40px rgba(59, 130, 246, 0.4)',
@@ -97,12 +132,13 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                     variant="outlined"
                     size="large"
                     sx={{
-                      px: 4,
-                      py: 2,
-                      fontSize: '1.1rem',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 1.5, sm: 2 },
+                      fontSize: { xs: '1rem', sm: '1.1rem' },
                       fontWeight: 600,
                       borderColor: 'rgba(255, 255, 255, 0.3)',
                       color: 'white',
+                      minWidth: { xs: '100%', sm: 'auto' },
                       '&:hover': {
                         borderColor: 'rgba(255, 255, 255, 0.6)',
                         backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -117,7 +153,13 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Box sx={{ position: 'relative', height: '400px' }}>
+            <Box 
+              sx={{ 
+                position: 'relative', 
+                height: { xs: '300px', sm: '400px', md: '400px' },
+                display: { xs: 'none', sm: 'block' }, // Hide on mobile for better performance
+              }}
+            >
               {/* Floating Elements */}
               <motion.div
                 animate={{ y: [-20, 20, -20] }}
@@ -136,9 +178,9 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   boxShadow: '0 20px 40px rgba(59, 130, 246, 0.3)',
                 }}
               >
-                                    <Box sx={{ color: 'white', fontSize: 40, display: 'flex', justifyContent: 'center' }}>
-                      <TrendingUpIcon />
-                    </Box>
+                <Box sx={{ color: 'white', fontSize: 40, display: 'flex', justifyContent: 'center' }}>
+                  <TrendingUpIcon />
+                </Box>
               </motion.div>
 
               <motion.div
@@ -158,9 +200,9 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   boxShadow: '0 20px 40px rgba(139, 92, 246, 0.3)',
                 }}
               >
-                                    <Box sx={{ color: 'white', fontSize: 35, display: 'flex', justifyContent: 'center' }}>
-                      <InfoIcon />
-                    </Box>
+                <Box sx={{ color: 'white', fontSize: 35, display: 'flex', justifyContent: 'center' }}>
+                  <InfoIcon />
+                </Box>
               </motion.div>
 
               <motion.div
@@ -180,9 +222,9 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   boxShadow: '0 20px 40px rgba(16, 185, 129, 0.3)',
                 }}
               >
-                                    <Box sx={{ color: 'white', fontSize: 30, display: 'flex', justifyContent: 'center' }}>
-                      <PlayArrowIcon />
-                    </Box>
+                <Box sx={{ color: 'white', fontSize: 30, display: 'flex', justifyContent: 'center' }}>
+                  <PlayArrowIcon />
+                </Box>
               </motion.div>
 
               {/* Connecting Lines */}
@@ -200,7 +242,6 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   stroke="url(#ctaGradient)"
                   strokeWidth="2"
                   fill="none"
-                  strokeDasharray="5,5"
                   initial={{ pathLength: 0 }}
                   whileInView={{ pathLength: 1 }}
                   viewport={{ once: true }}
@@ -209,7 +250,7 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                 <defs>
                   <linearGradient id="ctaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
-                    <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.6" />
+                    <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.4" />
                     <stop offset="100%" stopColor="#10b981" stopOpacity="0.6" />
                   </linearGradient>
                 </defs>

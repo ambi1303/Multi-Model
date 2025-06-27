@@ -59,13 +59,16 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
   return (
     <Box
       sx={{
-        minHeight: '100vh',
+        width: '100vw',
+        height: '100vh',
         position: 'relative',
         overflow: 'hidden',
         backgroundColor: '#0f0f23',
         backgroundImage: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
         display: 'flex',
         alignItems: 'center',
+        margin: 0,
+        padding: 0,
       }}
     >
       {/* Delayed Background Orbs - don't block LCP */}
@@ -74,22 +77,38 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
       <GradientOrb size={150} color="#06b6d4" top="20%" left="20%" delay={2.5} />
       <GradientOrb size={250} color="#10b981" top="70%" left="70%" delay={3} />
 
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        <Grid container spacing={6} alignItems="center">
+      <Container 
+        maxWidth={false}
+        sx={{ 
+          position: 'relative', 
+          zIndex: 1,
+          width: '100%',
+          maxWidth: '1400px',
+          px: { xs: 2, sm: 3, md: 4, lg: 6 },
+          mx: 'auto',
+        }}
+      >
+        <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center" sx={{ minHeight: '100vh' }}>
           <Grid item xs={12} md={6}>
             {/* Critical content - no animation delays */}
-            <Box>
+            <Box sx={{ textAlign: { xs: 'center', md: 'left' } }}>
               <Typography
                 variant="h1"
                 className="hero-heading"
                 sx={{
-                  fontSize: { xs: '2.5rem', md: '4rem', lg: '5rem' },
+                  fontSize: { 
+                    xs: '2.5rem', 
+                    sm: '3.5rem', 
+                    md: '4rem', 
+                    lg: '5rem',
+                    xl: '6rem'
+                  },
                   fontWeight: 800,
                   background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
-                  mb: 3,
+                  mb: { xs: 2, md: 3 },
                   lineHeight: 1.1,
                 }}
               >
@@ -115,17 +134,28 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
                 variant="h5"
                 className="hero-subtitle"
                 sx={{
+                  fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem', lg: '1.8rem' },
                   color: 'rgba(255, 255, 255, 0.8)',
-                  mb: 4,
+                  mb: { xs: 3, md: 4 },
                   lineHeight: 1.6,
                   fontWeight: 300,
+                  maxWidth: { xs: '100%', md: '90%' },
                 }}
               >
                 Harness the power of AI to decode emotions across video, speech, and text. 
                 Transform human insights into actionable intelligence.
               </Typography>
 
-              <Box className="hero-buttons" sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box 
+                className="hero-buttons" 
+                sx={{ 
+                  display: 'flex', 
+                  gap: { xs: 2, sm: 3 }, 
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: { xs: 'stretch', sm: 'center' },
+                  justifyContent: { xs: 'center', md: 'flex-start' },
+                }}
+              >
                 <Button
                   variant="contained"
                   size="large"
@@ -133,12 +163,13 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
                   startIcon={<PlayArrowIcon />}
                   className="btn-primary"
                   sx={{
-                    px: 4,
-                    py: 2,
-                    fontSize: '1.1rem',
+                    px: { xs: 3, sm: 4 },
+                    py: { xs: 1.5, sm: 2 },
+                    fontSize: { xs: '1rem', sm: '1.1rem' },
                     fontWeight: 600,
                     background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                     boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)',
+                    minWidth: { xs: '100%', sm: 'auto' },
                     '&:hover': {
                       background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
                       boxShadow: '0 15px 40px rgba(59, 130, 246, 0.4)',
@@ -156,12 +187,13 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
                   startIcon={<SearchIcon />}
                   className="btn-secondary"
                   sx={{
-                    px: 4,
-                    py: 2,
-                    fontSize: '1.1rem',
+                    px: { xs: 3, sm: 4 },
+                    py: { xs: 1.5, sm: 2 },
+                    fontSize: { xs: '1rem', sm: '1.1rem' },
                     fontWeight: 600,
                     borderColor: 'rgba(255, 255, 255, 0.3)',
                     color: 'white',
+                    minWidth: { xs: '100%', sm: 'auto' },
                     '&:hover': {
                       borderColor: 'rgba(255, 255, 255, 0.6)',
                       backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -177,8 +209,14 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
           </Grid>
 
           <Grid item xs={12} md={6}>
-            {/* Simplified right side content */}
-            <Box sx={{ position: 'relative', height: '500px' }}>
+            {/* Enhanced right side content with better mobile responsiveness */}
+            <Box 
+              sx={{ 
+                position: 'relative', 
+                height: { xs: '400px', sm: '500px', md: '600px' },
+                display: { xs: 'none', md: 'block' } // Hide on mobile for better performance
+              }}
+            >
               <FloatingElement delay={1}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}

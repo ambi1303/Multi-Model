@@ -9,6 +9,11 @@ interface AnalyticsEvent {
   navigationType: string;
 }
 
+// Declare gtag function for TypeScript
+declare global {
+  function gtag(...args: any[]): void;
+}
+
 // Custom analytics function to send metrics to your analytics service
 const sendToAnalytics = (metric: Metric) => {
   const analyticsEvent: AnalyticsEvent = {
@@ -73,8 +78,12 @@ const observePerformance = () => {
     // Observe Layout Shifts (for Cumulative Layout Shift)
     const layoutShiftObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        if (entry.hadRecentInput) continue;
-        console.warn(`Layout Shift detected: ${entry.value}`, entry);
+        const layoutShiftEntry = entry as PerformanceEntry & {
+          hadRecentInput?: boolean;
+          value?: number;
+        };
+        if (layoutShiftEntry.hadRecentInput) continue;
+        console.warn(`Layout Shift detected: ${layoutShiftEntry.value}`, entry);
       }
     });
 
@@ -89,8 +98,12 @@ const observePerformance = () => {
       const entries = list.getEntries();
       const lastEntry = entries[entries.length - 1];
       if (lastEntry) {
-        console.log(`LCP Element:`, lastEntry.element);
-        console.log(`LCP Size: ${lastEntry.size}`);
+        const lcpEntry = lastEntry as PerformanceEntry & {
+          element?: Element;
+          size?: number;
+        };
+        console.log(`LCP Element:`, lcpEntry.element);
+        console.log(`LCP Size: ${lcpEntry.size}`);
         console.log(`LCP Time: ${lastEntry.startTime}`);
       }
     });
@@ -125,7 +138,7 @@ export const initWebVitals = () => {
         console.log(`TCP Connection: ${navigation.connectEnd - navigation.connectStart}ms`);
         console.log(`Request: ${navigation.responseStart - navigation.requestStart}ms`);
         console.log(`Response: ${navigation.responseEnd - navigation.responseStart}ms`);
-        console.log(`DOM Processing: ${navigation.domComplete - navigation.domLoading}ms`);
+        console.log(`DOM Processing: ${navigation.domComplete - navigation.domContentLoadedEventStart}ms`);
         console.log(`Load Event: ${navigation.loadEventEnd - navigation.loadEventStart}ms`);
         console.groupEnd();
 

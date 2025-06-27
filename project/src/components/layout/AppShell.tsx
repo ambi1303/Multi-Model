@@ -30,57 +30,73 @@ export const AppShell: React.FC = () => {
   // Header height (match MUI AppBar default or your custom height)
   const HEADER_HEIGHT = 64;
 
+  // If it's the landing page, render full-screen without constraints
+  if (isLanding) {
+    return (
+      <Box 
+        sx={{ 
+          width: '100vw',
+          minHeight: '100vh',
+          margin: 0,
+          padding: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <Outlet />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Header - Fixed at top */}
-      {!isLanding && (
-        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 1201 }}>
-          <Header onMenuClick={handleDrawerToggle} />
-        </Box>
-      )}
+      <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 1201 }}>
+        <Header onMenuClick={handleDrawerToggle} />
+      </Box>
+      
       {/* Main Layout Container - Below header */}
       <Box sx={{ 
         display: 'flex', 
         flex: 1,
         position: 'relative',
-        pt: !isLanding ? `${HEADER_HEIGHT}px` : 0, // Push content below fixed header
+        pt: `${HEADER_HEIGHT}px`, // Push content below fixed header
         height: '100vh',
         minHeight: 0,
       }}>
         {/* Sidebar */}
-        {!isLanding && (
-          isMobile
-            ? (sidebarOpen && (
+        {isMobile
+          ? (sidebarOpen && (
+              <Sidebar
+                open={sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
+                variant="temporary"
+                width={DRAWER_WIDTH}
+              />
+            ))
+          : (sidebarOpenDesktop && (
+              <Box sx={{
+                width: `${SIDEBAR_WIDTH_PERCENT * 100}vw`,
+                minWidth: 200,
+                maxWidth: 400,
+                height: `calc(100vh - ${HEADER_HEIGHT}px)` ,
+                position: 'fixed',
+                top: `${HEADER_HEIGHT}px`,
+                left: 0,
+                zIndex: 1200,
+                bgcolor: 'background.paper',
+                borderRight: 1,
+                borderColor: 'divider',
+              }}>
                 <Sidebar
-                  open={sidebarOpen}
+                  open={sidebarOpenDesktop}
                   onClose={() => setSidebarOpen(false)}
-                  variant="temporary"
-                  width={DRAWER_WIDTH}
+                  variant="persistent"
+                  width={window.innerWidth * SIDEBAR_WIDTH_PERCENT < 200 ? 200 : window.innerWidth * SIDEBAR_WIDTH_PERCENT > 400 ? 400 : window.innerWidth * SIDEBAR_WIDTH_PERCENT}
                 />
-              ))
-            : (sidebarOpenDesktop && (
-                <Box sx={{
-                  width: `${SIDEBAR_WIDTH_PERCENT * 100}vw`,
-                  minWidth: 200,
-                  maxWidth: 400,
-                  height: `calc(100vh - ${HEADER_HEIGHT}px)` ,
-                  position: 'fixed',
-                  top: `${HEADER_HEIGHT}px`,
-                  left: 0,
-                  zIndex: 1200,
-                  bgcolor: 'background.paper',
-                  borderRight: 1,
-                  borderColor: 'divider',
-                }}>
-                  <Sidebar
-                    open={sidebarOpenDesktop}
-                    onClose={() => setSidebarOpen(false)}
-                    variant="persistent"
-                    width={window.innerWidth * SIDEBAR_WIDTH_PERCENT < 200 ? 200 : window.innerWidth * SIDEBAR_WIDTH_PERCENT > 400 ? 400 : window.innerWidth * SIDEBAR_WIDTH_PERCENT}
-                  />
-                </Box>
-              ))
-        )}
+              </Box>
+            ))
+        }
+        
         {/* Main Content Area */}
         <Box
           component="main"
@@ -91,24 +107,15 @@ export const AppShell: React.FC = () => {
             overflow: 'auto',
             minHeight: '100vh',
             px: CONTENT_GAP, // Uniform horizontal padding always
-            width: !isLanding && !isMobile && sidebarOpenDesktop ? `${MAIN_WIDTH_PERCENT * 100}%` : '100%',
-            ml: !isLanding && !isMobile && sidebarOpenDesktop ? `${SIDEBAR_WIDTH_PERCENT * 100}vw` : 0, // Push content right of fixed sidebar
+            width: !isMobile && sidebarOpenDesktop ? `${MAIN_WIDTH_PERCENT * 100}%` : '100%',
+            ml: !isMobile && sidebarOpenDesktop ? `${SIDEBAR_WIDTH_PERCENT * 100}vw` : 0, // Push content right of fixed sidebar
             transition: theme.transitions.create(['width', 'margin'], {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.leavingScreen,
             }),
           }}
         >
-          <Box sx={{
-            width: '100%',
-            ...(isLanding && {
-              maxWidth: 800,
-              mx: 'auto',
-              px: 2,
-            }),
-          }}>
-            <Outlet />
-          </Box>
+          <Outlet />
           <Footer />
         </Box>
       </Box>

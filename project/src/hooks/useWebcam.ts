@@ -15,7 +15,6 @@ export const useWebcam = (): UseWebcamReturn => {
   const [error, setError] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const start = useCallback(async () => {
     try {
@@ -58,14 +57,8 @@ export const useWebcam = (): UseWebcamReturn => {
 
   const capture = useCallback((): string | null => {
     if (!videoRef.current || !isActive) return null;
-    let canvas: HTMLCanvasElement;
-    if (!canvasRef.current) {
-      canvas = document.createElement('canvas');
-      canvasRef.current = canvas;
-    } else {
-      canvas = canvasRef.current;
-    }
-
+    
+    const canvas = document.createElement('canvas');
     const video = videoRef.current;
     const ctx = canvas.getContext('2d');
     

@@ -348,8 +348,8 @@ export interface ProgressiveAnalysisResult {
 
 // Simulated progressive analysis function for EnhancedBurnoutSurvey
 export const analyzeProgressively = async (
-  employeeData: EmployeeData,
-  surveyData: SurveyData,
+  _employeeData: EmployeeData,
+  _surveyData: SurveyData,
   employeeId?: string,
   onProgress?: (result: ProgressiveAnalysisResult) => void
 ): Promise<ProgressiveAnalysisResult> => {

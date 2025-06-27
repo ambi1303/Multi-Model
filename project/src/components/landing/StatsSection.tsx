@@ -38,10 +38,15 @@ export const StatsSection: React.FC = () => {
   return (
     <Box
       sx={{
-        py: 12,
+        width: '100vw',
+        py: { xs: 8, sm: 10, md: 12 },
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
         position: 'relative',
         overflow: 'hidden',
+        margin: 0,
+        padding: 0,
+        paddingTop: { xs: 8, sm: 10, md: 12 },
+        paddingBottom: { xs: 8, sm: 10, md: 12 },
       }}
     >
       {/* Animated Background Elements */}
@@ -56,6 +61,7 @@ export const StatsSection: React.FC = () => {
           height: '200px',
           border: '2px solid rgba(59, 130, 246, 0.2)',
           borderRadius: '50%',
+          display: window.innerWidth > 768 ? 'block' : 'none', // Hide on mobile
         }}
       />
       
@@ -70,10 +76,20 @@ export const StatsSection: React.FC = () => {
           height: '150px',
           border: '2px solid rgba(139, 92, 246, 0.2)',
           borderRadius: '50%',
+          display: window.innerWidth > 768 ? 'block' : 'none', // Hide on mobile
         }}
       />
 
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container 
+        maxWidth={false} 
+        sx={{ 
+          position: 'relative', 
+          zIndex: 1,
+          maxWidth: '1400px',
+          mx: 'auto',
+          px: { xs: 2, sm: 3, md: 4, lg: 6 },
+        }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -84,8 +100,9 @@ export const StatsSection: React.FC = () => {
             variant="h2"
             sx={{
               textAlign: 'center',
+              fontSize: { xs: '2.5rem', sm: '3rem', md: '3.5rem', lg: '4rem' },
               fontWeight: 800,
-              mb: 2,
+              mb: { xs: 2, md: 3 },
               color: 'white',
             }}
           >
@@ -97,35 +114,60 @@ export const StatsSection: React.FC = () => {
             sx={{
               textAlign: 'center',
               color: 'rgba(255, 255, 255, 0.7)',
-              mb: 8,
-              maxWidth: '600px',
+              mb: { xs: 6, md: 8 },
+              maxWidth: '800px',
               mx: 'auto',
+              fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.3rem' },
+              lineHeight: 1.6,
+              px: { xs: 2, sm: 0 },
             }}
           >
             Our platform delivers enterprise-grade performance with industry-leading metrics
           </Typography>
         </motion.div>
 
-        <Grid container spacing={6}>
+        <Grid 
+          container 
+          spacing={{ xs: 3, sm: 4, md: 6 }}
+          sx={{
+            justifyContent: 'center',
+            alignItems: 'stretch',
+          }}
+        >
           {stats.map((stat, index) => (
-            <Grid item xs={6} md={3} key={index}>
+            <Grid 
+              item 
+              xs={6} 
+              sm={6} 
+              md={3} 
+              key={index}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
               <motion.div
                 initial={{ opacity: 0, y: 50 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.2, duration: 0.8 }}
                 whileHover={{ scale: 1.05 }}
+                style={{ height: '100%' }}
               >
                 <Box
                   sx={{
                     textAlign: 'center',
-                    p: 4,
+                    p: { xs: 3, sm: 4 },
                     borderRadius: 4,
                     background: 'rgba(255, 255, 255, 0.05)',
                     backdropFilter: 'blur(10px)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     position: 'relative',
                     overflow: 'hidden',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
                     '&:hover': {
                       border: `1px solid ${stat.color}40`,
                     },
@@ -151,6 +193,7 @@ export const StatsSection: React.FC = () => {
                       color: 'rgba(255, 255, 255, 0.8)',
                       fontWeight: 600,
                       mt: 1,
+                      fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
                     }}
                   >
                     {stat.label}

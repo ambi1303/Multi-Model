@@ -30,7 +30,15 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
 } from 'recharts';
-import { WarningIcon as Warning, TrendingUpIcon as TrendingUp, AssessmentIcon as Assessment, PsychologyIcon as Psychology, CheckCircleIcon as CheckCircle, ScheduleIcon as Schedule, InfoIcon as SmartToy, RefreshIcon as Refresh } from '../../utils/icons';
+import { 
+  Warning, 
+  TrendingUp, 
+  Assessment, 
+  Psychology, 
+  CheckCircle, 
+  SmartToy, 
+  Refresh 
+} from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 
 interface BurnoutResult {
@@ -137,9 +145,9 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
   };
 
   // Check if certain results are still loading based on breakdown data
-  const mlAnalysisComplete = result.breakdown?.some(item => item.category === "ML Burnout Prediction" && !item.description.includes("pending"));
-  const surveyAnalysisComplete = result.breakdown?.some(item => item.category === "Survey Risk Assessment" && !item.description.includes("pending"));
-  const aiInsightsComplete = result.breakdown?.some(item => item.category === "AI Insights" && item.score > 0);
+  const mlAnalysisComplete = result.breakdown?.some(item => item.category === "ML Burnout Prediction" && !item.description.includes("pending")) ?? false;
+  const surveyAnalysisComplete = result.breakdown?.some(item => item.category === "Survey Risk Assessment" && !item.description.includes("pending")) ?? false;
+  const aiInsightsComplete = result.breakdown?.some(item => item.category === "AI Insights" && item.score > 0) ?? false;
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
