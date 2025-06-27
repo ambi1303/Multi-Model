@@ -31,14 +31,14 @@ import {
   Tooltip as RechartsTooltip,
 } from 'recharts';
 import { 
-  Warning, 
-  TrendingUp, 
-  Assessment, 
-  Psychology, 
-  CheckCircle, 
-  SmartToy, 
-  Refresh 
-} from '@mui/icons-material';
+  WarningIcon, 
+  TrendingUpIcon, 
+  AssessmentIcon, 
+  PsychologyIcon, 
+  CheckCircleIcon, 
+  AutoAwesomeIcon, // Using AutoAwesome as SmartToy alternative
+  RefreshIcon 
+} from '../../utils/icons';
 import { useTheme } from '@mui/material/styles';
 
 interface BurnoutResult {
@@ -221,7 +221,7 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
                 </Typography>
                 <Tooltip title={mlAnalysisComplete ? "ML Analysis Complete" : "ML Analysis Pending"}>
                   {mlAnalysisComplete ? 
-                    <CheckCircle color="success" fontSize="small" /> : 
+                    <CheckCircleIcon /> : 
                     <CircularProgress size={16} />
                   }
                 </Tooltip>
@@ -289,19 +289,19 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
             borderColor: 'divider',
             boxShadow: 2
           }}>
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Assessment color="primary" />
-                <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                  Wellness Distribution
-                </Typography>
-                <Tooltip title={surveyAnalysisComplete ? "Survey Analysis Complete" : "Survey Analysis Pending"}>
-                  {surveyAnalysisComplete ? 
-                    <CheckCircle color="success" fontSize="small" /> : 
-                    <CircularProgress size={16} />
-                  }
-                </Tooltip>
-              </Box>
+                          <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <AssessmentIcon />
+                  <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Wellness Distribution
+                  </Typography>
+                  <Tooltip title={surveyAnalysisComplete ? "Survey Analysis Complete" : "Survey Analysis Pending"}>
+                    {surveyAnalysisComplete ? 
+                      <CheckCircleIcon /> : 
+                      <CircularProgress size={16} />
+                    }
+                  </Tooltip>
+                </Box>
               <Box sx={{ 
                 height: 350, 
                 width: '100%',
@@ -352,7 +352,7 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
           }}>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <TrendingUp color="primary" />
+                                  <TrendingUpIcon />
                 <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
                   Progressive Analysis Breakdown
                 </Typography>
@@ -408,7 +408,7 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
           }}>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Psychology color="primary" />
+                                  <PsychologyIcon />
                 <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
                   Risk Breakdown
                 </Typography>
@@ -444,15 +444,15 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
           }}>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <SmartToy color="primary" />
-                <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                  Personalized Recommendations
-                </Typography>
-                <Tooltip title={aiInsightsComplete ? "AI Insights Complete" : "AI Insights Pending"}>
-                  {aiInsightsComplete ? 
-                    <CheckCircle color="success" fontSize="small" /> : 
-                    <CircularProgress size={16} />
-                  }
+                                  <AutoAwesomeIcon />
+                  <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Personalized Recommendations
+                  </Typography>
+                  <Tooltip title={aiInsightsComplete ? "AI Insights Complete" : "AI Insights Pending"}>
+                    {aiInsightsComplete ? 
+                      <CheckCircleIcon /> : 
+                      <CircularProgress size={16} />
+                    }
                 </Tooltip>
               </Box>
               
@@ -504,7 +504,7 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
               {/* Important Note */}
               <Alert 
                 severity="warning" 
-                icon={<Warning />}
+                icon={<WarningIcon />}
                 sx={{ 
                   bgcolor: theme.palette.mode === 'dark' 
                     ? 'rgba(255, 193, 7, 0.15)'
@@ -537,7 +537,7 @@ export const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultPr
                     color="primary"
                     size="large"
                     onClick={onRetake}
-                    startIcon={<Refresh />}
+                    startIcon={<RefreshIcon />}
                     sx={{
                       px: 4,
                       py: 1.5,

@@ -104,6 +104,32 @@ const CustomSlider = styled(Slider)(({ theme }) => ({
   },
 }));
 
+// Type definitions for form fields
+interface SliderField {
+  name: string;
+  label: string;
+  description: string;
+  min: number;
+  max: number;
+  step: number;
+  icon: React.ReactElement;
+  stepIndex: number;
+  marks: { value: number; label: string; }[] | boolean;
+}
+
+interface RadioField {
+  name: string;
+  label: string;
+  description: string;
+  options: { value: string; label: string; icon: React.ReactElement; }[];
+  stepIndex: number;
+}
+
+
+
+// Type guards
+
+
 interface EnhancedBurnoutSurveyFormProps {
   formMethods: any;
   loading: boolean;
@@ -117,7 +143,7 @@ const steps = [
   { label: 'Review & Submit', icon: <Assessment />, description: 'Review your responses' },
 ];
 
-const sliderFields = [
+const sliderFields: SliderField[] = [
   { 
     name: 'designation', 
     label: 'Designation Level', 
@@ -159,7 +185,7 @@ const sliderFields = [
   },
 ];
 
-const radioFields = [
+const radioFields: RadioField[] = [
   { 
     name: 'companyType', 
     label: 'Company Type', 
@@ -282,98 +308,103 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
               Personal Information
             </Typography>
             <Grid container spacing={3}>
-              {[...sliderFields.filter(f => f.stepIndex === 0), ...radioFields.filter(f => f.stepIndex === 0)].map(field => (
+              {sliderFields.filter(f => f.stepIndex === 0).map(field => (
                 <Grid item xs={12} key={field.name}>
                   <Fade in timeout={500}>
                     <Box>
-                      {field.min ? (
-                        <Controller
-                          name={field.name}
-                          control={control}
-                          render={({ field: controllerField }) => (
-                            <Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                {field.icon}
-                                <Typography variant="h6">{field.label}</Typography>
-                                <Tooltip title={field.description}>
-                                  <IconButton size="small">
-                                    <Info />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                {field.description}
-                              </Typography>
-                              <CustomSlider
-                                {...controllerField}
-                                value={Number(controllerField.value) || field.min}
-                                min={field.min}
-                                max={field.max}
-                                step={field.step}
-                                marks={field.marks}
-                                valueLabelDisplay="auto"
-                                sx={{ mt: 2, mb: 3 }}
-                              />
-                              {errors[field.name] && (
-                                <Alert severity="error" sx={{ mt: 1 }}>
-                                  {errors[field.name]?.message}
-                                </Alert>
-                              )}
+                      <Controller
+                        name={field.name}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              {field.icon}
+                              <Typography variant="h6">{field.label}</Typography>
+                              <Tooltip title={field.description}>
+                                <IconButton size="small">
+                                  <Info />
+                                </IconButton>
+                              </Tooltip>
                             </Box>
-                          )}
-                        />
-                      ) : (
-                        <Controller
-                          name={field.name}
-                          control={control}
-                          render={({ field: controllerField }) => (
-                            <FormControl component="fieldset" error={!!errors[field.name]} sx={{ width: '100%' }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                <Typography variant="h6">{field.label}</Typography>
-                                <Tooltip title={field.description}>
-                                  <IconButton size="small">
-                                    <Info />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                {field.description}
-                              </Typography>
-                              <RadioGroup 
-                                {...controllerField} 
-                                value={controllerField.value || field.options[0].value}
-                                row
-                              >
-                                {field.options.map(opt => (
-                                  <Zoom in timeout={300} key={opt.value}>
-                                    <FormControlLabel 
-                                      value={opt.value} 
-                                      control={<Radio />} 
-                                      label={
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          {opt.icon}
-                                          {opt.label}
-                                        </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {field.description}
+                            </Typography>
+                            <CustomSlider
+                              {...controllerField}
+                              value={Number(controllerField.value) || field.min}
+                              min={field.min}
+                              max={field.max}
+                              step={field.step}
+                              marks={field.marks}
+                              valueLabelDisplay="auto"
+                              sx={{ mt: 2, mb: 3 }}
+                            />
+                            {errors[field.name] && (
+                              <Alert severity="error" sx={{ mt: 1 }}>
+                                {errors[field.name]?.message}
+                              </Alert>
+                            )}
+                          </Box>
+                        )}
+                      />
+                    </Box>
+                  </Fade>
+                </Grid>
+              ))}
+              {radioFields.filter(f => f.stepIndex === 0).map(field => (
+                <Grid item xs={12} key={field.name}>
+                  <Fade in timeout={500}>
+                    <Box>
+                      <Controller
+                        name={field.name}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <FormControl component="fieldset" error={!!errors[field.name]} sx={{ width: '100%' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <Typography variant="h6">{field.label}</Typography>
+                              <Tooltip title={field.description}>
+                                <IconButton size="small">
+                                  <Info />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {field.description}
+                            </Typography>
+                            <RadioGroup 
+                              {...controllerField} 
+                              value={controllerField.value || field.options[0].value}
+                              row
+                            >
+                              {field.options.map(opt => (
+                                <Zoom in timeout={300} key={opt.value}>
+                                  <FormControlLabel 
+                                    value={opt.value} 
+                                    control={<Radio />} 
+                                    label={
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {opt.icon}
+                                        {opt.label}
+                                      </Box>
+                                    }
+                                    sx={{ 
+                                      mr: 3,
+                                      '& .MuiFormControlLabel-label': {
+                                        fontSize: '0.9rem'
                                       }
-                                      sx={{ 
-                                        mr: 3,
-                                        '& .MuiFormControlLabel-label': {
-                                          fontSize: '0.9rem'
-                                        }
-                                      }}
-                                    />
-                                  </Zoom>
-                                ))}
-                              </RadioGroup>
-                              {errors[field.name] && (
-                                <Alert severity="error" sx={{ mt: 1 }}>
-                                  {errors[field.name]?.message}
-                                </Alert>
-                              )}
-                            </FormControl>
-                          )}
-                        />
-                      )}
+                                    }}
+                                  />
+                                </Zoom>
+                              ))}
+                            </RadioGroup>
+                            {errors[field.name] && (
+                              <Alert severity="error" sx={{ mt: 1 }}>
+                                {errors[field.name]?.message}
+                              </Alert>
+                            )}
+                          </FormControl>
+                        )}
+                      />
                     </Box>
                   </Fade>
                 </Grid>
@@ -390,97 +421,102 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
               Work Environment
             </Typography>
             <Grid container spacing={3}>
-              {[...sliderFields.filter(f => f.stepIndex === 1), ...radioFields.filter(f => f.stepIndex === 1)].map(field => (
-                <Grid item xs={12} md={field.min ? 12 : 6} key={field.name}>
+              {sliderFields.filter(f => f.stepIndex === 1).map(field => (
+                <Grid item xs={12} key={field.name}>
                   <Fade in timeout={500}>
                     <Box>
-                      {field.min ? (
-                        <Controller
-                          name={field.name}
-                          control={control}
-                          render={({ field: controllerField }) => (
-                            <Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                {field.icon}
-                                <Typography variant="h6">{field.label}</Typography>
-                                <Tooltip title={field.description}>
-                                  <IconButton size="small">
-                                    <Info />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                {field.description}
-                              </Typography>
-                              <CustomSlider
-                                {...controllerField}
-                                value={Number(controllerField.value) || field.min}
-                                min={field.min}
-                                max={field.max}
-                                step={field.step}
-                                marks={field.marks}
-                                valueLabelDisplay="auto"
-                                sx={{ mt: 2, mb: 3 }}
-                              />
-                              {errors[field.name] && (
-                                <Alert severity="error" sx={{ mt: 1 }}>
-                                  {errors[field.name]?.message}
-                                </Alert>
-                              )}
+                      <Controller
+                        name={field.name}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              {field.icon}
+                              <Typography variant="h6">{field.label}</Typography>
+                              <Tooltip title={field.description}>
+                                <IconButton size="small">
+                                  <Info />
+                                </IconButton>
+                              </Tooltip>
                             </Box>
-                          )}
-                        />
-                      ) : (
-                        <Controller
-                          name={field.name}
-                          control={control}
-                          render={({ field: controllerField }) => (
-                            <FormControl component="fieldset" error={!!errors[field.name]} sx={{ width: '100%' }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                <Typography variant="h6">{field.label}</Typography>
-                                <Tooltip title={field.description}>
-                                  <IconButton size="small">
-                                    <Info />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                {field.description}
-                              </Typography>
-                              <RadioGroup 
-                                {...controllerField} 
-                                value={controllerField.value || field.options[0].value}
-                              >
-                                {field.options.map(opt => (
-                                  <Zoom in timeout={300} key={opt.value}>
-                                    <FormControlLabel 
-                                      value={opt.value} 
-                                      control={<Radio />} 
-                                      label={
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          {opt.icon}
-                                          {opt.label}
-                                        </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {field.description}
+                            </Typography>
+                            <CustomSlider
+                              {...controllerField}
+                              value={Number(controllerField.value) || field.min}
+                              min={field.min}
+                              max={field.max}
+                              step={field.step}
+                              marks={field.marks}
+                              valueLabelDisplay="auto"
+                              sx={{ mt: 2, mb: 3 }}
+                            />
+                            {errors[field.name] && (
+                              <Alert severity="error" sx={{ mt: 1 }}>
+                                {errors[field.name]?.message}
+                              </Alert>
+                            )}
+                          </Box>
+                        )}
+                      />
+                    </Box>
+                  </Fade>
+                </Grid>
+              ))}
+              {radioFields.filter(f => f.stepIndex === 1).map(field => (
+                <Grid item xs={12} md={6} key={field.name}>
+                  <Fade in timeout={500}>
+                    <Box>
+                      <Controller
+                        name={field.name}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <FormControl component="fieldset" error={!!errors[field.name]} sx={{ width: '100%' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <Typography variant="h6">{field.label}</Typography>
+                              <Tooltip title={field.description}>
+                                <IconButton size="small">
+                                  <Info />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {field.description}
+                            </Typography>
+                            <RadioGroup 
+                              {...controllerField} 
+                              value={controllerField.value || field.options[0].value}
+                            >
+                              {field.options.map(opt => (
+                                <Zoom in timeout={300} key={opt.value}>
+                                  <FormControlLabel 
+                                    value={opt.value} 
+                                    control={<Radio />} 
+                                    label={
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {opt.icon}
+                                        {opt.label}
+                                      </Box>
+                                    }
+                                    sx={{ 
+                                      mb: 1,
+                                      '& .MuiFormControlLabel-label': {
+                                        fontSize: '0.9rem'
                                       }
-                                      sx={{ 
-                                        mb: 1,
-                                        '& .MuiFormControlLabel-label': {
-                                          fontSize: '0.9rem'
-                                        }
-                                      }}
-                                    />
-                                  </Zoom>
-                                ))}
-                              </RadioGroup>
-                              {errors[field.name] && (
-                                <Alert severity="error" sx={{ mt: 1 }}>
-                                  {errors[field.name]?.message}
-                                </Alert>
-                              )}
-                            </FormControl>
-                          )}
-                        />
-                      )}
+                                    }}
+                                  />
+                                </Zoom>
+                              ))}
+                            </RadioGroup>
+                            {errors[field.name] && (
+                              <Alert severity="error" sx={{ mt: 1 }}>
+                                {errors[field.name]?.message}
+                              </Alert>
+                            )}
+                          </FormControl>
+                        )}
+                      />
                     </Box>
                   </Fade>
                 </Grid>
