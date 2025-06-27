@@ -13,14 +13,14 @@ import {
   LinearProgress,
 } from '@mui/material';
 import {
-  Videocam,
-  Upload,
-  PlayArrow,
-  Stop,
-  CameraAlt,
-  Refresh,
-} from '@mui/icons-material';
-import { BarChart } from '@mui/x-charts/BarChart';
+  VideoCallIcon,
+  UploadIcon,
+  PlayArrowIcon,
+  StopIcon,
+  VideoCallIcon as CameraIcon,
+  RefreshIcon,
+} from '../utils/icons';
+import { SimpleBarChart } from '../components/charts/SimpleCharts';
 import { useWebcam } from '../hooks/useWebcam';
 import { videoApi } from '../services/videoApi';
 import { VideoAnalysisResult } from '../types';
@@ -48,7 +48,7 @@ export const VideoAnalysis: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const { addAnalysisResult } = useAppStore();
   
-  const { stream, error, isActive, videoRef, start, stop, capture } = useWebcam();
+  const { error, isActive, videoRef, start, stop, capture } = useWebcam();
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -98,7 +98,7 @@ export const VideoAnalysis: React.FC = () => {
            
           const result = await videoApi.analyzeFrame(imageData);
           results.push(result);
-        } catch (e) {
+        } catch (_e) {
           // ignore errors for individual frames
         }
       }
@@ -132,7 +132,7 @@ export const VideoAnalysis: React.FC = () => {
       setAnalysis(result);
       addAnalysisResult('video', result);
       showSuccess('Image analyzed successfully!');
-    } catch (err) {
+    } catch (_err) {
       showError('Failed to analyze image. Please try again.');
     } finally {
       setLoading(false);
@@ -210,12 +210,12 @@ export const VideoAnalysis: React.FC = () => {
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab
-            icon={<Videocam />}
+            icon={<VideoCallIcon />}
             label="Live Camera"
             iconPosition="start"
           />
           <Tab
-            icon={<Upload />}
+            icon={<UploadIcon />}
             label="Upload Image"
             iconPosition="start"
           />
@@ -258,7 +258,9 @@ export const VideoAnalysis: React.FC = () => {
                         color: 'text.secondary',
                       }}
                     >
-                      <Videocam sx={{ fontSize: 64, mb: 2 }} />
+                      <Box sx={{ fontSize: 64, mb: 2, display: 'flex', justifyContent: 'center' }}>
+                  <VideoCallIcon />
+                </Box>
                       <Typography variant="h6">Camera not active</Typography>
                       <Typography variant="body2">
                         Click "Start Camera" to begin
@@ -274,7 +276,7 @@ export const VideoAnalysis: React.FC = () => {
                     <Button
                       variant="contained"
                       size="large"
-                      startIcon={<PlayArrow />}
+                      startIcon={<PlayArrowIcon />}
                       onClick={start}
                       fullWidth
                     >
@@ -285,7 +287,7 @@ export const VideoAnalysis: React.FC = () => {
                       <Button
                         variant="contained"
                         size="large"
-                        startIcon={<CameraAlt />}
+                        startIcon={<CameraIcon />}
                         onClick={analyzeFor10Seconds}
                         disabled={loading || isAnalyzing}
                         fullWidth
@@ -294,7 +296,7 @@ export const VideoAnalysis: React.FC = () => {
                       </Button>
                       <Button
                         variant="outlined"
-                        startIcon={<Stop />}
+                        startIcon={<StopIcon />}
                         onClick={stop}
                         fullWidth
                       >
@@ -305,7 +307,7 @@ export const VideoAnalysis: React.FC = () => {
                   
                   <Button
                     variant="outlined"
-                    startIcon={<Refresh />}
+                    startIcon={<RefreshIcon />}
                     onClick={reset}
                     fullWidth
                   >
@@ -335,7 +337,9 @@ export const VideoAnalysis: React.FC = () => {
                 backgroundColor: 'grey.50',
               }}
             >
-              <Upload sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                              <Box sx={{ fontSize: 64, color: 'text.secondary', mb: 2, display: 'flex', justifyContent: 'center' }}>
+                  <UploadIcon />
+                </Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Upload an image to analyze emotions
               </Typography>
@@ -353,7 +357,7 @@ export const VideoAnalysis: React.FC = () => {
                 <Button
                   variant="contained"
                   component="span"
-                  startIcon={<Upload />}
+                  startIcon={<UploadIcon />}
                   size="large"
                 >
                   Choose Image
@@ -456,17 +460,14 @@ export const VideoAnalysis: React.FC = () => {
                 </Typography>
                 
                 {chartData.length > 0 && (
-                  <BarChart
-                    dataset={chartData}
-                    xAxis={[{ scaleType: 'band', dataKey: 'emotion' }]}
-                    series={[
-                      {
-                        dataKey: 'confidence',
-                        label: 'Confidence %',
-                        color: '#2563eb',
-                      },
-                    ]}
+                  <SimpleBarChart
+                    data={chartData.map(item => ({
+                      name: item.emotion,
+                      value: item.confidence,
+                      color: '#2563eb'
+                    }))}
                     height={300}
+                    title="Confidence Distribution"
                   />
                 )}
               </CardContent>

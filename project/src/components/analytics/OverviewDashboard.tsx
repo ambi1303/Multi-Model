@@ -9,13 +9,13 @@ import {
   LinearProgress,
 } from '@mui/material';
 import {
-  TrendingUp,
-  TrendingDown,
-  People,
-  Assessment,
-  Warning,
-  CheckCircle,
-} from '@mui/icons-material';
+  TrendingUpIcon,
+  TrendingDownIcon,
+  PeopleIcon,
+  AssignmentIcon,
+  WarningIcon,
+  CheckCircleIcon,
+} from '../../utils/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion } from 'framer-motion';
 import { OverviewData, AnalyticsFilters } from '../../types/analytics';
@@ -65,9 +65,9 @@ const MetricCard: React.FC<{
         {change !== undefined && (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             {change >= 0 ? (
-              <TrendingUp sx={{ color: 'success.main', mr: 0.5, fontSize: 16 }} />
+              <Box sx={{ color: 'success.main', mr: 0.5, fontSize: 16 }}><TrendingUpIcon /></Box>
             ) : (
-              <TrendingDown sx={{ color: 'error.main', mr: 0.5, fontSize: 16 }} />
+              <Box sx={{ color: 'error.main', mr: 0.5, fontSize: 16 }}><TrendingDownIcon /></Box>
             )}
             <Typography
               variant="caption"
@@ -97,7 +97,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
             title="Total Sessions"
             value={data.totalSessions.toLocaleString()}
             change={data.sessionGrowth}
-            icon={<People />}
+            icon={<PeopleIcon />}
             color="#2563eb"
           />
         </Grid>
@@ -106,7 +106,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
             title="Avg Confidence"
             value={`${(data.averageConfidence * 100).toFixed(1)}%`}
             change={data.confidenceChange}
-            icon={<Assessment />}
+            icon={<AssignmentIcon />}
             color="#059669"
           />
         </Grid>
@@ -115,7 +115,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
             title="High Risk Sessions"
             value={data.highRiskSessions}
             change={data.riskChange}
-            icon={<Warning />}
+            icon={<WarningIcon />}
             color="#dc2626"
           />
         </Grid>
@@ -123,7 +123,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
           <MetricCard
             title="System Accuracy"
             value={`${(data.systemAccuracy * 100).toFixed(1)}%`}
-            icon={<CheckCircle />}
+            icon={<CheckCircleIcon />}
             color="#7c3aed"
           />
         </Grid>

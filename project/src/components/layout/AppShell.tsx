@@ -1,13 +1,16 @@
 import React from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
 import { useAppStore } from '../../store/useAppStore';
-import { designTokens } from '../../theme/theme';
+import { useLocation } from 'react-router-dom';
 
-const DRAWER_WIDTH = 280;
+const DRAWER_WIDTH = 250; // Fixed width as suggested
+const CONTENT_GAP = 3; // MUI spacing unit (3*8=24px)
+const SIDEBAR_WIDTH_PERCENT = 0.2; // 20% for sidebar
+const MAIN_WIDTH_PERCENT = 0.8; // 80% for main content
 
 export const AppShell: React.FC = () => {
   const theme = useTheme();
@@ -22,47 +25,92 @@ export const AppShell: React.FC = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
+  const sidebarOpenDesktop = !isLanding && !isMobile && sidebarOpen;
+
+  // Header height (match MUI AppBar default or your custom height)
+  const HEADER_HEIGHT = 64;
+
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      {!isLanding && <Header onMenuClick={handleDrawerToggle} />}
-      {!isLanding && (isMobile ? (
-        <Sidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          variant="temporary"
-          width={DRAWER_WIDTH}
-        />
-      ) : (
-        sidebarOpen && (
-          <Sidebar
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            variant="persistent"
-            width={DRAWER_WIDTH}
-          />
-        )
-      ))}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          mt: !isLanding ? '64px' : 0, // Header height
-          transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          width: '100%',
-        }}
-      >
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {/* Header - Fixed at top */}
+      {!isLanding && (
+        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 1201 }}>
+          <Header onMenuClick={handleDrawerToggle} />
+        </Box>
+      )}
+      {/* Main Layout Container - Below header */}
+      <Box sx={{ 
+        display: 'flex', 
+        flex: 1,
+        position: 'relative',
+        pt: !isLanding ? `${HEADER_HEIGHT}px` : 0, // Push content below fixed header
+        height: '100vh',
+        minHeight: 0,
+      }}>
+        {/* Sidebar */}
+        {!isLanding && (
+          isMobile
+            ? (sidebarOpen && (
+                <Sidebar
+                  open={sidebarOpen}
+                  onClose={() => setSidebarOpen(false)}
+                  variant="temporary"
+                  width={DRAWER_WIDTH}
+                />
+              ))
+            : (sidebarOpenDesktop && (
+                <Box sx={{
+                  width: `${SIDEBAR_WIDTH_PERCENT * 100}vw`,
+                  minWidth: 200,
+                  maxWidth: 400,
+                  height: `calc(100vh - ${HEADER_HEIGHT}px)` ,
+                  position: 'fixed',
+                  top: `${HEADER_HEIGHT}px`,
+                  left: 0,
+                  zIndex: 1200,
+                  bgcolor: 'background.paper',
+                  borderRight: 1,
+                  borderColor: 'divider',
+                }}>
+                  <Sidebar
+                    open={sidebarOpenDesktop}
+                    onClose={() => setSidebarOpen(false)}
+                    variant="persistent"
+                    width={window.innerWidth * SIDEBAR_WIDTH_PERCENT < 200 ? 200 : window.innerWidth * SIDEBAR_WIDTH_PERCENT > 400 ? 400 : window.innerWidth * SIDEBAR_WIDTH_PERCENT}
+                  />
+                </Box>
+              ))
+        )}
+        {/* Main Content Area */}
         <Box
+          component="main"
           sx={{
             flexGrow: 1,
-            p: { xs: 2, sm: 3, md: 4 },
-            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'auto',
+            minHeight: '100vh',
+            px: CONTENT_GAP, // Uniform horizontal padding always
+            width: !isLanding && !isMobile && sidebarOpenDesktop ? `${MAIN_WIDTH_PERCENT * 100}%` : '100%',
+            ml: !isLanding && !isMobile && sidebarOpenDesktop ? `${SIDEBAR_WIDTH_PERCENT * 100}vw` : 0, // Push content right of fixed sidebar
+            transition: theme.transitions.create(['width', 'margin'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.leavingScreen,
+            }),
           }}
         >
-          <Outlet />
+          <Box sx={{
+            width: '100%',
+            ...(isLanding && {
+              maxWidth: 800,
+              mx: 'auto',
+              px: 2,
+            }),
+          }}>
+            <Outlet />
+          </Box>
+          <Footer />
         </Box>
-        <Footer />
       </Box>
     </Box>
   );

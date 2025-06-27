@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import {
   Box,
   Typography,
@@ -15,28 +15,38 @@ import {
   MenuItem,
   IconButton,
   Tooltip,
+  TextField,
 } from '@mui/material';
 import {
-  Analytics as AnalyticsIcon,
-  Download,
-  Refresh,
-  FilterList,
-  Warning,
-  Info,
-} from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+  AnalyticsIcon,
+  DownloadIcon,
+  RefreshIcon,
+  FilterListIcon,
+  WarningIcon,
+  InfoIcon,
+} from '../utils/icons';
 import { motion } from 'framer-motion';
 import { useNotification } from '../contexts/NotificationContext';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { OverviewDashboard } from '../components/analytics/OverviewDashboard';
-import { VideoAnalyticsDashboard } from '../components/analytics/VideoAnalyticsDashboard';
-import { SpeechAnalyticsDashboard } from '../components/analytics/SpeechAnalyticsDashboard';
-import { ChatAnalyticsDashboard } from '../components/analytics/ChatAnalyticsDashboard';
-import { BurnoutAnalyticsDashboard } from '../components/analytics/BurnoutAnalyticsDashboard';
+import { OptimizedLoadingSpinner } from '../components/common/OptimizedLoadingSpinner';
 import { analyticsApi } from '../services/analyticsApi';
 import { AnalyticsFilters, AnalyticsData } from '../types/analytics';
+
+// Lazy load analytics dashboards to reduce initial bundle
+const OverviewDashboard = lazy(() => 
+  import('../components/analytics/OverviewDashboard').then(m => ({ default: m.OverviewDashboard }))
+);
+
+const VideoAnalyticsDashboard = lazy(() => 
+  import('../components/analytics/VideoAnalyticsDashboard').then(m => ({ default: m.VideoAnalyticsDashboard }))
+);
+
+const SpeechAnalyticsDashboard = lazy(() => 
+  import('../components/analytics/SpeechAnalyticsDashboard').then(m => ({ default: m.SpeechAnalyticsDashboard }))
+);
+
+const ChatAnalyticsDashboard = lazy(() => 
+  import('../components/analytics/ChatAnalyticsDashboard').then(m => ({ default: m.ChatAnalyticsDashboard }))
+);
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -46,7 +56,11 @@ interface TabPanelProps {
 
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
   <div hidden={value !== index} style={{ paddingTop: 24 }}>
-    {value === index && children}
+    {value === index && (
+      <Suspense fallback={<OptimizedLoadingSpinner message="Loading dashboard..." />}>
+        {children}
+      </Suspense>
+    )}
   </div>
 );
 
@@ -55,7 +69,6 @@ const tabs = [
   { label: 'Video Analysis', value: 'video', icon: <AnalyticsIcon /> },
   { label: 'Speech Analysis', value: 'speech', icon: <AnalyticsIcon /> },
   { label: 'Chat Analysis', value: 'chat', icon: <AnalyticsIcon /> },
-  { label: 'Burnout Assessment', value: 'burnout', icon: <AnalyticsIcon /> },
 ];
 
 export const Analytics: React.FC = () => {
@@ -134,216 +147,180 @@ export const Analytics: React.FC = () => {
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Typography
-              variant="h2"
-              component="h1"
-              sx={{
-                fontWeight: 700,
-                mb: 2,
-                background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Analytics Dashboard
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              Comprehensive insights across all emotion analysis modalities
-            </Typography>
-          </Box>
-        </motion.div>
+    <Box>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography
+            variant="h2"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              mb: 2,
+              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Analytics Dashboard
+          </Typography>
+          <Typography variant="h6" color="text.secondary">
+            Comprehensive insights across all emotion analysis modalities
+          </Typography>
+        </Box>
+      </motion.div>
 
-        {/* Filters and Controls */}
-        <Card sx={{ mb: 4 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Analytics Controls
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Tooltip title="Toggle Filters">
-                  <IconButton onClick={() => setShowFilters(!showFilters)}>
-                    <FilterList />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Refresh Data">
-                  <IconButton onClick={fetchAnalyticsData} disabled={loading}>
-                    <Refresh />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Export Data">
-                  <IconButton onClick={handleExportData}>
-                    <Download />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+      {/* Filters and Controls */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Analytics Controls
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title="Toggle Filters">
+                <IconButton onClick={() => setShowFilters(!showFilters)}>
+                  <FilterListIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Refresh Data">
+                <IconButton onClick={fetchAnalyticsData} disabled={loading}>
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Export Data">
+                <IconButton onClick={handleExportData}>
+                  <DownloadIcon />
+                </IconButton>
+              </Tooltip>
             </Box>
+          </Box>
 
-            {showFilters && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Grid container spacing={3} sx={{ mt: 1 }}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <DatePicker
-                      label="Start Date"
-                      value={filters.dateRange.start}
-                      onChange={(date) => handleFilterChange('dateRange', { ...filters.dateRange, start: date })}
-                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <DatePicker
-                      label="End Date"
-                      value={filters.dateRange.end}
-                      onChange={(date) => handleFilterChange('dateRange', { ...filters.dateRange, end: date })}
-                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Modality</InputLabel>
-                      <Select
-                        value={filters.modality}
-                        label="Modality"
-                        onChange={(e) => handleFilterChange('modality', e.target.value)}
-                      >
-                        <MenuItem value="all">All Modalities</MenuItem>
-                        <MenuItem value="video">Video</MenuItem>
-                        <MenuItem value="speech">Speech</MenuItem>
-                        <MenuItem value="chat">Chat</MenuItem>
-                        <MenuItem value="survey">Survey</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Risk Level</InputLabel>
-                      <Select
-                        value={filters.riskLevel}
-                        label="Risk Level"
-                        onChange={(e) => handleFilterChange('riskLevel', e.target.value)}
-                      >
-                        <MenuItem value="all">All Levels</MenuItem>
-                        <MenuItem value="low">Low Risk</MenuItem>
-                        <MenuItem value="moderate">Moderate Risk</MenuItem>
-                        <MenuItem value="high">High Risk</MenuItem>
-                        <MenuItem value="severe">Severe Risk</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Grid container spacing={3} sx={{ mt: 1 }}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    label="Start Date"
+                    type="date"
+                    value={filters.dateRange.start.toISOString().split('T')[0]}
+                    onChange={(e) => handleFilterChange('dateRange', { ...filters.dateRange, start: new Date(e.target.value) })}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
                 </Grid>
-              </motion.div>
-            )}
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    label="End Date"
+                    type="date"
+                    value={filters.dateRange.end.toISOString().split('T')[0]}
+                    onChange={(e) => handleFilterChange('dateRange', { ...filters.dateRange, end: new Date(e.target.value) })}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Modality</InputLabel>
+                    <Select
+                      value={filters.modality}
+                      onChange={(e) => handleFilterChange('modality', e.target.value)}
+                    >
+                      <MenuItem value="all">All Modalities</MenuItem>
+                      <MenuItem value="text">Text Analysis</MenuItem>
+                      <MenuItem value="speech">Speech Analysis</MenuItem>
+                      <MenuItem value="video">Video Analysis</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Risk Level</InputLabel>
+                    <Select
+                      value={filters.riskLevel}
+                      onChange={(e) => handleFilterChange('riskLevel', e.target.value)}
+                    >
+                      <MenuItem value="all">All Levels</MenuItem>
+                      <MenuItem value="low">Low Risk</MenuItem>
+                      <MenuItem value="medium">Medium Risk</MenuItem>
+                      <MenuItem value="high">High Risk</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </motion.div>
+          )}
+        </CardContent>
+      </Card>
 
-            {/* Alert Banner */}
-            {data && getAlertLevel() && (
-              <Alert 
-                severity={getAlertLevel()!} 
-                sx={{ mt: 2 }}
-                icon={getAlertLevel() === 'error' ? <Warning /> : <Info />}
-              >
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  {getAlertLevel() === 'error' ? 'High Risk Alert' : 
-                   getAlertLevel() === 'warning' ? 'Moderate Risk Warning' : 
-                   'System Status Normal'}
-                </Typography>
-                <Typography variant="body2">
-                  {getAlertLevel() === 'error' ? 
-                    'Multiple high-risk sessions detected. Immediate attention recommended.' :
-                   getAlertLevel() === 'warning' ? 
-                    'Elevated risk levels observed. Monitor closely.' :
-                    'All systems operating within normal parameters.'}
-                </Typography>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+      {/* Alert Banner */}
+      {data && getAlertLevel() && (
+        <Alert severity={getAlertLevel()!} sx={{ mb: 4 }} icon={getAlertLevel() === 'error' ? <WarningIcon /> : <InfoIcon />}>
+          {getAlertLevel() === 'error' && (
+            <Typography>High risk sessions detected. Immediate attention recommended.</Typography>
+          )}
+          {getAlertLevel() === 'warning' && (
+            <Typography>Elevated risk levels observed. Consider reviewing recent sessions.</Typography>
+          )}
+          {getAlertLevel() === 'info' && (
+            <Typography>System operating normally. All metrics within expected ranges.</Typography>
+          )}
+        </Alert>
+      )}
 
-        {/* Loading State */}
-        {loading && (
-          <Card sx={{ mb: 4 }}>
-            <CardContent>
-              <LoadingSpinner message="Loading analytics data..." />
-            </CardContent>
-          </Card>
-        )}
+      {/* Error State */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 4 }}>
+          <Typography>{error}</Typography>
+          <Button onClick={fetchAnalyticsData} sx={{ mt: 1 }}>
+            <RefreshIcon sx={{ mr: 1 }} />
+            Retry
+          </Button>
+        </Alert>
+      )}
 
-        {/* Error State */}
-        {error && (
-          <Alert severity="error" sx={{ mb: 4 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Failed to Load Analytics
-            </Typography>
-            <Typography variant="body2">{error}</Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={fetchAnalyticsData}
-              sx={{ mt: 1 }}
-              startIcon={<Refresh />}
-            >
-              Retry
-            </Button>
-          </Alert>
-        )}
+      {/* Loading State */}
+      {loading && !data && (
+        <OptimizedLoadingSpinner message="Loading analytics data..." minHeight="400px" />
+      )}
 
-        {/* Analytics Tabs */}
-        {data && !loading && (
-          <Card>
-            <Tabs
-              value={activeTab}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{ borderBottom: 1, borderColor: 'divider' }}
-            >
-              {tabs.map((tab) => (
-                <Tab
-                  key={tab.value}
-                  icon={tab.icon}
-                  label={tab.label}
-                  iconPosition="start"
-                  sx={{ minHeight: 64 }}
-                />
+      {/* Main Content */}
+      {data && (
+        <Card>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto">
+              {tabs.map((tab, index) => (
+                <Tab key={index} label={tab.label} icon={tab.icon} iconPosition="start" />
               ))}
             </Tabs>
+          </Box>
 
-            <TabPanel value={activeTab} index={0}>
-              <OverviewDashboard data={data.overview} filters={filters} />
-            </TabPanel>
-
-            <TabPanel value={activeTab} index={1}>
-              <VideoAnalyticsDashboard data={data.video} filters={filters} />
-            </TabPanel>
-
-            <TabPanel value={activeTab} index={2}>
-              <SpeechAnalyticsDashboard data={data.speech} filters={filters} />
-            </TabPanel>
-
-            <TabPanel value={activeTab} index={3}>
-              <ChatAnalyticsDashboard data={data.chat} filters={filters} />
-            </TabPanel>
-
-            <TabPanel value={activeTab} index={4}>
-              <BurnoutAnalyticsDashboard data={data.burnout} filters={filters} />
-            </TabPanel>
-          </Card>
-        )}
-      </Box>
-    </LocalizationProvider>
+          <TabPanel value={activeTab} index={0}>
+            <OverviewDashboard data={data.overview} filters={filters} />
+          </TabPanel>
+          <TabPanel value={activeTab} index={1}>
+            <VideoAnalyticsDashboard data={data.video} filters={filters} />
+          </TabPanel>
+          <TabPanel value={activeTab} index={2}>
+            <SpeechAnalyticsDashboard data={data.speech} filters={filters} />
+          </TabPanel>
+          <TabPanel value={activeTab} index={3}>
+            <ChatAnalyticsDashboard data={data.chat} filters={filters} />
+          </TabPanel>
+        </Card>
+      )}
+    </Box>
   );
 };

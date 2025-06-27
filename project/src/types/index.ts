@@ -61,41 +61,11 @@ export interface SurveyLikertData {
   q10: number; // I feel my personal time and work–life balance are respected by the organization.
 }
 
-export interface BurnoutSurveyData {
-  employee: {
-    Designation: number;
-    Resource_Allocation: number;
-    Mental_Fatigue_Score: number;
-    Company_Type: string;
-    WFH_Setup_Available: string;
-    Gender: string;
-  };
-  survey: SurveyLikertData;
-  employee_id?: string;
-}
-
-export interface BurnoutResult {
-  "Employee ID": string;
-  "Predicted Burn Rate": number;
-  "Survey Score": string;
-  "Mental Health Summary": string;
-  "Recommendations": string[];
-  // UI mapping properties
-  riskLevel?: string;
-  score?: number;
-  recommendations?: string[];
-  breakdown?: any[];
-  employeeId?: string;
-  surveyScore?: string;
-  mentalHealthSummary?: string;
-  burnRate?: number;
-}
-
 // API Types
 export interface ApiError {
   message: string;
   code?: string;
-  details?: any;
+  details?: unknown;
   statusCode?: number;
   endpoint?: string;
   timestamp?: string;
@@ -155,4 +125,18 @@ export interface SurveySchema {
   title: string;
   description: string;
   fields: FormField[];
+}
+
+export interface BurnoutResult {
+  employeeId: string;
+  burnRate: number;
+  surveyScore: string;
+  mentalHealthSummary: string;
+  recommendations: string[];
+  riskLevel: 'Low' | 'Medium' | 'High';
+  breakdown?: {
+    category: string;
+    score: number;
+    description: string;
+  }[];
 }

@@ -16,20 +16,21 @@ import {
   Badge,
 } from '@mui/material';
 import {
-  Videocam,
-  Mic,
-  Chat,
-  Assignment,
-  TrendingUp,
-  People,
-  Bolt,
-  Favorite,
-  PlayArrow,
-  Pause,
-  Notifications,
-  EmojiEmotions,
-  AutoAwesome,
-} from '@mui/icons-material';
+  VideoCallIcon,
+  MicIcon,
+  ChatIcon,
+  AssignmentIcon,
+  TrendingUpIcon,
+  
+  ZapIcon,
+  HeartIcon,
+  PlayArrowIcon,
+  PauseIcon,
+  NotificationsIcon,
+  PeopleIcon,
+  EmojiEmotionsIcon,
+  AutoAwesomeIcon,
+} from '../utils/icons';
 
 // Real-time data simulation
 const useRealTimeData = () => {
@@ -347,7 +348,7 @@ export const Dashboard = () => {
 
   const features = [
     {
-      icon: <Videocam sx={{ fontSize: 32 }} />,
+              icon: <VideoCallIcon />,
       title: 'Video Vibes',
       description: 'Real-time emotion detection from your camera feed',
       route: '/video',
@@ -355,7 +356,7 @@ export const Dashboard = () => {
       emoji: '🎥',
     },
     {
-      icon: <Mic sx={{ fontSize: 32 }} />,
+              icon: <MicIcon />,
       title: 'Voice Feels',
       description: 'Analyze emotions from speech patterns',
       route: '/speech',
@@ -363,7 +364,7 @@ export const Dashboard = () => {
       emoji: '🎤',
     },
     {
-      icon: <Chat sx={{ fontSize: 32 }} />,
+              icon: <ChatIcon />,
       title: 'Text Mood',
       description: 'Understand emotions in conversations',
       route: '/chat',
@@ -371,7 +372,7 @@ export const Dashboard = () => {
       emoji: '💬',
     },
     {
-      icon: <Assignment sx={{ fontSize: 32 }} />,
+      icon: <AssignmentIcon />,
       title: 'Burnout Check',
       description: 'Assess your mental wellness',
       route: '/survey',
@@ -393,7 +394,7 @@ export const Dashboard = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, type: "spring" }}
       >
-        <Box sx={{ textAlign: 'center', mb: 6, position: 'relative', zIndex: 1 }}>
+        <Box sx={{ textAlign: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
           <motion.div
             animate={{ 
               background: [
@@ -432,7 +433,7 @@ export const Dashboard = () => {
               variant="h5"
               sx={{
                 color: 'text.secondary',
-                mb: 3,
+                mb: 2,
                 fontWeight: 300,
               }}
             >
@@ -440,7 +441,7 @@ export const Dashboard = () => {
             </Typography>
           </motion.div>
 
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 3 }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <IconButton
                 onClick={() => setIsLive(!isLive)}
@@ -452,7 +453,7 @@ export const Dashboard = () => {
                   position: 'relative',
                 }}
               >
-                {isLive ? <Pause /> : <PlayArrow />}
+                {isLive ? <PauseIcon /> : <PlayArrowIcon />}
                 {isLive && (
                   <>
                     <PulseRing color="#FF6B6B" />
@@ -471,7 +472,7 @@ export const Dashboard = () => {
                     color: 'white',
                   }}
                 >
-                  <TrendingUp />
+                  <TrendingUpIcon />
                 </IconButton>
               </motion.div>
             </Tooltip>
@@ -480,12 +481,12 @@ export const Dashboard = () => {
       </motion.div>
 
       {/* Real-time Metrics */}
-      <Grid container spacing={3} sx={{ mb: 6, position: 'relative', zIndex: 1 }}>
+      <Grid container spacing={2} sx={{ mb: 3, position: 'relative', zIndex: 1 }}>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Live Users"
             value={data.activeUsers}
-            icon={<People />}
+            icon={<PeopleIcon />}
             color="#FF6B6B"
             subtitle="Currently vibing"
             trend="+12% today"
@@ -496,7 +497,7 @@ export const Dashboard = () => {
           <MetricCard
             title="Emotions Detected"
             value={data.emotionsDetected.toLocaleString()}
-            icon={<EmojiEmotions />}
+            icon={<EmojiEmotionsIcon />}
             color="#4ECDC4"
             subtitle="Total today"
             trend="+8% vs yesterday"
@@ -507,7 +508,7 @@ export const Dashboard = () => {
           <MetricCard
             title="Happiness Level"
             value={`${data.happinessLevel}%`}
-            icon={<Favorite />}
+            icon={<HeartIcon />}
             color="#45B7D1"
             subtitle="Team average"
             trend="+5% this week"
@@ -518,7 +519,7 @@ export const Dashboard = () => {
           <MetricCard
             title="AI Confidence"
             value={`${data.aiConfidence.toFixed(1)}%`}
-            icon={<AutoAwesome />}
+            icon={<AutoAwesomeIcon />}
             color="#96CEB4"
             subtitle="Model accuracy"
             trend="Stable"
@@ -528,7 +529,7 @@ export const Dashboard = () => {
       </Grid>
 
       {/* Live Dashboard Grid */}
-      <Grid container spacing={4} sx={{ position: 'relative', zIndex: 1 }}>
+      <Grid container spacing={2} sx={{ position: 'relative', zIndex: 1 }}>
         {/* Current Vibe */}
         <Grid item xs={12} md={6}>
           <motion.div
@@ -612,7 +613,7 @@ export const Dashboard = () => {
                   label={`${data.liveAnalyses} Live Analyses`}
                   color="primary"
                   size="small"
-                  icon={<Bolt />}
+                  icon={<ZapIcon />}
                 />
                 <Chip
                   label={`${data.stressLevel}% Stress`}
@@ -647,7 +648,9 @@ export const Dashboard = () => {
                   transition={{ duration: 2, repeat: Infinity }}
                 >
                   <Badge badgeContent={data.liveAnalyses} color="error">
-                    <Notifications sx={{ fontSize: '2rem', mr: 2, color: '#45B7D1' }} />
+                    <Box sx={{ fontSize: '2rem', mr: 2, color: '#45B7D1', display: 'flex', alignItems: 'center' }}>
+          <NotificationsIcon />
+        </Box>
                   </Badge>
                 </motion.div>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>

@@ -8,13 +8,13 @@ interface AppState {
   
   // Analysis History
   analysisHistory: {
-    video: any[];
-    speech: any[];
-    chat: any[];
-    survey: any[];
-    'enhanced-survey': any[];
+    video: Array<unknown>;
+    speech: Array<unknown>;
+    chat: Array<unknown>;
+    survey: Array<unknown>;
+    'enhanced-survey': Array<unknown>;
   };
-  addAnalysisResult: (type: 'video' | 'speech' | 'chat' | 'survey' | 'enhanced-survey', result: any) => void;
+  addAnalysisResult: (type: 'video' | 'speech' | 'chat' | 'survey' | 'enhanced-survey', result: unknown) => void;
   clearHistory: (type?: 'video' | 'speech' | 'chat' | 'survey' | 'enhanced-survey') => void;
   
   // User Preferences
@@ -28,7 +28,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       // UI State
       sidebarOpen: false,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),

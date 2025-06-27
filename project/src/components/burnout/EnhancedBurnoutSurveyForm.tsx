@@ -28,22 +28,22 @@ import {
   Stack,
 } from '@mui/material';
 import {
-  Person,
-  Work,
-  Psychology,
-  Assessment,
-  CheckCircle,
-  ArrowBack,
-  ArrowForward,
-  RestartAlt,
-  Info,
-  Lightbulb,
-  TrendingUp,
-  EmojiEmotions,
-  Business,
-  Home,
-  Scale,
-} from '@mui/icons-material';
+  PersonIcon as Person,
+  WorkIcon as Work,
+  PsychologyIcon as Psychology,
+  AssessmentIcon as Assessment,
+  CheckCircleIcon as CheckCircle,
+  ArrowBackIcon as ArrowBack,
+  ArrowForwardIcon as ArrowForward,
+  RestartAltIcon as RestartAlt,
+  InfoIcon as Info,
+  LightbulbIcon as Lightbulb,
+  TrendingUpIcon as TrendingUp,
+  EmojiEmotionsIcon as EmojiEmotions,
+  BusinessIcon as Business,
+  HomeIcon as Home,
+  ScaleIcon as Scale,
+} from '../../utils/icons';
 import { Controller } from 'react-hook-form';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { keyframes } from '@emotion/react';
@@ -279,7 +279,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
         return (
           <StepCard elevation={2}>
             <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Person color="primary" />
+              <Person />
               Personal Information
             </Typography>
             <Grid container spacing={3}>
@@ -298,7 +298,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                                 <Typography variant="h6">{field.label}</Typography>
                                 <Tooltip title={field.description}>
                                   <IconButton size="small">
-                                    <Info fontSize="small" />
+                                    <Info />
                                   </IconButton>
                                 </Tooltip>
                               </Box>
@@ -333,7 +333,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                                 <Typography variant="h6">{field.label}</Typography>
                                 <Tooltip title={field.description}>
                                   <IconButton size="small">
-                                    <Info fontSize="small" />
+                                    <Info />
                                   </IconButton>
                                 </Tooltip>
                               </Box>
@@ -387,7 +387,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
         return (
           <StepCard elevation={2}>
             <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Work color="primary" />
+              <Work />
               Work Environment
             </Typography>
             <Grid container spacing={3}>
@@ -406,7 +406,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                                 <Typography variant="h6">{field.label}</Typography>
                                 <Tooltip title={field.description}>
                                   <IconButton size="small">
-                                    <Info fontSize="small" />
+                                    <Info />
                                   </IconButton>
                                 </Tooltip>
                               </Box>
@@ -441,7 +441,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                                 <Typography variant="h6">{field.label}</Typography>
                                 <Tooltip title={field.description}>
                                   <IconButton size="small">
-                                    <Info fontSize="small" />
+                                    <Info />
                                   </IconButton>
                                 </Tooltip>
                               </Box>
@@ -494,7 +494,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
         return (
           <StepCard elevation={2}>
             <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Psychology color="primary" />
+              <Psychology />
               Mental Health Assessment
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
@@ -514,7 +514,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                         <Typography variant="h6">{field.label}</Typography>
                         <Tooltip title={field.description}>
                           <IconButton size="small">
-                            <Info fontSize="small" />
+                            <Info />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -554,7 +554,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                           render={({ field }) => (
                             <Box>
                               <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <EmojiEmotions color="primary" />
+                                <EmojiEmotions />
                                 {question}
                               </Typography>
                               <RadioGroup
@@ -620,7 +620,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
         return (
           <StepCard elevation={2}>
             <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Assessment color="primary" />
+              <Assessment />
               Review Your Responses
             </Typography>
             <Grid container spacing={4}>
@@ -720,7 +720,7 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
             <StepLabel 
               icon={
                 completedSteps.has(index) ? (
-                  <CheckCircle color="success" />
+                  <CheckCircle />
                 ) : (
                   step.icon
                 )

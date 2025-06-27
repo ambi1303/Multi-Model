@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Main Bundle",
+    "path": "dist/js/index-*.js",
+    "limit": "400 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor Bundle",
+    "path": "dist/js/vendor-*.js",
+    "limit": "300 KB",
+    "gzip": true
+  },
+  {
+    "name": "MUI Components",
+    "path": "dist/js/mui-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "MUI Icons",
+    "path": "dist/js/mui-icons-*.js",
+    "limit": "150 KB",
+    "gzip": true,
+    "why": "MUI Icons should be tree-shaken and only include used icons"
+  },
+  {
+    "name": "Charts Bundle",
+    "path": "dist/js/charts-*.js",
+    "limit": "180 KB",
+    "gzip": true
+  },
+  {
+    "name": "Animations Bundle",
+    "path": "dist/js/animations-*.js",
+    "limit": "100 KB",
+    "gzip": true
+  },
+  {
+    "name": "Total JS",
+    "path": "dist/js/*.js",
+    "limit": "1.2 MB",
+    "gzip": true,
+    "why": "Total JavaScript should be under 1.2MB gzipped for good performance"
+  },
+  {
+    "name": "CSS",
+    "path": "dist/**/*.css",
+    "limit": "50 KB",
+    "gzip": true
+  }
+] 

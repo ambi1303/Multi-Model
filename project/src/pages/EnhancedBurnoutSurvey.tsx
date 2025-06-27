@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Box, Container, Fade, Typography, LinearProgress, Alert, Chip } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { CheckCircle, Schedule, PsychologyAlt } from '@mui/icons-material';
+import { CheckCircleIcon, ScheduleIcon, PsychologyIcon } from '../utils/icons';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
 import { BurnoutResult } from '../types';
@@ -286,7 +286,7 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
         {loading && (
           <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PsychologyAlt color="primary" />
+              <PsychologyIcon sx={{ color: 'primary.main' }} />
               Progressive Analysis in Progress
             </Typography>
             
@@ -307,19 +307,19 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
             
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
               <Chip
-                icon={progress.mlAnalysis ? <CheckCircle /> : <Schedule />}
+                icon={progress.mlAnalysis ? <CheckCircleIcon /> : <ScheduleIcon />}
                 label="ML Model Analysis"
                 color={progress.mlAnalysis ? "success" : "default"}
                 variant={progress.mlAnalysis ? "filled" : "outlined"}
               />
               <Chip
-                icon={progress.surveyAnalysis ? <CheckCircle /> : <Schedule />}
+                icon={progress.surveyAnalysis ? <CheckCircleIcon /> : <ScheduleIcon />}
                 label="Survey Assessment"
                 color={progress.surveyAnalysis ? "success" : "default"}
                 variant={progress.surveyAnalysis ? "filled" : "outlined"}
               />
               <Chip
-                icon={progress.aiInsights ? <CheckCircle /> : <Schedule />}
+                icon={progress.aiInsights ? <CheckCircleIcon /> : <ScheduleIcon />}
                 label="AI Insights"
                 color={progress.aiInsights ? "success" : "default"}
                 variant={progress.aiInsights ? "filled" : "outlined"}

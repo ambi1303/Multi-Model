@@ -10,15 +10,15 @@ import {
   LinearProgress,
   Grid,
 } from '@mui/material';
-import {
-  TrendingUp,
-  TrendingDown,
-  Remove,
-  Bolt,
-  Psychology,
-  Favorite,
-  Speed,
-} from '@mui/icons-material';
+import { 
+  TrendingUpIcon, 
+  TrendingDownIcon, 
+  MinusIcon, 
+  ZapIcon, 
+  InfoIcon, 
+  HeartIcon, 
+  SpeedIcon 
+} from '../../utils/icons';
 
 interface MetricData {
   id: string;
@@ -42,7 +42,7 @@ const useRealTimeMetrics = () => {
       trend: 'up',
       trendValue: 5.2,
       color: '#FF6B6B',
-      icon: <Favorite />,
+      icon: <HeartIcon />,
       description: 'Overall team happiness level',
     },
     {
@@ -53,7 +53,7 @@ const useRealTimeMetrics = () => {
       trend: 'down',
       trendValue: -3.1,
       color: '#4ECDC4',
-      icon: <Psychology />,
+      icon: <InfoIcon />,
       description: 'Current stress indicators',
     },
     {
@@ -64,7 +64,7 @@ const useRealTimeMetrics = () => {
       trend: 'up',
       trendValue: 2.8,
       color: '#45B7D1',
-      icon: <Bolt />,
+      icon: <ZapIcon />,
       description: 'Team energy and motivation',
     },
     {
@@ -75,7 +75,7 @@ const useRealTimeMetrics = () => {
       trend: 'stable',
       trendValue: 0.5,
       color: '#96CEB4',
-      icon: <Speed />,
+      icon: <SpeedIcon />,
       description: 'Work efficiency metrics',
     },
   ]);
@@ -96,7 +96,19 @@ const useRealTimeMetrics = () => {
       }));
     }, 3000);
 
-    return () => clearInterval(interval);
+    // Pause interval when page is not visible (helps with bfcache)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearInterval(interval);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   return metrics;
@@ -113,9 +125,9 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
 
   const getTrendIcon = () => {
     switch (metric.trend) {
-      case 'up': return <TrendingUp sx={{ color: '#4CAF50' }} />;
-      case 'down': return <TrendingDown sx={{ color: '#f44336' }} />;
-      default: return <Remove sx={{ color: '#9E9E9E' }} />;
+      case 'up': return <TrendingUpIcon />;
+      case 'down': return <TrendingDownIcon />;
+      default: return <MinusIcon />;
     }
   };
 

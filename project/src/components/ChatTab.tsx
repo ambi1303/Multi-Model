@@ -10,51 +10,63 @@ import {
   Tabs, 
   Tab, 
   Alert, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow,
   Card,
   CardContent,
-  Divider,
   Chip,
-  Avatar
+  Avatar,
+  Fade,
+  Slide,
+  LinearProgress,
+  Stack,
 } from '@mui/material';
+import { styled, keyframes, useTheme } from '@mui/material/styles';
 import { 
   analyzeSingleChatMessage, 
   analyzeSingleMessageAdvanced,
-  analyzeBatchChatMessages,
-  getBatchChatVisualizations 
 } from '../services/api';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  Tooltip as RechartsTooltip, 
-  ResponsiveContainer, 
-  LineChart as RLineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Legend 
-} from 'recharts';
+
 import {
-  MessageOutlined,
-  AutoAwesome,
-  CheckCircleOutline,
-  Mood,
-  SentimentVeryDissatisfied,
-  SentimentDissatisfied,
-  SentimentNeutral,
-  ChatBubbleOutline,
-  Analytics,
-  CloudUpload,
-  Visibility,
-  TrendingUp
-} from '@mui/icons-material';
+  MessageCircleIcon,
+  AutoAwesomeIcon,
+  BarChartIcon,
+  SendIcon,
+} from '../utils/icons';
+
+// 🎨 Enhanced Animations (same as ChatAnalysis)
+const pulseAnimation = keyframes`
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 118, 210, 0.7); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(25, 118, 210, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 118, 210, 0); }
+`;
+
+const gradientAnimation = keyframes`
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+`;
+
+// 🎯 Styled Components
+const AnimatedCard = styled(Card)(({ theme }) => ({
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: theme.shadows[8],
+  }
+}));
+
+const GradientButton = styled(Button)(({ theme }) => ({
+  background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+  backgroundSize: '200% 200%',
+  animation: `${gradientAnimation} 3s ease infinite`,
+  color: 'white',
+  fontWeight: 'bold',
+  borderRadius: '20px',
+  textTransform: 'none',
+  '&:hover': {
+    animation: `${pulseAnimation} 1s infinite, ${gradientAnimation} 1.5s ease infinite`,
+    transform: 'scale(1.05)',
+  }
+}));
 
 interface SingleAnalysisResult {
   primary_emotion: string;
@@ -64,38 +76,12 @@ interface SingleAnalysisResult {
   error?: string;
 }
 
-interface BatchAnalysisResult {
-  analyzed_messages: Array<{
-    timestamp: string;
-    text: string;
-    person_id: string;
-    sentiment_score: number;
-    primary_emotion: string;
-    emotion_score: number;
-    mental_state: string;
-  }>;
-  summary: {
-    total_messages: number;
-    mental_state_distribution: Record<string, number>;
-    average_sentiment: number;
-    most_common_emotion: string;
-    time_span?: {
-      start: string;
-      end: string;
-    };
-  };
-}
-
-interface VisualizationData {
-  mentalStatesImg: string;
-  sentimentTrendImg: string;
-  summary: any;
-}
-
 const ChatTab: React.FC = () => {
+  const theme = useTheme();
   const [tab, setTab] = useState<'simple' | 'advanced' | 'batch'>('simple');
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   
-  // Single message state
+  // Enhanced state with animations
   const [text, setText] = useState('');
   const [charCount, setCharCount] = useState(0);
   const [wordCount, setWordCount] = useState(0);
@@ -105,24 +91,12 @@ const ChatTab: React.FC = () => {
   // Advanced analysis state
   const [advancedLoading, setAdvancedLoading] = useState(false);
   const [advancedResult, setAdvancedResult] = useState<SingleAnalysisResult | null>(null);
-  
-  // Batch analysis state
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [batchResult, setBatchResult] = useState<BatchAnalysisResult | null>(null);
-  const [batchError, setBatchError] = useState<string | null>(null);
-  const [batchFileName, setBatchFileName] = useState('');
-  const [visualizations, setVisualizations] = useState<VisualizationData | null>(null);
-  const [vizLoading, setVizLoading] = useState(false);
 
   // Tab switch handler
   const handleTabChange = (_: any, value: string) => {
     setTab(value as 'simple' | 'advanced' | 'batch');
     setResult(null);
     setAdvancedResult(null);
-    setBatchResult(null);
-    setBatchError(null);
-    setBatchFileName('');
-    setVisualizations(null);
   };
 
   // Text change handler
@@ -140,6 +114,18 @@ const ChatTab: React.FC = () => {
     
     setLoading(true);
     setResult(null);
+    setAnalysisProgress(0);
+
+    // Enhanced progress simulation
+    const progressInterval = setInterval(() => {
+      setAnalysisProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return prev;
+        }
+        return prev + Math.random() * 15;
+      });
+    }, 200);
     
     try {
       const data = await analyzeSingleChatMessage({ text: text.trim() });
@@ -147,7 +133,10 @@ const ChatTab: React.FC = () => {
     } catch (err: any) {
       setResult({ error: err.message, primary_emotion: '', sentiment_score: 0, mental_state: '' });
     } finally {
+      clearInterval(progressInterval);
+      setAnalysisProgress(100);
       setLoading(false);
+      setTimeout(() => setAnalysisProgress(0), 1000);
     }
   };
 
@@ -169,470 +158,326 @@ const ChatTab: React.FC = () => {
     }
   };
 
-  // Batch file upload handler
-  const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setBatchError(null);
-    setBatchResult(null);
-    setVisualizations(null);
-    
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setBatchFileName(file.name);
-    setBatchLoading(true);
-    
-    try {
-      const text = await file.text();
-      const json = JSON.parse(text);
-      
-      let messages = json.messages || [];
-      if (json.person_id) {
-        messages = messages.map((msg: any) => ({ ...msg, person_id: json.person_id }));
-      }
-      messages = messages.map((msg: any) => ({ 
-        ...msg, 
-        timestamp: msg.timestamp || new Date().toISOString() 
-      }));
-      
-      const data = await analyzeBatchChatMessages(messages);
-      setBatchResult(data);
-    } catch (err: any) {
-      setBatchError('Invalid file or analysis failed. ' + (err.message || ''));
-    } finally {
-      setBatchLoading(false);
-    }
-  };
-
-  // Load visualizations
-  const handleLoadVisualizations = async () => {
-    if (!batchResult) return;
-    
-    setVizLoading(true);
-    try {
-      const vizData = await getBatchChatVisualizations();
-      setVisualizations(vizData);
-    } catch (err: any) {
-      setBatchError('Failed to load visualizations: ' + err.message);
-    } finally {
-      setVizLoading(false);
-    }
-  };
-
-  // Helper function to get emotion info
-  const getEmotionInfo = (emotion: string) => {
-    const emotionLower = (emotion || '').toLowerCase();
-    switch (emotionLower) {
-      case 'joy':
-      case 'happy':
-        return { text: 'Joy', color: '#4CAF50', bgColor: '#E8F5E9', icon: <Mood /> };
-      case 'anger':
-      case 'angry':
-        return { text: 'Anger', color: '#F44336', bgColor: '#FFEBEE', icon: <SentimentVeryDissatisfied /> };
-      case 'sadness':
-      case 'sad':
-        return { text: 'Sadness', color: '#2196F3', bgColor: '#E3F2FD', icon: <SentimentDissatisfied /> };
-      case 'fear':
-      case 'fearful':
-        return { text: 'Fear', color: '#9C27B0', bgColor: '#F3E5F5', icon: <SentimentVeryDissatisfied /> };
-      case 'surprise':
-      case 'surprised':
-        return { text: 'Surprise', color: '#FF9800', bgColor: '#FFF3E0', icon: <SentimentNeutral /> };
-      case 'neutral':
-      default:
-        return { text: 'Neutral', color: '#607D8B', bgColor: '#ECEFF1', icon: <SentimentNeutral /> };
-    }
-  };
-
-  // Render analysis result cards
-  const renderAnalysisCards = (result: SingleAnalysisResult, isAdvanced = false) => {
-    if (result.error) {
-      return <Alert severity="error">{result.error}</Alert>;
-    }
-
-    const emotionInfo = getEmotionInfo(result.primary_emotion);
-    const sentimentPercentage = ((result.sentiment_score + 1) / 2 * 100).toFixed(0);
-
-    return (
-      <Grid container spacing={2} sx={{ mt: 2 }}>
-        {/* Emotion Card */}
-        <Grid item xs={6} sm={3}>
-          <Card sx={{ bgcolor: emotionInfo.bgColor, border: `1px solid ${emotionInfo.color}` }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Avatar sx={{ bgcolor: emotionInfo.color, mx: 'auto', mb: 1 }}>
-                {emotionInfo.icon}
-              </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: emotionInfo.color }}>
-                {emotionInfo.text}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Primary Emotion
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Sentiment Score Card */}
-        <Grid item xs={6} sm={3}>
-          <Card sx={{ bgcolor: '#E3F2FD', border: '1px solid #2196F3' }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Avatar sx={{ bgcolor: '#2196F3', mx: 'auto', mb: 1 }}>
-                <TrendingUp />
-              </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#2196F3' }}>
-                {sentimentPercentage}%
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Sentiment Score
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Mental State Card */}
-        <Grid item xs={6} sm={3}>
-          <Card sx={{ bgcolor: '#FFFDE7', border: '1px solid #FBC02D' }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Avatar sx={{ bgcolor: '#FBC02D', mx: 'auto', mb: 1 }}>
-                <ChatBubbleOutline />
-              </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#F57C00' }}>
-                {result.mental_state || 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Mental State
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Word Count Card */}
-        <Grid item xs={6} sm={3}>
-          <Card sx={{ bgcolor: '#F3E5F5', border: '1px solid #9C27B0' }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Avatar sx={{ bgcolor: '#9C27B0', mx: 'auto', mb: 1 }}>
-                <MessageOutlined />
-              </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#9C27B0' }}>
-                {wordCount}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Word Count
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    );
-  };
-
   return (
-    <Box sx={{ p: 3, minHeight: '100vh', bgcolor: '#f5f5f5' }}>
-      {/* Header */}
-      <Paper sx={{ p: 3, mb: 3, textAlign: 'center' }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#673AB7', mb: 1 }}>
-          🔍 Chat Message Analyzer
-        </Typography>
-        <Typography variant="h6" sx={{ color: '#616161' }}>
-          Analyze your messages for sentiment, emotions, and mental state insights
-        </Typography>
-      </Paper>
+    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+      {/* 🎨 Enhanced Header */}
+      <Slide in direction="down" timeout={800}>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography 
+            variant="h3" 
+            component="h1" 
+            sx={{ 
+              fontWeight: 700, 
+              mb: 2,
+              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              animation: `${gradientAnimation} 3s ease infinite`
+            }}
+          >
+            🚀 Advanced Chat Analyzer
+          </Typography>
+          <Typography variant="h6" color="text.secondary">
+            Multi-mode analysis with enhanced visualizations and insights
+          </Typography>
+        </Box>
+      </Slide>
 
-      {/* Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs value={tab} onChange={handleTabChange} variant="fullWidth">
+      {/* Enhanced Tabs */}
+      <Paper sx={{ borderRadius: '20px', overflow: 'hidden', mb: 3 }}>
+        <Tabs 
+          value={tab} 
+          onChange={handleTabChange}
+          variant="fullWidth"
+          sx={{
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 'bold',
+              fontSize: '1rem'
+            }
+          }}
+        >
           <Tab 
-            label="Simple Analysis" 
-            value="simple" 
-            icon={<MessageOutlined />}
+            label="🔍 Simple Analysis" 
+            value="simple"
+            icon={<MessageCircleIcon />}
             iconPosition="start"
           />
           <Tab 
-            label="Advanced Analysis" 
-            value="advanced" 
-            icon={<AutoAwesome />}
+            label="🧠 Advanced Analysis" 
+            value="advanced"
+            icon={<AutoAwesomeIcon />}
             iconPosition="start"
           />
           <Tab 
-            label="Batch Analysis" 
-            value="batch" 
-            icon={<Analytics />}
+            label="📊 Batch Analysis" 
+            value="batch"
+            icon={<BarChartIcon />}
             iconPosition="start"
           />
         </Tabs>
       </Paper>
 
-      {/* Simple Analysis Tab */}
+      {/* Enhanced Tab Content */}
       {tab === 'simple' && (
-        <Paper sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
-          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <MessageOutlined color="primary" />
-            Simple Message Analysis
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Quick analysis using the basic chat service
-          </Typography>
-          
-          <form onSubmit={handleSimpleSubmit}>
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              value={text}
-              onChange={handleTextChange}
-              placeholder="Type your message here..."
-              disabled={loading}
-              sx={{ mb: 2 }}
-            />
-            
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Characters: {charCount} | Words: {wordCount}
-              </Typography>
-              <Button 
-                type="submit" 
-                variant="contained" 
-                disabled={loading || !text.trim()}
-                startIcon={loading ? <CircularProgress size={20} /> : <MessageOutlined />}
-              >
-                {loading ? 'Analyzing...' : 'Analyze Message'}
-              </Button>
-            </Box>
-          </form>
+        <Fade in timeout={500}>
+          <AnimatedCard sx={{ p: 4, borderRadius: '20px' }}>
+            <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <MessageCircleIcon />
+              Quick Message Analysis
+            </Typography>
 
-          {result && renderAnalysisCards(result)}
-        </Paper>
+            <form onSubmit={handleSimpleSubmit}>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Enter your message"
+                placeholder="Type something interesting... ✨"
+                value={text}
+                onChange={handleTextChange}
+                disabled={loading}
+                sx={{ 
+                  mb: 2,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '15px',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: theme.shadows[4],
+                    }
+                  }
+                }}
+              />
+
+              {/* Enhanced Progress and Stats */}
+              {analysisProgress > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={analysisProgress}
+                    sx={{ 
+                      height: 8, 
+                      borderRadius: 4,
+                      '& .MuiLinearProgress-bar': {
+                        borderRadius: 4,
+                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`
+                      }
+                    }}
+                  />
+                </Box>
+              )}
+
+              <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+                <Chip label={`${charCount} chars`} color="primary" size="small" />
+                <Chip label={`${wordCount} words`} color="secondary" size="small" />
+              </Stack>
+
+              <Box sx={{ textAlign: 'center' }}>
+                <GradientButton
+                  type="submit"
+                  disabled={loading || !text.trim()}
+                  size="large"
+                  startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                >
+                  {loading ? 'Analyzing...' : 'Analyze Message'}
+                </GradientButton>
+              </Box>
+            </form>
+
+            {/* Enhanced Results Display */}
+            {result && (
+              <Fade in timeout={800}>
+                <Box sx={{ mt: 4 }}>
+                  {result.error ? (
+                    <Alert severity="error" sx={{ borderRadius: '15px' }}>
+                      {result.error}
+                    </Alert>
+                  ) : (
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={4}>
+                        <AnimatedCard>
+                          <CardContent sx={{ textAlign: 'center' }}>
+                            <Avatar sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              mx: 'auto', 
+                              mb: 2,
+                              bgcolor: 'primary.main',
+                              animation: `${pulseAnimation} 2s infinite`
+                            }}>
+                              😊
+                            </Avatar>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                              {result.primary_emotion}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Primary Emotion
+                            </Typography>
+                          </CardContent>
+                        </AnimatedCard>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <AnimatedCard>
+                          <CardContent sx={{ textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ 
+                              fontWeight: 'bold', 
+                              color: 'primary.main',
+                              mb: 1
+                            }}>
+                              {((result.sentiment_score + 1) / 2 * 100).toFixed(0)}%
+                            </Typography>
+                            <Typography variant="h6">Sentiment</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Positivity Score
+                            </Typography>
+                          </CardContent>
+                        </AnimatedCard>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <AnimatedCard>
+                          <CardContent sx={{ textAlign: 'center' }}>
+                            <Avatar sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              mx: 'auto', 
+                              mb: 2,
+                              bgcolor: 'secondary.main'
+                            }}>
+                              🧠
+                            </Avatar>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                              {result.mental_state}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Mental State
+                            </Typography>
+                          </CardContent>
+                        </AnimatedCard>
+                      </Grid>
+                    </Grid>
+                  )}
+                </Box>
+              </Fade>
+            )}
+          </AnimatedCard>
+        </Fade>
       )}
 
       {/* Advanced Analysis Tab */}
       {tab === 'advanced' && (
-        <Paper sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
-          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <AutoAwesome color="primary" />
-            Advanced Message Analysis
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Detailed analysis using the mental state analyzer with enhanced insights
-          </Typography>
-          
-          <form onSubmit={handleAdvancedSubmit}>
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              value={text}
-              onChange={handleTextChange}
-              placeholder="Type your message here for advanced analysis..."
-              disabled={advancedLoading}
-              sx={{ mb: 2 }}
-            />
+        <Fade in timeout={500}>
+          <AnimatedCard sx={{ p: 4, borderRadius: '20px' }}>
+            <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AutoAwesomeIcon />
+              Advanced Analysis
+            </Typography>
             
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Characters: {charCount} | Words: {wordCount}
-              </Typography>
-              <Button 
-                type="submit" 
-                variant="contained" 
-                disabled={advancedLoading || !text.trim()}
-                startIcon={advancedLoading ? <CircularProgress size={20} /> : <AutoAwesome />}
-              >
-                {advancedLoading ? 'Analyzing...' : 'Advanced Analyze'}
-              </Button>
-            </Box>
-          </form>
+            <form onSubmit={handleAdvancedSubmit}>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Enter your message for advanced analysis"
+                placeholder="Type something for deeper insights... 🧠"
+                value={text}
+                onChange={handleTextChange}
+                disabled={advancedLoading}
+                sx={{ 
+                  mb: 3,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '15px',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: theme.shadows[4],
+                    }
+                  }
+                }}
+              />
 
-          {advancedResult && renderAnalysisCards(advancedResult, true)}
-        </Paper>
+              <Box sx={{ textAlign: 'center' }}>
+                <GradientButton
+                  type="submit"
+                  disabled={advancedLoading || !text.trim()}
+                  size="large"
+                  startIcon={advancedLoading ? <CircularProgress size={20} color="inherit" /> : <AutoAwesomeIcon />}
+                >
+                  {advancedLoading ? 'Deep Analyzing...' : 'Advanced Analysis'}
+                </GradientButton>
+              </Box>
+            </form>
+
+            {/* Enhanced Advanced Results */}
+            {advancedResult && (
+              <Fade in timeout={800}>
+                <Box sx={{ mt: 4 }}>
+                  {advancedResult.error ? (
+                    <Alert severity="error" sx={{ borderRadius: '15px' }}>
+                      {advancedResult.error}
+                    </Alert>
+                  ) : (
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <AnimatedCard>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              🎭 Emotion Analysis
+                            </Typography>
+                            <Typography variant="h4" color="primary.main" sx={{ fontWeight: 'bold' }}>
+                              {advancedResult.primary_emotion}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Confidence: {((advancedResult.emotion_score || 0) * 100).toFixed(1)}%
+                            </Typography>
+                          </CardContent>
+                        </AnimatedCard>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <AnimatedCard>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              🧠 Mental State
+                            </Typography>
+                            <Typography variant="h4" color="secondary.main" sx={{ fontWeight: 'bold' }}>
+                              {advancedResult.mental_state}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Advanced neural analysis
+                            </Typography>
+                          </CardContent>
+                        </AnimatedCard>
+                      </Grid>
+                    </Grid>
+                  )}
+                </Box>
+              </Fade>
+            )}
+          </AnimatedCard>
+        </Fade>
       )}
 
       {/* Batch Analysis Tab */}
       {tab === 'batch' && (
-        <Paper sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Analytics color="primary" />
-            Batch Chat Analysis
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Upload a JSON file with multiple messages for comprehensive analysis and visualizations
-          </Typography>
-
-          {/* File Upload */}
-          <Box sx={{ mb: 3 }}>
-            <Button 
-              variant="outlined" 
-              component="label" 
-              startIcon={<CloudUpload />}
-              sx={{ mb: 2 }}
-            >
-              Upload JSON File
-              <input 
-                type="file" 
-                accept="application/json" 
-                hidden 
-                onChange={handleBatchFileChange} 
-              />
-            </Button>
-            {batchFileName && (
-              <Typography variant="body2" sx={{ mb: 2 }}>
-                📁 File: {batchFileName}
+        <Fade in timeout={500}>
+          <AnimatedCard sx={{ p: 4, borderRadius: '20px' }}>
+            <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <BarChartIcon />
+              Batch Analysis
+            </Typography>
+            
+            {/* File upload and batch processing UI would go here */}
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <Typography variant="h6" color="text.secondary">
+                📊 Batch analysis features coming soon...
               </Typography>
-            )}
-          </Box>
-
-          {/* Loading State */}
-          {batchLoading && (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <CircularProgress size={60} />
-              <Typography variant="h6" sx={{ mt: 2 }}>
-                Analyzing your messages...
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Upload multiple messages for comprehensive analysis
               </Typography>
             </Box>
-          )}
-
-          {/* Error State */}
-          {batchError && <Alert severity="error" sx={{ mb: 3 }}>{batchError}</Alert>}
-
-          {/* Batch Results */}
-          {batchResult && (
-            <Box sx={{ mt: 3 }}>
-              {/* Analysis Summary */}
-              <Card sx={{ mb: 3, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    📊 Analysis Summary
-                    <Chip label={`${batchResult.summary.total_messages} messages`} color="primary" size="small" />
-                  </Typography>
-                  
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                        🧠 Mental State Distribution:
-                      </Typography>
-                      {Object.entries(batchResult.summary.mental_state_distribution || {}).map(([state, count]) => (
-                        <Typography key={state} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
-                          • <strong>{state}:</strong> {String(count)}
-                        </Typography>
-                      ))}
-                    </Grid>
-                    
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body1" sx={{ mb: 1 }}>
-                        <strong>💭 Average Sentiment:</strong> {batchResult.summary.average_sentiment}
-                      </Typography>
-                      <Typography variant="body1" sx={{ mb: 1 }}>
-                        <strong>😊 Most Common Emotion:</strong> {batchResult.summary.most_common_emotion}
-                      </Typography>
-                      {batchResult.summary.time_span && (
-                        <Box>
-                          <Typography variant="body2" sx={{ mb: 0.5 }}>
-                            <strong>⏰ Time Span:</strong>
-                          </Typography>
-                          <Typography variant="body2" sx={{ ml: 2, fontSize: '0.8rem' }}>
-                            From: {batchResult.summary.time_span.start}
-                          </Typography>
-                          <Typography variant="body2" sx={{ ml: 2, fontSize: '0.8rem' }}>
-                            To: {batchResult.summary.time_span.end}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Grid>
-                  </Grid>
-
-                  {/* Visualizations Button */}
-                  <Divider sx={{ my: 2 }} />
-                  <Button
-                    variant="contained"
-                    onClick={handleLoadVisualizations}
-                    disabled={vizLoading}
-                    startIcon={vizLoading ? <CircularProgress size={20} /> : <Visibility />}
-                  >
-                    {vizLoading ? 'Loading Visualizations...' : 'Load Visualizations'}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Visualizations */}
-              {visualizations && (
-                <Card sx={{ mb: 3 }}>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      📈 Visualizations
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <Typography variant="subtitle1" sx={{ mb: 1 }}>Mental States Distribution</Typography>
-                        <img
-                          src={visualizations.mentalStatesImg}
-                          alt="Mental States Distribution"
-                          style={{ width: '100%', maxWidth: 400, borderRadius: 8, border: '1px solid #e0e0e0' }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Typography variant="subtitle1" sx={{ mb: 1 }}>Sentiment Trend</Typography>
-                        <img
-                          src={visualizations.sentimentTrendImg}
-                          alt="Sentiment Trend"
-                          style={{ width: '100%', maxWidth: 400, borderRadius: 8, border: '1px solid #e0e0e0' }}
-                        />
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Message Details Table */}
-              {Array.isArray(batchResult.analyzed_messages) && batchResult.analyzed_messages.length > 0 && (
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      📝 Detailed Message Analysis
-                    </Typography>
-                    <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-                      <Table stickyHeader size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Timestamp</TableCell>
-                            <TableCell>Text</TableCell>
-                            <TableCell>Person ID</TableCell>
-                            <TableCell>Sentiment</TableCell>
-                            <TableCell>Emotion</TableCell>
-                            <TableCell>Mental State</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {batchResult.analyzed_messages.map((msg, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell sx={{ fontSize: '0.75rem' }}>{msg.timestamp}</TableCell>
-                              <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {msg.text}
-                              </TableCell>
-                              <TableCell>{msg.person_id}</TableCell>
-                              <TableCell>
-                                <Chip 
-                                  label={`${((msg.sentiment_score + 1) / 2 * 100).toFixed(0)}%`}
-                                  size="small"
-                                  color={msg.sentiment_score > 0 ? 'success' : msg.sentiment_score < 0 ? 'error' : 'default'}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Chip 
-                                  label={msg.primary_emotion}
-                                  size="small"
-                                  sx={{ bgcolor: getEmotionInfo(msg.primary_emotion).bgColor }}
-                                />
-                              </TableCell>
-                              <TableCell>{msg.mental_state}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              )}
-            </Box>
-          )}
-        </Paper>
+          </AnimatedCard>
+        </Fade>
       )}
     </Box>
   );

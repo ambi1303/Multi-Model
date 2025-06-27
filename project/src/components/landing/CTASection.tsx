@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Box, Typography, Container, Button, Grid } from '@mui/material';
-import { PlayArrow, TrendingUp, Psychology } from '@mui/icons-material';
+import { PlayArrowIcon, TrendingUpIcon, InfoIcon } from '../../utils/icons';
 
 export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) => {
   return (
@@ -74,7 +74,7 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                     variant="contained"
                     size="large"
                     onClick={onGetStarted}
-                    startIcon={<PlayArrow />}
+                    startIcon={<PlayArrowIcon />}
                     sx={{
                       px: 4,
                       py: 2,
@@ -136,7 +136,9 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   boxShadow: '0 20px 40px rgba(59, 130, 246, 0.3)',
                 }}
               >
-                <TrendingUp sx={{ color: 'white', fontSize: 40 }} />
+                                    <Box sx={{ color: 'white', fontSize: 40, display: 'flex', justifyContent: 'center' }}>
+                      <TrendingUpIcon />
+                    </Box>
               </motion.div>
 
               <motion.div
@@ -156,7 +158,9 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   boxShadow: '0 20px 40px rgba(139, 92, 246, 0.3)',
                 }}
               >
-                <Psychology sx={{ color: 'white', fontSize: 35 }} />
+                                    <Box sx={{ color: 'white', fontSize: 35, display: 'flex', justifyContent: 'center' }}>
+                      <InfoIcon />
+                    </Box>
               </motion.div>
 
               <motion.div
@@ -176,7 +180,9 @@ export const CTASection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarte
                   boxShadow: '0 20px 40px rgba(16, 185, 129, 0.3)',
                 }}
               >
-                <PlayArrow sx={{ color: 'white', fontSize: 30 }} />
+                                    <Box sx={{ color: 'white', fontSize: 30, display: 'flex', justifyContent: 'center' }}>
+                      <PlayArrowIcon />
+                    </Box>
               </motion.div>
 
               {/* Connecting Lines */}

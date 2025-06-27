@@ -58,12 +58,14 @@ export const useWebcam = (): UseWebcamReturn => {
 
   const capture = useCallback((): string | null => {
     if (!videoRef.current || !isActive) return null;
-
+    let canvas: HTMLCanvasElement;
     if (!canvasRef.current) {
-      canvasRef.current = document.createElement('canvas');
+      canvas = document.createElement('canvas');
+      canvasRef.current = canvas;
+    } else {
+      canvas = canvasRef.current;
     }
 
-    const canvas = canvasRef.current;
     const video = videoRef.current;
     const ctx = canvas.getContext('2d');
     

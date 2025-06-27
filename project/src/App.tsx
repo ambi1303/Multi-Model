@@ -11,7 +11,6 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ defa
 const VideoAnalysis = React.lazy(() => import('./pages/VideoAnalysis').then(m => ({ default: m.VideoAnalysis })));
 const SpeechAnalysis = React.lazy(() => import('./pages/SpeechAnalysis').then(m => ({ default: m.SpeechAnalysis })));
 const ChatAnalysis = React.lazy(() => import('./pages/ChatAnalysis').then(m => ({ default: m.ChatAnalysis })));
-const BurnoutSurvey = React.lazy(() => import('./pages/BurnoutSurvey').then(m => ({ default: m.BurnoutSurvey })));
 const EnhancedBurnoutSurvey = React.lazy(() => import('./pages/EnhancedBurnoutSurvey').then(m => ({ default: m.EnhancedBurnoutSurvey })));
 const Home = React.lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
 const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
@@ -76,7 +75,7 @@ function App() {
                   path="survey"
                   element={
                     <Suspense fallback={<LoadingSpinner message="Loading Burnout Survey..." />}>
-                      <BurnoutSurvey />
+                      <EnhancedBurnoutSurvey />
                     </Suspense>
                   }
                 />

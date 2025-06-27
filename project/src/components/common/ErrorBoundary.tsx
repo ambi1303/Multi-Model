@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button, Paper } from '@mui/material';
-import { ErrorOutline, Home } from '@mui/icons-material';
+import { ErrorIcon, HomeIcon } from '../../utils/icons';
 
 interface Props {
   children: ReactNode;
@@ -62,13 +62,17 @@ export class ErrorBoundary extends Component<Props, State> {
               width: '100%',
             }}
           >
-            <ErrorOutline
+            <Box
               sx={{
                 fontSize: 64,
                 color: 'error.main',
                 mb: 2,
+                display: 'flex',
+                justifyContent: 'center',
               }}
-            />
+            >
+              <ErrorIcon />
+            </Box>
             <Typography variant="h4" gutterBottom>
               Something went wrong
             </Typography>
@@ -102,14 +106,14 @@ export class ErrorBoundary extends Component<Props, State> {
               <Button
                 variant="contained"
                 onClick={this.handleReload}
-                startIcon={<ErrorOutline />}
+                startIcon={<ErrorIcon />}
               >
                 Reload Page
               </Button>
               <Button
                 variant="outlined"
                 onClick={this.handleGoHome}
-                startIcon={<Home />}
+                startIcon={<HomeIcon />}
               >
                 Go Home
               </Button>

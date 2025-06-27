@@ -10,12 +10,12 @@ import {
   Popover,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
-  Brightness4,
-  Brightness7,
-  Notifications,
-  AccountCircle,
-} from '@mui/icons-material';
+  MenuIcon,
+  NotificationsIcon,
+  AccountCircleIcon,
+  LightModeIcon,
+  DarkModeIcon,
+} from '../../utils/icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ServiceStatus } from '../common/ServiceStatus';
 
@@ -41,12 +41,13 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   return (
     <AppBar
-      position="fixed"
+      position="static"
       sx={{
-        zIndex: muiTheme.zIndex.drawer + 1,
         backgroundColor: 'background.paper',
         color: 'text.primary',
         boxShadow: 1,
+        borderBottom: 1,
+        borderColor: 'divider',
       }}
     >
       <Toolbar>
@@ -121,15 +122,15 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </Popover>
 
           <IconButton onClick={toggleTheme} color="inherit">
-            {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+            {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
           </IconButton>
           
           <IconButton color="inherit">
-            <Notifications />
+            <NotificationsIcon />
           </IconButton>
           
           <IconButton color="inherit">
-            <AccountCircle />
+            <AccountCircleIcon />
           </IconButton>
         </Box>
       </Toolbar>

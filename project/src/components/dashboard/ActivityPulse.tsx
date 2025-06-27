@@ -10,15 +10,15 @@ import {
   Badge,
 } from '@mui/material';
 import {
-  Notifications,
-  Videocam,
-  Mic,
-  Chat,
-  Assignment,
-  Bolt,
-  Star,
-  Celebration,
-} from '@mui/icons-material';
+  NotificationsIcon,
+  VideoCallIcon,
+  MicIcon,
+  ChatIcon,
+  AssignmentIcon,
+  ZapIcon,
+  StarIcon,
+  CelebrationIcon,
+} from '../../utils/icons';
 
 interface Activity {
   id: string;
@@ -39,7 +39,7 @@ const useActivityFeed = () => {
       message: 'completed video emotion analysis',
       user: 'Sarah',
       timestamp: new Date(Date.now() - 2000),
-      icon: <Videocam />,
+      icon: <VideoCallIcon />,
       color: '#FF6B6B',
       emoji: '🎥',
     },
@@ -49,7 +49,7 @@ const useActivityFeed = () => {
       message: 'reached happiness milestone!',
       user: 'Team',
       timestamp: new Date(Date.now() - 5000),
-      icon: <Star />,
+      icon: <StarIcon />,
       color: '#FECA57',
       emoji: '⭐',
     },
@@ -59,7 +59,7 @@ const useActivityFeed = () => {
       message: 'analyzed voice patterns',
       user: 'Alex',
       timestamp: new Date(Date.now() - 12000),
-      icon: <Mic />,
+      icon: <MicIcon />,
       color: '#4ECDC4',
       emoji: '🎤',
     },
@@ -71,35 +71,35 @@ const useActivityFeed = () => {
         {
           type: 'video' as const,
           messages: ['started video analysis', 'completed emotion detection', 'captured mood snapshot'],
-          icon: <Videocam />,
+          icon: <VideoCallIcon />,
           color: '#FF6B6B',
           emoji: '🎥',
         },
         {
           type: 'speech' as const,
           messages: ['analyzed speech patterns', 'detected voice emotions', 'completed audio processing'],
-          icon: <Mic />,
+          icon: <MicIcon />,
           color: '#4ECDC4',
           emoji: '🎤',
         },
         {
           type: 'chat' as const,
           messages: ['analyzed text sentiment', 'processed chat emotions', 'detected mood shift'],
-          icon: <Chat />,
+          icon: <ChatIcon />,
           color: '#45B7D1',
           emoji: '💬',
         },
         {
           type: 'survey' as const,
-          messages: ['completed burnout assessment', 'submitted wellness check', 'updated health metrics'],
-          icon: <Assignment />,
+          messages: ['submitted wellness check', 'updated health metrics'],
+          icon: <AssignmentIcon />,
           color: '#96CEB4',
           emoji: '📋',
         },
         {
           type: 'achievement' as const,
           messages: ['reached happiness goal!', 'stress levels improved!', 'productivity boost detected!', 'team morale rising!'],
-          icon: <Celebration />,
+          icon: <CelebrationIcon />,
           color: '#FECA57',
           emoji: '🎉',
         },
@@ -243,7 +243,9 @@ const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activit
               zIndex: 2,
             }}
           >
-            <Star sx={{ color: '#FECA57', fontSize: 16 }} />
+            <Box sx={{ color: '#FECA57', fontSize: 16 }}>
+              <StarIcon />
+            </Box>
           </motion.div>
         )}
       </Box>
@@ -294,7 +296,7 @@ export const ActivityPulse: React.FC = () => {
                     mr: 2,
                   }}
                 >
-                  <Notifications />
+                  <NotificationsIcon />
                 </Avatar>
               </Badge>
             </motion.div>
@@ -359,7 +361,7 @@ export const ActivityPulse: React.FC = () => {
             }}
           >
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              <Bolt sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+              <ZapIcon />
               System pulse: {pulseCount} beats
             </Typography>
           </Box>

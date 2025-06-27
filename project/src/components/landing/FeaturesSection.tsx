@@ -1,60 +1,60 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Box, Typography, Container, Grid, Card, CardContent } from '@mui/material';
-import { Videocam, Mic, Chat, Assignment, Psychology, Speed, TrendingUp, Security } from '@mui/icons-material';
+import { VideoCallIcon, MicIcon, ChatIcon, AssignmentIcon, InfoIcon, TrendingUpIcon } from '../../utils/icons';
 
 const features = [
   {
-    icon: <Videocam sx={{ fontSize: 40 }} />,
+    icon: <VideoCallIcon />,
     title: 'Video Emotion Recognition',
     description: 'Advanced computer vision analyzes facial expressions and micro-emotions in real-time',
     color: 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
     delay: 0.1,
   },
   {
-    icon: <Mic sx={{ fontSize: 40 }} />,
+    icon: <MicIcon />,
     title: 'Speech Analysis',
     description: 'AI-powered voice analysis detects emotional patterns and sentiment from speech',
     color: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
     delay: 0.2,
   },
   {
-    icon: <Chat sx={{ fontSize: 40 }} />,
+    icon: <ChatIcon />,
     title: 'Text Intelligence',
     description: 'Natural language processing reveals emotional context and mental state indicators',
     color: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
     delay: 0.3,
   },
   {
-    icon: <Assignment sx={{ fontSize: 40 }} />,
+    icon: <AssignmentIcon />,
     title: 'Burnout Prediction',
     description: 'Comprehensive assessment tools predict workplace stress and burnout risk',
     color: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
     delay: 0.4,
   },
   {
-    icon: <Psychology sx={{ fontSize: 40 }} />,
+    icon: <InfoIcon />,
     title: 'AI-Powered Insights',
     description: 'Machine learning algorithms provide deep psychological and behavioral analysis',
     color: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
     delay: 0.5,
   },
   {
-    icon: <Speed sx={{ fontSize: 40 }} />,
+    icon: <TrendingUpIcon />,
     title: 'Real-time Processing',
     description: 'Lightning-fast analysis with sub-second response times for immediate insights',
     color: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
     delay: 0.6,
   },
   {
-    icon: <TrendingUp sx={{ fontSize: 40 }} />,
+    icon: <TrendingUpIcon />,
     title: 'Trend Analytics',
     description: 'Track emotional patterns over time with comprehensive reporting and visualization',
     color: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
     delay: 0.7,
   },
   {
-    icon: <Security sx={{ fontSize: 40 }} />,
+    icon: <InfoIcon />,
     title: 'Privacy First',
     description: 'Enterprise-grade security with end-to-end encryption and GDPR compliance',
     color: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
@@ -62,7 +62,7 @@ const features = [
   },
 ];
 
-const FeatureCard: React.FC<{ feature: typeof features[0]; index: number }> = ({ feature, index }) => (
+const FeatureCard: React.FC<{ feature: typeof features[0]; index: number }> = ({ feature}) => (
   <motion.div
     initial={{ opacity: 0, y: 50 }}
     whileInView={{ opacity: 1, y: 0 }}

@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { checkApiHealth, HealthCheckResponse } from '../../services/api';
 import { Box, Typography, Chip, CircularProgress, Paper, Alert } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import WarningIcon from '@mui/icons-material/Warning';
+import { CheckCircleIcon, ErrorIcon, WarningIcon } from '../../utils/icons';
 
 interface ServiceStatusProps {
   showDetails?: boolean;

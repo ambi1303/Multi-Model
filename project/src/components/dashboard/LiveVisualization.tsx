@@ -9,9 +9,8 @@ import {
   Chip,
 } from '@mui/material';
 import {
-  EmojiEmotions,
-
-} from '@mui/icons-material';
+  EmojiEmotionsIcon,
+} from '../../utils/icons';
 
 interface EmotionData {
   emotion: string;
@@ -211,7 +210,7 @@ export const LiveVisualization: React.FC = () => {
                   mr: 2,
                 }}
               >
-                <EmojiEmotions />
+                <EmojiEmotionsIcon />
               </Avatar>
             </motion.div>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>

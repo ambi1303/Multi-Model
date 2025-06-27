@@ -12,10 +12,10 @@ import {
   ListItemAvatar,
   ListItemText,
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, HeatMapGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter } from 'recharts';
 import { motion } from 'framer-motion';
 import { ChatAnalyticsData, AnalyticsFilters } from '../../types/analytics';
-import { Psychology, TrendingUp, TrendingDown, Remove } from '@mui/icons-material';
+import { InfoIcon, TrendingUpIcon, TrendingDownIcon, MinusIcon } from '../../utils/icons';
 
 interface ChatAnalyticsDashboardProps {
   data: ChatAnalyticsData;
@@ -25,9 +25,9 @@ interface ChatAnalyticsDashboardProps {
 export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ data, filters }) => {
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
-      case 'positive': return <TrendingUp sx={{ color: 'success.main' }} />;
-      case 'negative': return <TrendingDown sx={{ color: 'error.main' }} />;
-      default: return <Remove sx={{ color: 'warning.main' }} />;
+      case 'positive': return <Box sx={{ color: 'success.main' }}><TrendingUpIcon /></Box>;
+      case 'negative': return <Box sx={{ color: 'error.main' }}><TrendingDownIcon /></Box>;
+      default: return <Box sx={{ color: 'warning.main' }}><MinusIcon /></Box>;
     }
   };
 
@@ -100,7 +100,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                             height: 32,
                           }}
                         >
-                          <Psychology sx={{ fontSize: 16 }} />
+                          <InfoIcon />
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText

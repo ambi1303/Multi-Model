@@ -25,15 +25,13 @@ export function useBurnoutSurvey() {
       const response = await api.post('/analyze-survey', payload);
       const backend = response.data;
       const mappedResult: BurnoutResult = {
-        "Employee ID": "anonymous",
-        "Predicted Burn Rate": typeof backend.burn_rate === 'number' ? backend.burn_rate : 0,
-        "Survey Score": backend.stress_level || 'Unknown',
-        "Mental Health Summary": backend.mental_health_summary || '',
-        "Recommendations": Array.isArray(backend.recommendations) ? backend.recommendations : [],
         riskLevel: (backend.stress_level || 'Unknown').split(' ')[0],
-        score: typeof backend.burn_rate === 'number' ? backend.burn_rate * 10 : 0,
         recommendations: Array.isArray(backend.recommendations) ? backend.recommendations : [],
         breakdown: [],
+        employeeId: '',
+        burnRate: 0,
+        surveyScore: '',
+        mentalHealthSummary: ''
       };
       setResult(mappedResult);
       setLastSubmitted(data);

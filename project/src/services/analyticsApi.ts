@@ -1,4 +1,4 @@
-import api, { apiCall } from './api';
+import api from './api';
 import { AnalyticsData, AnalyticsFilters, ExportData } from '../types/analytics';
 
 // Mock data generator for demonstration
@@ -147,75 +147,6 @@ const generateMockAnalyticsData = (filters: AnalyticsFilters): AnalyticsData => 
         { metric: 'Completion Rate', value: 78, max: 100 },
       ],
     },
-    burnout: {
-      riskTrends: Array.from({ length: Math.min(days, 30) }, (_, i) => ({
-        date: new Date(filters.dateRange.start.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        low: Math.floor(Math.random() * 20) + 40,
-        moderate: Math.floor(Math.random() * 15) + 25,
-        high: Math.floor(Math.random() * 10) + 15,
-        severe: Math.floor(Math.random() * 5) + 5,
-      })),
-      currentRiskDistribution: [
-        { level: 'Low', count: 180 },
-        { level: 'Moderate', count: 95 },
-        { level: 'High', count: 45 },
-        { level: 'Severe', count: 15 },
-      ],
-      factorAnalysis: [
-        { factor: 'Workload', averageScore: 7.2, riskThreshold: 6.0 },
-        { factor: 'Work-Life Balance', averageScore: 5.8, riskThreshold: 6.0 },
-        { factor: 'Job Satisfaction', averageScore: 6.5, riskThreshold: 6.0 },
-        { factor: 'Stress Level', averageScore: 6.8, riskThreshold: 6.0 },
-        { factor: 'Support System', averageScore: 5.2, riskThreshold: 6.0 },
-        { factor: 'Sleep Quality', averageScore: 5.9, riskThreshold: 6.0 },
-      ],
-      departmentComparison: [
-        { department: 'Engineering', averageRisk: 6.8 },
-        { department: 'Sales', averageRisk: 7.2 },
-        { department: 'Marketing', averageRisk: 5.9 },
-        { department: 'HR', averageRisk: 5.4 },
-        { department: 'Finance', averageRisk: 6.1 },
-      ],
-      interventionEffectiveness: Array.from({ length: 12 }, (_, i) => ({
-        week: `Week ${i + 1}`,
-        beforeIntervention: 7.2 - (i * 0.1),
-        afterIntervention: 6.8 - (i * 0.15),
-      })),
-      predictiveIndicators: [
-        { indicator: 'Overtime Hours', importance: 0.85 },
-        { indicator: 'Sleep Quality', importance: 0.72 },
-        { indicator: 'Team Communication', importance: 0.68 },
-        { indicator: 'Workload Distribution', importance: 0.65 },
-        { indicator: 'Manager Support', importance: 0.58 },
-      ],
-      recommendations: [
-        {
-          category: 'Workload Management',
-          description: 'Implement task prioritization and delegation strategies to reduce individual workload pressure.',
-          priority: 'High',
-          expectedImpact: '15-20% reduction in stress levels',
-        },
-        {
-          category: 'Team Communication',
-          description: 'Establish regular check-ins and improve communication channels between team members.',
-          priority: 'Medium',
-          expectedImpact: '10-15% improvement in job satisfaction',
-        },
-        {
-          category: 'Wellness Programs',
-          description: 'Introduce mindfulness sessions and stress management workshops for employees.',
-          priority: 'Medium',
-          expectedImpact: '12-18% improvement in overall well-being',
-        },
-      ],
-      riskAlerts: [
-        {
-          level: 'High',
-          message: 'Engineering department showing elevated burnout risk',
-          count: 12,
-        },
-      ],
-    },
   };
 };
 
@@ -229,7 +160,7 @@ export const analyticsApi = {
     try {
       const response = await api.get('/api/video/analytics');
       realVideoAnalytics = response.data;
-    } catch (e) {
+    } catch (_e) {
       // fallback to mock if real API fails
       realVideoAnalytics = null;
     }
@@ -266,7 +197,12 @@ export const analyticsApi = {
     };
   },
 
-  getRealtimeMetrics: async (): Promise<any> => {
+  getRealtimeMetrics: async (): Promise<{
+    activeSessions: number;
+    processingQueue: number;
+    systemLoad: number;
+    errorRate: number;
+  }> => {
     await new Promise(resolve => setTimeout(resolve, 500));
     
     return {

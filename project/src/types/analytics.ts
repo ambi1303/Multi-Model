@@ -128,55 +128,11 @@ export interface ChatAnalyticsData {
   }>;
 }
 
-export interface BurnoutAnalyticsData {
-  riskTrends: Array<{
-    date: string;
-    low: number;
-    moderate: number;
-    high: number;
-    severe: number;
-  }>;
-  currentRiskDistribution: Array<{
-    level: string;
-    count: number;
-  }>;
-  factorAnalysis: Array<{
-    factor: string;
-    averageScore: number;
-    riskThreshold: number;
-  }>;
-  departmentComparison: Array<{
-    department: string;
-    averageRisk: number;
-  }>;
-  interventionEffectiveness: Array<{
-    week: string;
-    beforeIntervention: number;
-    afterIntervention: number;
-  }>;
-  predictiveIndicators: Array<{
-    indicator: string;
-    importance: number;
-  }>;
-  recommendations: Array<{
-    category: string;
-    description: string;
-    priority: 'High' | 'Medium' | 'Low';
-    expectedImpact: string;
-  }>;
-  riskAlerts: Array<{
-    level: string;
-    message: string;
-    count: number;
-  }>;
-}
-
 export interface AnalyticsData {
   overview: OverviewData;
   video: VideoAnalyticsData;
   speech: SpeechAnalyticsData;
   chat: ChatAnalyticsData;
-  burnout: BurnoutAnalyticsData;
 }
 
 export interface ExportData {

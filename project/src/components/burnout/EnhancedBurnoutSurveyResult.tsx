@@ -30,7 +30,7 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
 } from 'recharts';
-import { Warning, TrendingUp, Assessment, Psychology, CheckCircle, Schedule, SmartToy, Refresh } from '@mui/icons-material';
+import { WarningIcon as Warning, TrendingUpIcon as TrendingUp, AssessmentIcon as Assessment, PsychologyIcon as Psychology, CheckCircleIcon as CheckCircle, ScheduleIcon as Schedule, InfoIcon as SmartToy, RefreshIcon as Refresh } from '../../utils/icons';
 import { useTheme } from '@mui/material/styles';
 
 interface BurnoutResult {

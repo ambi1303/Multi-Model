@@ -1,14 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Box, Typography, Button, Container, Grid } from '@mui/material';
-import { PlayArrow, Explore, TrendingUp } from '@mui/icons-material';
+import { PlayArrowIcon, SearchIcon } from '../../utils/icons';
 
+// Optimized floating element with reduced animation complexity
 const FloatingElement: React.FC<{ children: React.ReactNode; delay?: number }> = ({ children, delay = 0 }) => (
   <motion.div
     initial={{ y: 0 }}
-    animate={{ y: [-10, 10, -10] }}
+    animate={{ y: [-5, 5, -5] }}
     transition={{
-      duration: 4,
+      duration: 6,
       repeat: Infinity,
       ease: "easeInOut",
       delay
@@ -18,13 +19,14 @@ const FloatingElement: React.FC<{ children: React.ReactNode; delay?: number }> =
   </motion.div>
 );
 
+// Optimized gradient orb with delayed animation
 const GradientOrb: React.FC<{ size: number; color: string; top: string; left: string; delay?: number }> = ({ 
-  size, color, top, left, delay = 0 
+  size, color, top, left, delay = 1 
 }) => (
   <motion.div
     initial={{ scale: 0, opacity: 0 }}
-    animate={{ scale: 1, opacity: 0.6 }}
-    transition={{ duration: 1, delay }}
+    animate={{ scale: 1, opacity: 0.4 }}
+    transition={{ duration: 0.8, delay }}
     style={{
       position: 'absolute',
       top,
@@ -32,21 +34,22 @@ const GradientOrb: React.FC<{ size: number; color: string; top: string; left: st
       width: size,
       height: size,
       borderRadius: '50%',
-      backgroundColor: `${color}40`,
-      backgroundImage: `radial-gradient(circle, ${color}40 0%, ${color}10 70%, transparent 100%)`,
-      filter: 'blur(1px)',
+      backgroundColor: `${color}30`,
+      backgroundImage: `radial-gradient(circle, ${color}30 0%, ${color}10 70%, transparent 100%)`,
+      filter: 'blur(2px)',
       zIndex: 0,
+      willChange: 'transform',
     }}
   >
     <motion.div
       animate={{ rotate: 360 }}
-      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+      transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
       style={{
         width: '100%',
         height: '100%',
         borderRadius: '50%',
-        backgroundColor: `${color}60`,
-        backgroundImage: `conic-gradient(from 0deg, ${color}60, transparent, ${color}60)`,
+        backgroundColor: `${color}40`,
+        backgroundImage: `conic-gradient(from 0deg, ${color}40, transparent, ${color}40)`,
       }}
     />
   </motion.div>
@@ -65,27 +68,24 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
         alignItems: 'center',
       }}
     >
-      {/* Animated Background Orbs */}
-      <GradientOrb size={300} color="#3b82f6" top="10%" left="80%" delay={0} />
-      <GradientOrb size={200} color="#8b5cf6" top="60%" left="10%" delay={0.5} />
-      <GradientOrb size={150} color="#06b6d4" top="20%" left="20%" delay={1} />
-      <GradientOrb size={250} color="#10b981" top="70%" left="70%" delay={1.5} />
+      {/* Delayed Background Orbs - don't block LCP */}
+      <GradientOrb size={300} color="#3b82f6" top="10%" left="80%" delay={1.5} />
+      <GradientOrb size={200} color="#8b5cf6" top="60%" left="10%" delay={2} />
+      <GradientOrb size={150} color="#06b6d4" top="20%" left="20%" delay={2.5} />
+      <GradientOrb size={250} color="#10b981" top="70%" left="70%" delay={3} />
 
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
         <Grid container spacing={6} alignItems="center">
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-            >
+            {/* Critical content - no animation delays */}
+            <Box>
               <Typography
                 variant="h1"
+                className="hero-heading"
                 sx={{
                   fontSize: { xs: '2.5rem', md: '4rem', lg: '5rem' },
                   fontWeight: 800,
-                  backgroundColor: '#3b82f6',
-                  backgroundImage: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%)',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -95,71 +95,52 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
               >
                 Emotion
                 <br />
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.8 }}
-                >
-                  Intelligence
-                </motion.span>
+                Intelligence
                 <br />
-                <motion.span
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1, duration: 0.8 }}
-                  style={{
-                    backgroundColor: '#f59e0b',
-                    backgroundImage: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                <Box
+                  component="span"
+                  className="highlight"
+                  sx={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
                     backgroundClip: 'text',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                   }}
                 >
                   Unleashed
-                </motion.span>
+                </Box>
               </Typography>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.2, duration: 0.8 }}
+              <Typography
+                variant="h5"
+                className="hero-subtitle"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  mb: 4,
+                  lineHeight: 1.6,
+                  fontWeight: 300,
+                }}
               >
-                <Typography
-                  variant="h5"
-                  sx={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    mb: 4,
-                    lineHeight: 1.6,
-                    fontWeight: 300,
-                  }}
-                >
-                  Harness the power of AI to decode emotions across video, speech, and text. 
-                  Transform human insights into actionable intelligence.
-                </Typography>
-              </motion.div>
+                Harness the power of AI to decode emotions across video, speech, and text. 
+                Transform human insights into actionable intelligence.
+              </Typography>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.5, duration: 0.8 }}
-                style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}
-              >
+              <Box className="hero-buttons" sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Button
                   variant="contained"
                   size="large"
                   onClick={onGetStarted}
-                  startIcon={<PlayArrow />}
+                  startIcon={<PlayArrowIcon />}
+                  className="btn-primary"
                   sx={{
                     px: 4,
                     py: 2,
                     fontSize: '1.1rem',
                     fontWeight: 600,
-                    backgroundColor: '#3b82f6',
-                    backgroundImage: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                     boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)',
                     '&:hover': {
-                      backgroundColor: '#2563eb',
-                      backgroundImage: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+                      background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
                       boxShadow: '0 15px 40px rgba(59, 130, 246, 0.4)',
                       transform: 'translateY(-2px)',
                     },
@@ -172,7 +153,8 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
                 <Button
                   variant="outlined"
                   size="large"
-                  startIcon={<Explore />}
+                  startIcon={<SearchIcon />}
+                  className="btn-secondary"
                   sx={{
                     px: 4,
                     py: 2,
@@ -190,60 +172,71 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
                 >
                   Explore Features
                 </Button>
-              </motion.div>
-            </motion.div>
+              </Box>
+            </Box>
           </Grid>
 
           <Grid item xs={12} md={6}>
+            {/* Simplified right side content */}
             <Box sx={{ position: 'relative', height: '500px' }}>
-              <FloatingElement delay={0}>
+              <FloatingElement delay={1}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.8, duration: 1 }}
+                  transition={{ delay: 1, duration: 0.8 }}
                   style={{
                     position: 'absolute',
                     top: '10%',
                     left: '20%',
                     width: '200px',
                     height: '120px',
-                    backgroundColor: '#3b82f6',
-                    backgroundImage: 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
-                    borderRadius: '20px',
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)',
+                    borderRadius: '16px',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '20px',
                     display: 'flex',
-                    alignItems: 'center',
+                    flexDirection: 'column',
                     justifyContent: 'center',
-                    boxShadow: '0 20px 40px rgba(59, 130, 246, 0.3)',
+                    alignItems: 'center',
                   }}
                 >
-                  <Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ color: 'white', mb: 1, textAlign: 'center' }}>
                     Video Analysis
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center' }}>
+                    Real-time emotion detection
                   </Typography>
                 </motion.div>
               </FloatingElement>
 
-              <FloatingElement delay={1}>
+              <FloatingElement delay={1.5}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1.2, duration: 1 }}
+                  transition={{ delay: 1.5, duration: 0.8 }}
                   style={{
                     position: 'absolute',
                     top: '40%',
                     right: '10%',
                     width: '180px',
                     height: '100px',
-                    backgroundColor: '#8b5cf6',
-                    backgroundImage: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
-                    borderRadius: '20px',
+                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)',
+                    borderRadius: '16px',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '20px',
                     display: 'flex',
-                    alignItems: 'center',
+                    flexDirection: 'column',
                     justifyContent: 'center',
-                    boxShadow: '0 20px 40px rgba(139, 92, 246, 0.3)',
+                    alignItems: 'center',
                   }}
                 >
-                  <Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
-                    Speech AI
+                  <Typography variant="h6" sx={{ color: 'white', mb: 1, textAlign: 'center' }}>
+                    Speech Analysis
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center' }}>
+                    Voice emotion insights
                   </Typography>
                 </motion.div>
               </FloatingElement>
@@ -252,83 +245,32 @@ export const HeroSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1.6, duration: 1 }}
+                  transition={{ delay: 2, duration: 0.8 }}
                   style={{
                     position: 'absolute',
-                    bottom: '20%',
-                    left: '10%',
+                    bottom: '10%',
+                    left: '30%',
                     width: '160px',
-                    height: '90px',
-                    backgroundColor: '#10b981',
-                    backgroundImage: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    borderRadius: '20px',
+                    height: '80px',
+                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%)',
+                    borderRadius: '16px',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '15px',
                     display: 'flex',
-                    alignItems: 'center',
+                    flexDirection: 'column',
                     justifyContent: 'center',
-                    boxShadow: '0 20px 40px rgba(16, 185, 129, 0.3)',
+                    alignItems: 'center',
                   }}
                 >
-                  <Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
-                    Text Insights
+                  <Typography variant="body1" sx={{ color: 'white', mb: 0.5, textAlign: 'center', fontWeight: 600 }}>
+                    Text Analysis
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center' }}>
+                    Sentiment detection
                   </Typography>
                 </motion.div>
               </FloatingElement>
-
-              {/* Central Connecting Lines */}
-              <motion.div
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ delay: 2, duration: 2 }}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                }}
-              >
-                <svg width="300" height="300" viewBox="0 0 300 300">
-                  <motion.path
-                    d="M150,150 L100,80 M150,150 L220,120 M150,150 L80,220"
-                    stroke="url(#gradient)"
-                    strokeWidth="3"
-                    fill="none"
-                    strokeDasharray="5,5"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ delay: 2, duration: 2 }}
-                  />
-                  <defs>
-                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.6" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </motion.div>
-
-              {/* Central Hub */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 2.5, duration: 0.8 }}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '80px',
-                  height: '80px',
-                  backgroundColor: '#f59e0b',
-                  backgroundImage: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 20px 40px rgba(245, 158, 11, 0.4)',
-                }}
-              >
-                <TrendingUp sx={{ color: 'white', fontSize: 32 }} />
-              </motion.div>
             </Box>
           </Grid>
         </Grid>
