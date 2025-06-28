@@ -44,7 +44,7 @@ import {
   ScaleIcon as Scale,
 } from '../../utils/icons';
 import { Controller } from 'react-hook-form';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { keyframes } from '@emotion/react';
 import { styled, useTheme } from '@mui/material/styles';
 
@@ -664,20 +664,16 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
                   Response Visualization
                 </Typography>
                 <Box sx={{ height: 300, width: '100%' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                      <PolarGrid />
-                      <PolarAngleAxis dataKey="subject" />
-                      <PolarRadiusAxis angle={30} domain={[0, 10]} />
-                      <Radar 
-                        name="Your Score" 
-                        dataKey="value" 
-                        stroke="#8884d8" 
-                        fill="#8884d8" 
-                        fillOpacity={0.6} 
-                      />
-                    </RadarChart>
-                  </ResponsiveContainer>
+                  <SimpleChartFallback
+                    data={radarData.map(item => ({
+                      name: item.subject,
+                      value: item.value,
+                      color: '#8884d8'
+                    }))}
+                    type="radar"
+                    height={300}
+                    title="Your Assessment Scores"
+                  />
                 </Box>
               </Grid>
               <Grid item xs={12} md={6}>
@@ -845,15 +841,17 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
           sx={{ mt: 3 }}
           onClose={() => setShowTips(false)}
         >
-          <Typography variant="body2">
-            <strong>Tips for accurate assessment:</strong>
-            <ul>
-              <li>Answer honestly based on your recent experiences</li>
-              <li>Consider your feelings over the past few weeks</li>
-              <li>Take your time - there's no rush</li>
-              <li>All responses are confidential</li>
-            </ul>
-          </Typography>
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>Tips for accurate assessment:</strong>
+            </Typography>
+            <Box component="ul" sx={{ mt: 0, mb: 0, pl: 2 }}>
+              <Typography component="li" variant="body2">Answer honestly based on your recent experiences</Typography>
+              <Typography component="li" variant="body2">Consider your feelings over the past few weeks</Typography>
+              <Typography component="li" variant="body2">Take your time - there's no rush</Typography>
+              <Typography component="li" variant="body2">All responses are confidential</Typography>
+            </Box>
+          </Box>
         </Alert>
       </Collapse>
     </Box>

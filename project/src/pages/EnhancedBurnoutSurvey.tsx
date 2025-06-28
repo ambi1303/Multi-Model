@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Box, Container, Fade, Typography, LinearProgress, Alert, Chip } from '@mui/material';
+import { Box, Container, Fade, Typography,  Alert } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { CheckCircleIcon, ScheduleIcon, PsychologyIcon } from '../utils/icons';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
 import { BurnoutResult } from '../types';
 import { 
-  analyzeProgressively, 
+  analyzeCombined,
+  analyzeEmployee,
+  analyzeSurveyQuestions,
   EmployeeData, 
   SurveyData, 
-  ProgressiveAnalysisResult,
   EmployeeAnalysisResponse,
   SurveyAnalysisResponse,
   CombinedAnalysisResponse
 } from '../services/api';
 import { EnhancedBurnoutSurveyForm } from '../components/burnout/EnhancedBurnoutSurveyForm';
-import { EnhancedBurnoutSurveyResult } from '../components/burnout/EnhancedBurnoutSurveyResult';
+import EnhancedBurnoutSurveyResult from '../components/burnout/EnhancedBurnoutSurveyResult';
 
 interface FormData {
   designation: number;
@@ -37,81 +37,6 @@ interface FormData {
   q10: number;
   employee_id?: string;
 }
-
-interface ProgressState {
-  mlAnalysis: boolean;
-  surveyAnalysis: boolean;
-  aiInsights: boolean;
-}
-
-const mapProgressiveResultToBurnoutResult = (
-  mlResult?: EmployeeAnalysisResponse,
-  surveyResult?: SurveyAnalysisResponse,
-  combinedResult?: CombinedAnalysisResponse,
-  employeeId?: string
-): BurnoutResult => {
-  // Use ML result as primary burnout rate, fallback to 0
-  const burnRate = mlResult?.burnout_score || 0;
-  
-  // Determine risk level from ML result or survey result
-  let riskLevel: 'Low' | 'Medium' | 'High' = 'Medium';
-  
-  // ML result priority (from /predict endpoint: "Low Stress", "Medium Stress", "High Stress", "Very High Stress")
-  if (mlResult?.burnout_label.includes('Low')) riskLevel = 'Low';
-  else if (mlResult?.burnout_label.includes('High') || mlResult?.burnout_label.includes('Very High')) riskLevel = 'High';
-  else if (mlResult?.burnout_label.includes('Medium')) riskLevel = 'Medium';
-  // Survey result fallback (new format: "Low", "Medium", "High")
-  else if (surveyResult?.risk_level === 'Low') riskLevel = 'Low';
-  else if (surveyResult?.risk_level === 'High') riskLevel = 'High';
-  else if (surveyResult?.risk_level === 'Medium') riskLevel = 'Medium';
-
-  return {
-    employeeId: employeeId || mlResult?.employee_id || `emp_${Date.now()}`,
-    burnRate: burnRate,
-    surveyScore: surveyResult?.risk_level || 'Analysis in progress',
-    mentalHealthSummary: combinedResult?.mental_health_summary || 
-      'Comprehensive analysis combining ML model prediction and survey responses to provide personalized insights.',
-    recommendations: combinedResult?.recommendations || [
-      'Take regular breaks throughout your workday',
-      'Practice mindfulness and stress-reduction techniques',
-      'Maintain a healthy work-life balance',
-      'Communicate openly with your team and manager'
-    ],
-    riskLevel: riskLevel,
-    breakdown: [
-      { 
-        category: "ML Burnout Prediction", 
-        score: burnRate / 10, 
-        description: mlResult ? `${mlResult.burnout_label} (${mlResult.prediction_confidence} confidence)` : "Analysis pending"
-      },
-      { 
-        category: "Survey Risk Assessment", 
-        score: surveyResult?.risk_level === 'Low' ? 3 : surveyResult?.risk_level === 'High' ? 8 : 5, 
-        description: surveyResult ? `${surveyResult.risk_level} risk based on ${surveyResult.total_questions} questions` : "Analysis pending"
-      },
-      { 
-        category: "AI Insights", 
-        score: combinedResult ? 8 : 0, 
-        description: combinedResult ? `Powered by ${combinedResult.source}` : "Analysis pending"
-      },
-      { 
-        category: "Work-Life Balance", 
-        score: Math.random() * 10, 
-        description: "Balance between work and personal life"
-      },
-      { 
-        category: "Team Support", 
-        score: Math.random() * 10, 
-        description: "Support received from colleagues"
-      },
-      { 
-        category: "Workload Management", 
-        score: Math.random() * 10, 
-        description: "Ability to manage current workload"
-      }
-    ]
-  };
-};
 
 const createEmployeeData = (data: FormData): EmployeeData => ({
   designation: Number(data.designation),
@@ -136,14 +61,8 @@ const createSurveyData = (data: FormData): SurveyData => ({
 });
 
 export const EnhancedBurnoutSurvey: React.FC = () => {
-  const [result, setResult] = useState<BurnoutResult | null>(null);
+  const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<ProgressState>({
-    mlAnalysis: false,
-    surveyAnalysis: false,
-    aiInsights: false
-  });
-  const [currentStep, setCurrentStep] = useState<string>('');
   const { showSuccess, showError } = useNotification();
   const { addAnalysisResult } = useAppStore();
   const theme = useTheme();
@@ -161,12 +80,8 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
     mode: 'onChange',
   });
 
-  // Store progressive results
-  const [progressiveResults, setProgressiveResults] = useState<ProgressiveAnalysisResult>({});
-
   const onSubmit = async (data: FormData) => {
     setLoading(true);
-    setProgress({ mlAnalysis: false, surveyAnalysis: false, aiInsights: false });
     setResult(null);
     
     try {
@@ -174,96 +89,108 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
       const surveyData = createSurveyData(data);
       const employeeId = data.employee_id || `emp_${Date.now()}`;
 
-      console.log('Starting progressive analysis...');
+      // Step 1: Call ML Model API for burnout prediction
+      console.log('Step 1: Calling ML Model API...');
+      const mlResult: EmployeeAnalysisResponse = await analyzeEmployee(employeeData, employeeId);
       
-      const finalResults = await analyzeProgressively(
-        employeeData,
-        surveyData,
-        employeeId,
-        (progressResults: ProgressiveAnalysisResult) => {
-          // Update progress state
-          setProgress({
-            mlAnalysis: !!progressResults.mlResult,
-            surveyAnalysis: !!progressResults.surveyResult,
-            aiInsights: !!progressResults.combinedResult
-          });
+      // Step 2: Call Likert Survey API for risk assessment
+      console.log('Step 2: Calling Survey API...');
+      const surveyResult: SurveyAnalysisResponse = await analyzeSurveyQuestions(surveyData);
+      
+      // Step 3: Call Combined Analysis API for Gemini insights
+      console.log('Step 3: Calling Combined Analysis API...');
+      const combinedResult: CombinedAnalysisResponse = await analyzeCombined(employeeData, surveyData, employeeId);
 
-          // Update current step
-          if (progressResults.combinedResult) {
-            setCurrentStep('AI insights generated - Analysis complete!');
-          } else if (progressResults.surveyResult) {
-            setCurrentStep('Generating AI insights...');
-          } else if (progressResults.mlResult) {
-            setCurrentStep('Analyzing survey responses...');
-          } else {
-            setCurrentStep('Running ML model analysis...');
+      // Map all results to CombinedAnalysisResponse format for component
+      const inferredRisk: 'Low' | 'Medium' | 'High' = (() => {
+        // Priority: ML result first, then survey result, then Gemini summary
+        if (mlResult.burnout_label.includes('Low')) return 'Low';
+        if (mlResult.burnout_label.includes('High') || mlResult.burnout_label.includes('Very High')) return 'High';
+        if (mlResult.burnout_label.includes('Medium')) return 'Medium';
+        if (surveyResult.risk_level === 'Low') return 'Low';
+        if (surveyResult.risk_level === 'High') return 'High';
+        if (surveyResult.risk_level === 'Medium') return 'Medium';
+        
+        // Fallback: infer from Gemini summary
+        const summary = combinedResult.mental_health_summary?.toLowerCase() || '';
+        if (summary.includes('high')) return 'High';
+        if (summary.includes('low')) return 'Low';
+        return 'Medium';
+      })();
+
+      // Create a proper CombinedAnalysisResponse with additional properties for the component
+      const finalResult = {
+        ...combinedResult,
+        burnoutScore: mlResult.burnout_score / 100, // Normalize to 0-1 range
+        riskLevel: inferredRisk,
+        employeeData: {
+          ...employeeData,
+          designation_encoded: employeeData.designation,
+          gender_encoded: employeeData.gender === 'Male' ? 1 : 0,
+          company_type_encoded: employeeData.company_type === 'Service' ? 1 : 0,
+          wfh_setup_available_encoded: employeeData.wfh_setup_available === 'Yes' ? 1 : 0,
+          mental_fatigue_score: employeeData.mental_fatigue_score,
+          resource_allocation: employeeData.resource_allocation,
+        },
+        surveyResults: {
+          stress_level: surveyData.q2, // "I frequently feel anxious or stressed because of my work"
+          job_satisfaction: surveyData.q4, // "I feel motivated and excited about my work"
+          work_life_balance: surveyData.q10, // "I feel my personal time and work–life balance are respected"
+          emotional_exhaustion: surveyData.q3, // "I feel emotionally exhausted at the end of my workday"
+        },
+        mlResult,
+        surveyResult,
+        breakdown: [
+          { 
+            category: "ML Burnout Prediction", 
+            score: mlResult.burnout_score / 10, 
+            description: `${mlResult.burnout_label} (${mlResult.prediction_confidence} confidence)`
+          },
+          { 
+            category: "Survey Risk Assessment", 
+            score: surveyResult.risk_level === 'Low' ? 3 : surveyResult.risk_level === 'High' ? 8 : 5, 
+            description: `${surveyResult.risk_level} risk based on ${surveyResult.total_questions} questions`
+          },
+          { 
+            category: "AI Insights", 
+            score: 8, 
+            description: `Powered by ${combinedResult.source}`
           }
-
-          // Store progressive results
-          setProgressiveResults(progressResults);
-
-          // Create partial result and update immediately
-          const partialResult = mapProgressiveResultToBurnoutResult(
-            progressResults.mlResult,
-            progressResults.surveyResult,
-            progressResults.combinedResult,
-            employeeId
-          );
-          setResult(partialResult);
-        }
-      );
-
-      // Final result with all data
-      const finalResult = mapProgressiveResultToBurnoutResult(
-        finalResults.mlResult,
-        finalResults.surveyResult,
-        finalResults.combinedResult,
-        employeeId
-      );
+        ]
+      };
 
       setResult(finalResult);
-      addAnalysisResult('enhanced-survey', finalResult);
-      showSuccess('Progressive analysis completed successfully! All insights are now available.');
-      
+      // Store the result in the app store (convert to BurnoutResult format for compatibility)
+      const burnoutResult: BurnoutResult = {
+        employeeId: employeeId,
+        burnRate: mlResult.burnout_score,
+        surveyScore: surveyResult.risk_level,
+        mentalHealthSummary: combinedResult.mental_health_summary,
+        recommendations: combinedResult.recommendations,
+        riskLevel: inferredRisk,
+        breakdown: finalResult.breakdown
+      };
+      addAnalysisResult('enhanced-survey', burnoutResult);
+      showSuccess('Analysis completed successfully! All insights are now available.');
     } catch (err: any) {
-      console.error('Progressive analysis error:', err);
+      console.error('Analysis error:', err);
       showError(`Analysis failed: ${err.message || 'Please check your connection and try again.'}`);
-      
-      // If we have partial results, still show them
-      if (progressiveResults.mlResult || progressiveResults.surveyResult) {
-        const partialResult = mapProgressiveResultToBurnoutResult(
-          progressiveResults.mlResult,
-          progressiveResults.surveyResult,
-          undefined,
-          data.employee_id
-        );
-        setResult(partialResult);
-        showSuccess('Partial analysis available. Some features may be limited.');
-      }
     } finally {
       setLoading(false);
-      setCurrentStep('');
     }
   };
 
   const handleRetake = () => {
     setResult(null);
-    setProgress({ mlAnalysis: false, surveyAnalysis: false, aiInsights: false });
-    setProgressiveResults({});
-    setCurrentStep('');
     formMethods.reset();
     showSuccess('Survey reset successfully. You can now retake the assessment.');
-  };
-
-  const getProgressPercentage = () => {
-    const completed = Object.values(progress).filter(Boolean).length;
-    return (completed / 3) * 100;
   };
 
   return (
     <Container maxWidth={false} sx={{ 
       py: 4, 
-      minHeight: '100vh', 
+      pb: 8, // Extra bottom padding to ensure space for footer
+      minHeight: 'auto', // Remove fixed height constraint
       background: theme.palette.mode === 'dark'
         ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
         : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
@@ -282,58 +209,6 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
           : '1px solid rgba(255, 255, 255, 0.2)',
         overflow: 'hidden'
       }}>
-        {/* Progress Indicator */}
-        {loading && (
-          <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PsychologyIcon sx={{ color: 'primary.main' }} />
-              Progressive Analysis in Progress
-            </Typography>
-            
-            <LinearProgress 
-              variant="determinate" 
-              value={getProgressPercentage()} 
-              sx={{ 
-                mb: 2, 
-                height: 8, 
-                borderRadius: 4,
-                backgroundColor: theme.palette.action.hover,
-                '& .MuiLinearProgress-bar': {
-                  background: 'linear-gradient(90deg, #4caf50 0%, #2196f3 50%, #ff9800 100%)',
-                  borderRadius: 4,
-                }
-              }} 
-            />
-            
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-              <Chip
-                icon={progress.mlAnalysis ? <CheckCircleIcon /> : <ScheduleIcon />}
-                label="ML Model Analysis"
-                color={progress.mlAnalysis ? "success" : "default"}
-                variant={progress.mlAnalysis ? "filled" : "outlined"}
-              />
-              <Chip
-                icon={progress.surveyAnalysis ? <CheckCircleIcon /> : <ScheduleIcon />}
-                label="Survey Assessment"
-                color={progress.surveyAnalysis ? "success" : "default"}
-                variant={progress.surveyAnalysis ? "filled" : "outlined"}
-              />
-              <Chip
-                icon={progress.aiInsights ? <CheckCircleIcon /> : <ScheduleIcon />}
-                label="AI Insights"
-                color={progress.aiInsights ? "success" : "default"}
-                variant={progress.aiInsights ? "filled" : "outlined"}
-              />
-            </Box>
-            
-            {currentStep && (
-              <Typography variant="body2" color="text.secondary">
-                {currentStep}
-              </Typography>
-            )}
-          </Box>
-        )}
-
         {!result ? (
           <Fade in timeout={500}>
             <Box>
@@ -359,7 +234,7 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
               
               <EnhancedBurnoutSurveyResult
                 result={result}
-                onRetake={handleRetake}
+                onRetakeAssessment={handleRetake}
               />
             </Box>
           </Fade>

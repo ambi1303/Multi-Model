@@ -285,7 +285,9 @@ export const Analytics: React.FC = () => {
         <Alert severity="error" sx={{ mb: 4 }}>
           <Typography>{error}</Typography>
           <Button onClick={fetchAnalyticsData} sx={{ mt: 1 }}>
-            <RefreshIcon sx={{ mr: 1 }} />
+            <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
+              <RefreshIcon />
+            </Box>
             Retry
           </Button>
         </Alert>

@@ -1,95 +1,25 @@
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { SkeletonLoader } from '../common/OptimizedLoadingSpinner';
+import { Box, CircularProgress } from '@mui/material';
+import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 
-// Lazy load chart components to reduce initial bundle size
-const LineChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.LineChart }))
-);
+interface LazyChartProps {
+  type: 'line' | 'bar' | 'pie' | 'doughnut';
+  data: any;
+  options?: any;
+  height?: number;
+}
 
-const BarChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.BarChart }))
-);
-
-const AreaChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.AreaChart }))
-);
-
-const PieChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.PieChart }))
-);
-
-const ScatterChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.ScatterChart }))
-);
-
-const RadarChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.RadarChart }))
-);
-
-const ComposedChart = lazy(() => 
-  import('recharts').then(module => ({ default: module.ComposedChart }))
-);
-
-// Other chart components
-const Line = lazy(() => 
-  import('recharts').then(module => ({ default: module.Line }))
-);
-
-const Bar = lazy(() => 
-  import('recharts').then(module => ({ default: module.Bar }))
-);
-
-const Area = lazy(() => 
-  import('recharts').then(module => ({ default: module.Area }))
-);
-
-const Pie = lazy(() => 
-  import('recharts').then(module => ({ default: module.Pie }))
-);
-
-const Scatter = lazy(() => 
-  import('recharts').then(module => ({ default: module.Scatter }))
-);
-
-const Radar = lazy(() => 
-  import('recharts').then(module => ({ default: module.Radar }))
-);
-
-const Cell = lazy(() => 
-  import('recharts').then(module => ({ default: module.Cell }))
-);
-
-// Chart utility components
-const XAxis = lazy(() => 
-  import('recharts').then(module => ({ default: module.XAxis }))
-);
-
-const YAxis = lazy(() => 
-  import('recharts').then(module => ({ default: module.YAxis }))
-);
-
-const CartesianGrid = lazy(() => 
-  import('recharts').then(module => ({ default: module.CartesianGrid }))
-);
-
-const Tooltip = lazy(() => 
-  import('recharts').then(module => ({ default: module.Tooltip }))
-);
-
-const ResponsiveContainer = lazy(() => 
-  import('recharts').then(module => ({ default: module.ResponsiveContainer }))
-);
-
-const PolarGrid = lazy(() => 
-  import('recharts').then(module => ({ default: module.PolarGrid }))
-);
-
-const PolarAngleAxis = lazy(() => 
-  import('recharts').then(module => ({ default: module.PolarAngleAxis }))
-);
-
-const PolarRadiusAxis = lazy(() => 
-  import('recharts').then(module => ({ default: module.PolarRadiusAxis }))
+const ChartLoadingFallback: React.FC = () => (
+  <Box 
+    display="flex" 
+    justifyContent="center" 
+    alignItems="center" 
+    height={300}
+    sx={{ backgroundColor: 'background.paper' }}
+  >
+    <CircularProgress size={40} />
+  </Box>
 );
 
 // Wrapper components with suspense and loading
@@ -111,136 +41,116 @@ const ChartWrapper: React.FC<ChartWrapperProps> = ({ children, height = 300 }) =
   </Suspense>
 );
 
-// Export wrapped components
+// Simplified chart components using fallback
 export const LazyLineChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <LineChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="line"
+    height={props.height}
+    title={props.title}
+  />
 );
 
 export const LazyBarChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <BarChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="bar"
+    height={props.height}
+    title={props.title}
+  />
 );
 
 export const LazyAreaChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <AreaChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="bar"
+    height={props.height}
+    title={props.title}
+  />
 );
 
 export const LazyPieChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <PieChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="pie"
+    height={props.height}
+    title={props.title}
+  />
 );
 
 export const LazyScatterChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <ScatterChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="bar"
+    height={props.height}
+    title={props.title}
+  />
 );
 
 export const LazyRadarChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <RadarChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="bar"
+    height={props.height}
+    title={props.title}
+  />
 );
 
 export const LazyComposedChart: React.FC<any> = (props) => (
-  <ChartWrapper height={props.height}>
-    <ComposedChart {...props} />
-  </ChartWrapper>
+  <SimpleChartFallback
+    data={props.data || []}
+    type="bar"
+    height={props.height}
+    title={props.title}
+  />
 );
 
-// Export other components with suspense
-export const LazyLine: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Line {...props} />
-  </Suspense>
-);
+// Export other components as simple divs to maintain compatibility
+export const LazyLine: React.FC<any> = () => <div />;
+export const LazyBar: React.FC<any> = () => <div />;
+export const LazyArea: React.FC<any> = () => <div />;
+export const LazyPie: React.FC<any> = () => <div />;
+export const LazyScatter: React.FC<any> = () => <div />;
+export const LazyRadar: React.FC<any> = () => <div />;
+export const LazyCell: React.FC<any> = () => <div />;
+export const LazyXAxis: React.FC<any> = () => <div />;
+export const LazyYAxis: React.FC<any> = () => <div />;
+export const LazyCartesianGrid: React.FC<any> = () => <div />;
+export const LazyTooltip: React.FC<any> = () => <div />;
+export const LazyResponsiveContainer: React.FC<any> = ({ children }: any) => <div>{children}</div>;
+export const LazyPolarGrid: React.FC<any> = () => <div />;
+export const LazyPolarAngleAxis: React.FC<any> = () => <div />;
+export const LazyPolarRadiusAxis: React.FC<any> = () => <div />;
 
-export const LazyBar: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Bar {...props} />
-  </Suspense>
-);
+export const LazyChartComponent: React.FC<LazyChartProps> = (props) => {
+  const { type, data, options, height = 300 } = props;
 
-export const LazyArea: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Area {...props} />
-  </Suspense>
-);
+  // Use simple fallback to avoid lodash dependency issues
+  const chartData = Array.isArray(data) ? data : data?.datasets?.[0]?.data || [];
+  const formattedData = chartData.map((item: any, index: number) => ({
+    name: item.name || item.label || `Item ${index + 1}`,
+    value: typeof item === 'number' ? item : item.value || item.y || 0,
+    color: item.color || `hsl(${index * 60}, 70%, 50%)`,
+  }));
 
-export const LazyPie: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Pie {...props} />
-  </Suspense>
-);
+  return (
+    <SimpleChartFallback
+      data={formattedData}
+      type={type === 'doughnut' ? 'pie' : type}
+      height={height}
+    />
+  );
+};
 
-export const LazyScatter: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Scatter {...props} />
-  </Suspense>
-);
+// Create a separate chart wrapper component
+const ChartWrapperComponent = React.memo(({ type, data, options, height = 300 }: LazyChartProps) => {
+  return (
+    <SimpleChartFallback
+      data={data || []}
+      type={type}
+      height={height}
+    />
+  );
+});
 
-export const LazyRadar: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Radar {...props} />
-  </Suspense>
-);
-
-export const LazyCell: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Cell {...props} />
-  </Suspense>
-);
-
-export const LazyXAxis: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <XAxis {...props} />
-  </Suspense>
-);
-
-export const LazyYAxis: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <YAxis {...props} />
-  </Suspense>
-);
-
-export const LazyCartesianGrid: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <CartesianGrid {...props} />
-  </Suspense>
-);
-
-export const LazyTooltip: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <Tooltip {...props} />
-  </Suspense>
-);
-
-export const LazyResponsiveContainer: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <ResponsiveContainer {...props} />
-  </Suspense>
-);
-
-export const LazyPolarGrid: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <PolarGrid {...props} />
-  </Suspense>
-);
-
-export const LazyPolarAngleAxis: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <PolarAngleAxis {...props} />
-  </Suspense>
-);
-
-export const LazyPolarRadiusAxis: React.FC<any> = (props) => (
-  <Suspense fallback={null}>
-    <PolarRadiusAxis {...props} />
-  </Suspense>
-); 
+export default ChartWrapperComponent; 

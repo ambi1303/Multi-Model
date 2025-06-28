@@ -40,14 +40,14 @@ import {
 import MentalStatesChart from '../components/charts/MentalStatesChart';
 import SentimentTrendChart from '../components/charts/SentimentTrendChart';
 import {
-  MessageOutlinedIcon,
+  ChatIcon,
   AnalyticsIcon,
   CloudUploadIcon,
   DeleteIcon,
   SendIcon,
   AddIcon,
   PlayArrowIcon,
-  DescriptionIcon,
+  AssignmentIcon,
   TextSnippetIcon,
   AutoAwesomeIcon,
   RefreshIcon,
@@ -526,7 +526,7 @@ export const ChatAnalysis: React.FC = () => {
           <Tab
             label="Single Message"
             value="simple"
-            icon={<MessageOutlinedIcon />}
+                            icon={<ChatIcon />}
             iconPosition="start"
           />
           <Tab
@@ -542,7 +542,7 @@ export const ChatAnalysis: React.FC = () => {
       {tab === 'simple' && (
         <Paper sx={{ p: 4, mb: 3, borderRadius: '20px', boxShadow: 4 }}>
           <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <MessageOutlinedIcon />
+                            <ChatIcon />
             Single Message Analysis
           </Typography>
 
@@ -764,7 +764,7 @@ export const ChatAnalysis: React.FC = () => {
                     mb: 2 
                   }}>
                     <Box sx={{ fontSize: 30 }}>
-                      <DescriptionIcon />
+                      <AssignmentIcon />
                     </Box>
                   </Avatar>
                   <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>

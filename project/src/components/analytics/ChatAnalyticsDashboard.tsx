@@ -12,10 +12,10 @@ import {
   ListItemAvatar,
   ListItemText,
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter } from 'recharts';
+import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
 import { ChatAnalyticsData, AnalyticsFilters } from '../../types/analytics';
-import { InfoIcon, TrendingUpIcon, TrendingDownIcon, MinusIcon } from '../../utils/icons';
+import { InfoIcon, TrendingUpIcon, TrendingDownIcon, RemoveIcon } from '../../utils/icons';
 
 interface ChatAnalyticsDashboardProps {
   data: ChatAnalyticsData;
@@ -27,7 +27,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
     switch (sentiment) {
       case 'positive': return <Box sx={{ color: 'success.main' }}><TrendingUpIcon /></Box>;
       case 'negative': return <Box sx={{ color: 'error.main' }}><TrendingDownIcon /></Box>;
-      default: return <Box sx={{ color: 'warning.main' }}><MinusIcon /></Box>;
+      default: return <Box sx={{ color: 'warning.main' }}><RemoveIcon /></Box>;
     }
   };
 
@@ -54,24 +54,16 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Message Volume and Sentiment Trends
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={data.messageVolumeTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip />
-                    <Bar yAxisId="left" dataKey="messageCount" fill="#e5e7eb" />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="averageSentiment"
-                      stroke="#2563eb"
-                      strokeWidth={3}
-                      dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.messageVolumeTrends?.map(item => ({
+                    name: item.date,
+                    value: item.messageCount,
+                    color: '#2563eb'
+                  })) || []}
+                  type="line"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -158,15 +150,16 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Response Time Distribution
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={data.responseTimeAnalysis}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timeRange" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#7c3aed" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.responseTimeAnalysis?.map(item => ({
+                    name: item.timeRange,
+                    value: item.count,
+                    color: '#7c3aed'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -184,15 +177,16 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Conversation Length vs Sentiment
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ScatterChart data={data.conversationLengthAnalysis}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="messageCount" name="Message Count" />
-                    <YAxis dataKey="averageSentiment" name="Average Sentiment" />
-                    <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                    <Scatter name="Conversations" data={data.conversationLengthAnalysis} fill="#059669" />
-                  </ScatterChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.conversationLengthAnalysis?.map(item => ({
+                    name: `${item.messageCount} msgs`,
+                    value: item.averageSentiment,
+                    color: '#059669'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>

@@ -6,16 +6,13 @@ import {
   Card,
   CardContent,
   Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
+  List,
+  ListItem,
+  ListItemText,
+  Avatar,
   Alert,
 } from '@mui/material';
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
 import { VideoAnalyticsData, AnalyticsFilters } from '../../types/analytics';
 
@@ -24,12 +21,25 @@ interface VideoAnalyticsDashboardProps {
   filters: AnalyticsFilters;
 }
 
-const STATIC_FEATURE_IMPORTANCE = [];
-
 export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = ({ data, filters }) => {
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'success';
+    if (confidence >= 0.6) return 'warning';
+    return 'error';
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed': return 'success';
+      case 'processing': return 'info';
+      case 'failed': return 'error';
+      default: return 'default';
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
-      <Grid container spacing={4}>
+      <Grid container spacing={3}>
         {/* Confidence Distribution */}
         <Grid item xs={12} lg={6}>
           <motion.div
@@ -42,27 +52,16 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Confidence Score Distribution
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={data.confidenceDistribution}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="range" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#2563eb"
-                      fill="url(#confidenceGradient)"
-                      strokeWidth={2}
-                    />
-                    <defs>
-                      <linearGradient id="confidenceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                  </AreaChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.confidenceDistribution?.map(item => ({
+                    name: item.range,
+                    value: item.count,
+                    color: '#2563eb'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -80,22 +79,16 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Emotion Detection Accuracy
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={data.emotionAccuracy}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="emotion" />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                    <Radar
-                      name="Accuracy"
-                      dataKey="accuracy"
-                      stroke="#7c3aed"
-                      fill="#7c3aed"
-                      fillOpacity={0.3}
-                      strokeWidth={2}
-                    />
-                    <Tooltip />
-                  </RadarChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.emotionAccuracy?.map(item => ({
+                    name: item.emotion,
+                    value: item.accuracy,
+                    color: '#059669'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -113,15 +106,16 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Processing Time vs Confidence
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ScatterChart data={data.processingTimeAnalysis}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="processingTime" name="Processing Time (ms)" />
-                    <YAxis dataKey="confidence" name="Confidence" />
-                    <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                    <Scatter name="Sessions" data={data.processingTimeAnalysis} fill="#059669" />
-                  </ScatterChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.processingTimeAnalysis?.map((item, index) => ({
+                    name: `${item.processingTime}ms`,
+                    value: item.confidence,
+                    color: '#7c3aed'
+                  })) || []}
+                  type="line"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -139,56 +133,32 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Feature Importance
                 </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {(data.featureImportance && data.featureImportance.length > 0
-                    ? data.featureImportance
-                    : STATIC_FEATURE_IMPORTANCE
-                  ).map((feature, index) => (
-                    <Box key={feature.feature}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {feature.feature}
-                        </Typography>
-                        <Chip
-                          label={`${(feature.importance * 100).toFixed(1)}%`}
-                          size="small"
-                          color={index < 3 ? 'primary' : 'default'}
-                        />
-                      </Box>
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: 6,
-                          backgroundColor: 'grey.200',
-                          borderRadius: 3,
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            width: `${feature.importance * 100}%`,
-                            height: '100%',
-                            background: index < 3 
-                              ? 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)'
-                              : 'linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)',
-                            transition: 'width 0.3s ease-in-out',
-                          }}
-                        />
-                      </Box>
-                    </Box>
+                <List>
+                  {data.featureImportance.map((feature, index) => (
+                    <ListItem key={feature.feature} sx={{ px: 0 }}>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body1">
+                              {feature.feature}
+                            </Typography>
+                            <Chip
+                              label={`${(feature.importance * 100).toFixed(1)}%`}
+                              size="small"
+                              color={feature.importance > 0.8 ? 'primary' : 'default'}
+                            />
+                          </Box>
+                        }
+                      />
+                    </ListItem>
                   ))}
-                </Box>
-                {(!data.featureImportance || data.featureImportance.length === 0) && (
-                  <Alert severity="info" sx={{ mt: 2 }}>
-                    Upcoming Feature: Real feature importance will be shown here soon!
-                  </Alert>
-                )}
+                </List>
               </CardContent>
             </Card>
           </motion.div>
         </Grid>
 
-        {/* Session Details Table */}
+        {/* Recent Sessions */}
         <Grid item xs={12}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -200,72 +170,58 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Recent Video Analysis Sessions
                 </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Session ID</TableCell>
-                        <TableCell>Timestamp</TableCell>
-                        <TableCell>Dominant Emotion</TableCell>
-                        <TableCell>Confidence</TableCell>
-                        <TableCell>Processing Time</TableCell>
-                        <TableCell>Status</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {data.recentSessions.map((session) => (
-                        <TableRow key={session.id} hover>
-                          <TableCell sx={{ fontFamily: 'monospace' }}>
-                            {session.id.slice(0, 8)}...
-                          </TableCell>
-                          <TableCell>
-                            {new Date(session.timestamp).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={session.dominantEmotion}
-                              size="small"
-                              sx={{ textTransform: 'capitalize' }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body2">
-                                {(session.confidence * 100).toFixed(1)}%
+                <Grid container spacing={2}>
+                  {data.recentSessions.map((session) => (
+                    <Grid item xs={12} sm={6} md={4} key={session.id}>
+                      <Card variant="outlined">
+                        <CardContent sx={{ p: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32, mr: 2 }}>
+                              {session.dominantEmotion.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                Session {session.id.slice(-6)}
                               </Typography>
-                              <Box
-                                sx={{
-                                  width: 40,
-                                  height: 4,
-                                  backgroundColor: 'grey.200',
-                                  borderRadius: 2,
-                                  overflow: 'hidden',
-                                }}
-                              >
-                                <Box
-                                  sx={{
-                                    width: `${session.confidence * 100}%`,
-                                    height: '100%',
-                                    backgroundColor: session.confidence > 0.8 ? 'success.main' : 
-                                                   session.confidence > 0.6 ? 'warning.main' : 'error.main',
-                                  }}
-                                />
-                              </Box>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(session.timestamp).toLocaleDateString()}
+                              </Typography>
                             </Box>
-                          </TableCell>
-                          <TableCell>{session.processingTime}ms</TableCell>
-                          <TableCell>
+                          </Box>
+                          
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              Dominant Emotion: <strong>{session.dominantEmotion}</strong>
+                            </Typography>
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              Processing Time: {session.processingTime}ms
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Chip
+                              label={`${(session.confidence * 100).toFixed(1)}% confidence`}
+                              size="small"
+                              color={getConfidenceColor(session.confidence) as any}
+                            />
                             <Chip
                               label={session.status}
                               size="small"
-                              color={session.status === 'completed' ? 'success' : 'default'}
+                              color={getStatusColor(session.status) as any}
+                              variant="outlined"
                             />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+                
+                {data.recentSessions.length === 0 && (
+                  <Alert severity="info">
+                    No recent video analysis sessions found.
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           </motion.div>

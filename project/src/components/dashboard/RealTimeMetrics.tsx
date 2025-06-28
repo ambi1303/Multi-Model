@@ -13,7 +13,7 @@ import {
 import { 
   TrendingUpIcon, 
   TrendingDownIcon, 
-  MinusIcon, 
+  RemoveIcon, 
   ZapIcon, 
   InfoIcon, 
   HeartIcon, 
@@ -127,7 +127,7 @@ const MetricCard: React.FC<{ metric: MetricData; index: number }> = ({ metric, i
     switch (metric.trend) {
       case 'up': return <TrendingUpIcon />;
       case 'down': return <TrendingDownIcon />;
-      default: return <MinusIcon />;
+      default: return <RemoveIcon />;
     }
   };
 

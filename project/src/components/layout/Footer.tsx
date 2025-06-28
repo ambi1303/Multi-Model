@@ -9,7 +9,7 @@ import {
   Button,
   useTheme,
 } from '@mui/material';
-import { GitHub, TwitterIcon, LinkedInIcon, EmailIcon } from '../../utils/icons';
+import { GitHub, TwitterIcon, LinkedInIcon } from '../../utils/icons';
 
 export const Footer: React.FC = () => {
   const theme = useTheme();
@@ -69,7 +69,7 @@ export const Footer: React.FC = () => {
               gap: 1,
               alignItems: 'center',
             }}>
-              <IconButton href="#" color="inherit" aria-label="GitHub" size="small">
+              <IconButton href="https://github.com/ambi1303/multi-model" color="inherit" aria-label="GitHub" size="small">
                 <GitHub />
               </IconButton>
               <IconButton href="#" color="inherit" aria-label="Twitter" size="small">
@@ -224,7 +224,7 @@ export const Footer: React.FC = () => {
         gap: 1,
       }}>
         <Typography variant="body2" color="text.secondary">
-          © 2024 EmotiAnalyze. All rights reserved.
+          © 2025 EmotiAnalyze. All rights reserved.
         </Typography>
         <Box sx={{ 
           display: 'flex', 

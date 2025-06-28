@@ -15,7 +15,22 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth-token');
+    // Try to get token from cookies first, fallback to localStorage for migration
+    let token = null;
+    
+    // Import cookie manager dynamically to avoid SSR issues
+    try {
+      const { EmotiAnalyzeCookies } = require('../utils/cookies');
+      token = EmotiAnalyzeCookies.getAuth()?.token;
+    } catch (error) {
+      console.warn('Cookie manager not available, falling back to localStorage');
+    }
+    
+    // Fallback to localStorage if no cookie token found
+    if (!token) {
+      token = localStorage.getItem('auth-token');
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,6 +45,13 @@ api.interceptors.response.use(
   (error) => {
     // Authentication errors
     if (error.response?.status === 401) {
+      // Clear both cookies and localStorage for migration compatibility
+      try {
+        const { EmotiAnalyzeCookies } = require('../utils/cookies');
+        EmotiAnalyzeCookies.clearAuth();
+      } catch (error) {
+        console.warn('Cookie manager not available during auth clear');
+      }
       localStorage.removeItem('auth-token');
       window.location.href = '/login';
     }

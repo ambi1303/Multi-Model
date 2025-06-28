@@ -1,22 +1,20 @@
 import React from 'react';
 import {
-  Box,
-  Typography,
   Grid,
+  Typography,
+  Box,
   Card,
   CardContent,
-  Chip,
-  LinearProgress,
+  Avatar,
 } from '@mui/material';
 import {
   TrendingUpIcon,
   TrendingDownIcon,
   PeopleIcon,
   AssignmentIcon,
-  WarningIcon,
   CheckCircleIcon,
 } from '../../utils/icons';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
 import { OverviewData, AnalyticsFilters } from '../../types/analytics';
 
@@ -25,234 +23,198 @@ interface OverviewDashboardProps {
   filters: AnalyticsFilters;
 }
 
-const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706'];
-
-const MetricCard: React.FC<{
-  title: string;
-  value: string | number;
-  change?: number;
-  icon: React.ReactNode;
-  color: string;
-}> = ({ title, value, change, icon, color }) => (
-  <motion.div
-    initial={{ opacity: 0, scale: 0.9 }}
-    animate={{ opacity: 1, scale: 1 }}
-    transition={{ duration: 0.3 }}
-  >
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Box
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              backgroundColor: `${color}20`,
-              color: color,
-              mr: 2,
-            }}
-          >
-            {icon}
-          </Box>
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              {title}
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              {value}
-            </Typography>
-          </Box>
-        </Box>
-        {change !== undefined && (
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {change >= 0 ? (
-              <Box sx={{ color: 'success.main', mr: 0.5, fontSize: 16 }}><TrendingUpIcon /></Box>
-            ) : (
-              <Box sx={{ color: 'error.main', mr: 0.5, fontSize: 16 }}><TrendingDownIcon /></Box>
-            )}
-            <Typography
-              variant="caption"
-              sx={{
-                color: change >= 0 ? 'success.main' : 'error.main',
-                fontWeight: 600,
-              }}
-            >
-              {Math.abs(change)}% vs last period
-            </Typography>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  </motion.div>
-);
-
 export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filters }) => {
-  const formatTooltipValue = (value: any, name: string) => [value, name];
+  const getTrendIcon = (trend: 'positive' | 'negative' | 'neutral') => {
+    switch (trend) {
+      case 'positive': return <Box sx={{ color: 'success.main' }}><TrendingUpIcon /></Box>;
+      case 'negative': return <Box sx={{ color: 'error.main' }}><TrendingDownIcon /></Box>;
+      default: return <Box sx={{ color: 'warning.main' }}><TrendingUpIcon /></Box>;
+    }
+  };
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Key Metrics */}
+      {/* Key Metrics Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Sessions"
-            value={data.totalSessions.toLocaleString()}
-            change={data.sessionGrowth}
-            icon={<PeopleIcon />}
-            color="#2563eb"
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2">
+                      Total Sessions
+                    </Typography>
+                    <Typography variant="h4">
+                      {data.totalSessions.toLocaleString()}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                      {getTrendIcon('positive')}
+                      <Typography variant="body2" sx={{ ml: 1 }}>
+                        {data.sessionGrowth}% from last period
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Avatar sx={{ backgroundColor: 'primary.main' }}>
+                    <PeopleIcon />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Avg Confidence"
-            value={`${(data.averageConfidence * 100).toFixed(1)}%`}
-            change={data.confidenceChange}
-            icon={<AssignmentIcon />}
-            color="#059669"
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2">
+                      Avg Confidence
+                    </Typography>
+                    <Typography variant="h4">
+                      {(data.averageConfidence * 100).toFixed(1)}%
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                      {getTrendIcon('positive')}
+                      <Typography variant="body2" sx={{ ml: 1 }}>
+                        {data.confidenceChange}% from last period
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Avatar sx={{ backgroundColor: 'success.main' }}>
+                    <CheckCircleIcon />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="High Risk Sessions"
-            value={data.highRiskSessions}
-            change={data.riskChange}
-            icon={<WarningIcon />}
-            color="#dc2626"
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2">
+                      High Risk Sessions
+                    </Typography>
+                    <Typography variant="h4">
+                      {data.highRiskSessions}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                      {getTrendIcon('negative')}
+                      <Typography variant="body2" sx={{ ml: 1 }}>
+                        {data.riskChange}% from last period
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Avatar sx={{ backgroundColor: 'info.main' }}>
+                    <AssignmentIcon />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="System Accuracy"
-            value={`${(data.systemAccuracy * 100).toFixed(1)}%`}
-            icon={<CheckCircleIcon />}
-            color="#7c3aed"
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2">
+                      System Accuracy
+                    </Typography>
+                    <Typography variant="h4">
+                      {(data.systemAccuracy * 100).toFixed(1)}%
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                      {getTrendIcon('positive')}
+                      <Typography variant="body2" sx={{ ml: 1 }}>
+                        +2.3% from last period
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Avatar sx={{ backgroundColor: 'warning.main' }}>
+                    <TrendingUpIcon />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
       </Grid>
 
-      <Grid container spacing={4}>
-        {/* Session Trends */}
+      {/* Charts */}
+      <Grid container spacing={3}>
         <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                Session Trends Over Time
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data.sessionTrends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={formatTooltipValue} />
-                  <Line
-                    type="monotone"
-                    dataKey="sessions"
-                    stroke="#2563eb"
-                    strokeWidth={3}
-                    dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="highRisk"
-                    stroke="#dc2626"
-                    strokeWidth={2}
-                    dot={{ fill: '#dc2626', strokeWidth: 2, r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
+          <Card sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Session Trends Over Time
+            </Typography>
+            <SimpleChartFallback
+              data={data.sessionTrends?.map(item => ({
+                name: item.date,
+                value: item.sessions,
+                color: '#8884d8'
+              })) || []}
+              type="line"
+              height={300}
+            />
           </Card>
         </Grid>
 
-        {/* Risk Distribution */}
         <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                Risk Level Distribution
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={data.riskDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
-                    {data.riskDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
+          <Card sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Risk Level Distribution
+            </Typography>
+            <SimpleChartFallback
+              data={data.riskDistribution?.map(item => ({
+                name: item.level,
+                value: item.count,
+                color: '#8884d8'
+              })) || []}
+              type="pie"
+              height={300}
+            />
           </Card>
         </Grid>
 
-        {/* Modality Performance */}
-        <Grid item xs={12} lg={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                Modality Performance
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.modalityPerformance}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="modality" />
-                  <YAxis />
-                  <Tooltip formatter={formatTooltipValue} />
-                  <Bar dataKey="accuracy" fill="#2563eb" />
-                  <Bar dataKey="usage" fill="#7c3aed" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Emotion Distribution */}
-        <Grid item xs={12} lg={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                Top Emotions Detected
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {data.topEmotions.map((emotion, index) => (
-                  <Box key={emotion.emotion}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body1" sx={{ textTransform: 'capitalize', fontWeight: 500 }}>
-                        {emotion.emotion}
-                      </Typography>
-                      <Chip
-                        label={`${emotion.count} (${emotion.percentage.toFixed(1)}%)`}
-                        size="small"
-                        color={index === 0 ? 'primary' : 'default'}
-                      />
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={emotion.percentage}
-                      sx={{
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: 'grey.200',
-                        '& .MuiLinearProgress-bar': {
-                          borderRadius: 4,
-                          background: index === 0 
-                            ? 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)'
-                            : `linear-gradient(135deg, ${COLORS[index % COLORS.length]} 0%, ${COLORS[(index + 1) % COLORS.length]} 100%)`,
-                        },
-                      }}
-                    />
-                  </Box>
-                ))}
-              </Box>
-            </CardContent>
+        <Grid item xs={12}>
+          <Card sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Performance by Modality
+            </Typography>
+            <SimpleChartFallback
+              data={data.modalityPerformance?.map(item => ({
+                name: item.modality,
+                value: item.accuracy,
+                color: '#82ca9d'
+              })) || []}
+              type="bar"
+              height={300}
+            />
           </Card>
         </Grid>
       </Grid>

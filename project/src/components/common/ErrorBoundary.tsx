@@ -1,6 +1,6 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Typography, Button, Paper } from '@mui/material';
-import { ErrorIcon, HomeIcon } from '../../utils/icons';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Box, Typography, Button, Alert } from '@mui/material';
+import { RefreshOutlined as RefreshIcon } from '@mui/icons-material';
 
 interface Props {
   children: ReactNode;
@@ -13,33 +13,23 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false };
-  }
+  public state: State = {
+    hasError: false
+  };
 
-  static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // Log to external service in production
-    if (process.env.NODE_ENV === 'production') {
-      // Example: Sentry.captureException(error, { contexts: { errorInfo } });
-    }
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Chart Error Boundary caught an error:', error, errorInfo);
   }
 
-  handleGoHome = () => {
-    window.location.href = '/';
+  private handleRetry = () => {
+    this.setState({ hasError: false, error: undefined });
   };
 
-  handleReload = () => {
-    window.location.reload();
-  };
-
-  render() {
+  public render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
@@ -47,78 +37,36 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          minHeight="100vh"
-          p={3}
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 3,
+            minHeight: 200,
+          }}
         >
-          <Paper
-            elevation={3}
-            sx={{
-              p: 4,
-              textAlign: 'center',
-              maxWidth: 500,
-              width: '100%',
-            }}
-          >
-            <Box
-              sx={{
-                fontSize: 64,
-                color: 'error.main',
-                mb: 2,
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
-              <ErrorIcon />
-            </Box>
-            <Typography variant="h4" gutterBottom>
-              Something went wrong
+          <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
+            <Typography variant="h6" gutterBottom>
+              Chart Loading Error
             </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              We're sorry, but something unexpected happened. Please try refreshing the page or go back to the home page.
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Unable to render the chart component. This might be due to invalid data or a temporary issue.
             </Typography>
-            
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  mt: 2,
-                  textAlign: 'left',
-                  backgroundColor: 'grey.50',
-                  fontFamily: 'monospace',
-                  fontSize: '0.875rem',
-                  overflow: 'auto',
-                  maxHeight: 200,
-                }}
-              >
-                <Typography variant="caption" color="error">
-                  Error Details (Development Only):
-                </Typography>
-                <br />
-                {this.state.error.toString()}
-              </Paper>
+            {this.state.error && (
+              <Typography variant="caption" color="text.secondary">
+                Error: {this.state.error.message}
+              </Typography>
             )}
-            
-            <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
-              <Button
-                variant="contained"
-                onClick={this.handleReload}
-                startIcon={<ErrorIcon />}
-              >
-                Reload Page
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={this.handleGoHome}
-                startIcon={<HomeIcon />}
-              >
-                Go Home
-              </Button>
-            </Box>
-          </Paper>
+          </Alert>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={this.handleRetry}
+            size="small"
+          >
+            Try Again
+          </Button>
         </Box>
       );
     }
@@ -126,3 +74,5 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;

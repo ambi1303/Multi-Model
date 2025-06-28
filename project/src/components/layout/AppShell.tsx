@@ -105,7 +105,7 @@ export const AppShell: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'auto',
-            minHeight: '100vh',
+            minHeight: `calc(100vh - ${HEADER_HEIGHT}px)`,
             px: CONTENT_GAP, // Uniform horizontal padding always
             width: !isMobile && sidebarOpenDesktop ? `${MAIN_WIDTH_PERCENT * 100}%` : '100%',
             ml: !isMobile && sidebarOpenDesktop ? `${SIDEBAR_WIDTH_PERCENT * 100}vw` : 0, // Push content right of fixed sidebar
@@ -115,7 +115,9 @@ export const AppShell: React.FC = () => {
             }),
           }}
         >
-          <Outlet />
+          <Box sx={{ flex: 1, mb: 4 }}>
+            <Outlet />
+          </Box>
           <Footer />
         </Box>
       </Box>

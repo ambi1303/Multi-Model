@@ -5,6 +5,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { AppShell } from './components/layout/AppShell';
+import CookieConsent from './components/common/CookieConsent';
 
 // Lazy load pages for better performance
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -98,6 +99,7 @@ function App() {
               </Route>
             </Routes>
           </Router>
+          <CookieConsent />
         </NotificationProvider>
       </ThemeProvider>
     </ErrorBoundary>

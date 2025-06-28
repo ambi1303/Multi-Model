@@ -6,9 +6,13 @@ import {
   Card,
   CardContent,
   Chip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
   LinearProgress,
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ComposedChart, Area, AreaChart } from 'recharts';
+import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
 import { SpeechAnalyticsData, AnalyticsFilters } from '../../types/analytics';
 
@@ -20,7 +24,7 @@ interface SpeechAnalyticsDashboardProps {
 export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> = ({ data, filters }) => {
   return (
     <Box sx={{ p: 3 }}>
-      <Grid container spacing={4}>
+      <Grid container spacing={3}>
         {/* Sentiment Trends */}
         <Grid item xs={12} lg={8}>
           <motion.div
@@ -31,52 +35,18 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                  Sentiment Analysis Trends
+                  Sentiment Trends Over Time
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={data.sentimentTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="positive"
-                      stackId="1"
-                      stroke="#059669"
-                      fill="#059669"
-                      fillOpacity={0.6}
-                    />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="neutral"
-                      stackId="1"
-                      stroke="#d97706"
-                      fill="#d97706"
-                      fillOpacity={0.6}
-                    />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="negative"
-                      stackId="1"
-                      stroke="#dc2626"
-                      fill="#dc2626"
-                      fillOpacity={0.6}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="averageScore"
-                      stroke="#2563eb"
-                      strokeWidth={3}
-                      dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.sentimentTrends?.map(item => ({
+                    name: item.date,
+                    value: item.averageScore,
+                    color: '#2563eb'
+                  })) || []}
+                  type="line"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -92,39 +62,39 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                  Transcription Quality
+                  Transcription Accuracy
                 </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <List>
                   {data.transcriptionAccuracy.map((metric, index) => (
-                    <Box key={metric.metric}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {metric.metric}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {(metric.score * 100).toFixed(1)}%
-                        </Typography>
-                      </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={metric.score * 100}
-                        sx={{
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: 'grey.200',
-                          '& .MuiLinearProgress-bar': {
-                            borderRadius: 4,
-                            background: metric.score > 0.8 ? 
-                              'linear-gradient(135deg, #059669 0%, #047857 100%)' :
-                              metric.score > 0.6 ?
-                              'linear-gradient(135deg, #d97706 0%, #92400e 100%)' :
-                              'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                          },
-                        }}
+                    <ListItem key={metric.metric} sx={{ px: 0 }}>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body1">
+                              {metric.metric}
+                            </Typography>
+                            <Chip
+                              label={`${metric.score.toFixed(1)}%`}
+                              size="small"
+                              color={metric.score > 80 ? 'success' : metric.score > 60 ? 'warning' : 'error'}
+                            />
+                          </Box>
+                        }
+                        secondary={
+                          <LinearProgress
+                            variant="determinate"
+                            value={metric.score}
+                            sx={{
+                              mt: 1,
+                              height: 6,
+                              borderRadius: 3,
+                            }}
+                          />
+                        }
                       />
-                    </Box>
+                    </ListItem>
                   ))}
-                </Box>
+                </List>
               </CardContent>
             </Card>
           </motion.div>
@@ -142,15 +112,16 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Audio Quality Distribution
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={data.audioQualityMetrics}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="quality" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#7c3aed" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.audioQualityMetrics?.map(item => ({
+                    name: item.quality,
+                    value: item.count,
+                    color: '#7c3aed'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
@@ -166,36 +137,25 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                  Recording Duration Analysis
+                  Session Duration Analysis
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={data.durationAnalysis}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="duration" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#2563eb"
-                      fill="url(#durationGradient)"
-                      strokeWidth={2}
-                    />
-                    <defs>
-                      <linearGradient id="durationGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                  </AreaChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.durationAnalysis?.map(item => ({
+                    name: item.duration,
+                    value: item.count,
+                    color: '#059669'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
         </Grid>
 
-        {/* Language Detection */}
-        <Grid item xs={12} lg={4}>
+        {/* Language Distribution */}
+        <Grid item xs={12} lg={8}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -206,44 +166,40 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Language Distribution
                 </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Grid container spacing={2}>
                   {data.languageDistribution.map((lang, index) => (
-                    <Box key={lang.language}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    <Grid item xs={12} sm={6} md={4} key={lang.language}>
+                      <Box
+                        sx={{
+                          p: 2,
+                          borderRadius: 2,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
                           {lang.language}
                         </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          {lang.count} sessions
+                        </Typography>
                         <Chip
-                          label={`${lang.count} (${lang.percentage.toFixed(1)}%)`}
+                          label={`${lang.percentage.toFixed(1)}%`}
                           size="small"
-                          color={index === 0 ? 'primary' : 'default'}
+                          color="primary"
                         />
                       </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={lang.percentage}
-                        sx={{
-                          height: 6,
-                          borderRadius: 3,
-                          backgroundColor: 'grey.200',
-                          '& .MuiLinearProgress-bar': {
-                            borderRadius: 3,
-                            background: index === 0 
-                              ? 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)'
-                              : 'linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)',
-                          },
-                        }}
-                      />
-                    </Box>
+                    </Grid>
                   ))}
-                </Box>
+                </Grid>
               </CardContent>
             </Card>
           </motion.div>
         </Grid>
 
         {/* Emotion-Speech Correlation */}
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12} lg={4}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -252,37 +208,18 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-                  Speech Pattern vs Emotion Correlation
+                  Emotion-Speech Correlation
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={data.emotionSpeechCorrelation}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="emotion" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="speechClarity"
-                      stroke="#059669"
-                      strokeWidth={2}
-                      dot={{ fill: '#059669', strokeWidth: 2, r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="speechRate"
-                      stroke="#7c3aed"
-                      strokeWidth={2}
-                      dot={{ fill: '#7c3aed', strokeWidth: 2, r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="confidence"
-                      stroke="#2563eb"
-                      strokeWidth={2}
-                      dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <SimpleChartFallback
+                  data={data.emotionSpeechCorrelation?.map(item => ({
+                    name: item.emotion,
+                    value: item.confidence,
+                    color: '#dc2626'
+                  })) || []}
+                  type="bar"
+                  height={300}
+                  title=""
+                />
               </CardContent>
             </Card>
           </motion.div>
