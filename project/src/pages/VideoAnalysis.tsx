@@ -12,6 +12,7 @@ import {
   Chip,
   LinearProgress,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import {
   VideoCallIcon,
   UploadIcon,
@@ -192,7 +193,8 @@ export const VideoAnalysis: React.FC = () => {
                     position: 'relative',
                     borderRadius: 2,
                     overflow: 'hidden',
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                    border: (theme) => `1px solid ${theme.palette.divider}`,
                     aspectRatio: '4/3',
                   }}
                 >
@@ -298,7 +300,7 @@ export const VideoAnalysis: React.FC = () => {
                 borderRadius: 2,
                 p: 6,
                 textAlign: 'center',
-                backgroundColor: 'grey.50',
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)',
               }}
             >
                               <Box sx={{ fontSize: 64, color: 'text.secondary', mb: 2, display: 'flex', justifyContent: 'center' }}>
@@ -424,7 +426,9 @@ export const VideoAnalysis: React.FC = () => {
                         sx={{
                           height: 8,
                           borderRadius: 4,
-                          backgroundColor: 'grey.200',
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                            ? 'rgba(255, 255, 255, 0.1)' 
+                            : 'rgba(0, 0, 0, 0.1)',
                           '& .MuiLinearProgress-bar': {
                             borderRadius: 4,
                             background: index === 0 
@@ -448,9 +452,11 @@ export const VideoAnalysis: React.FC = () => {
                         <Box key={emotion} sx={{ 
                           p: 2, 
                           borderRadius: 2, 
-                          backgroundColor: 'grey.50',
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                            ? 'rgba(255, 255, 255, 0.03)' 
+                            : 'rgba(0, 0, 0, 0.03)',
                           border: '1px solid',
-                          borderColor: 'grey.200'
+                          borderColor: 'divider'
                         }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="body1" sx={{ textTransform: 'capitalize', fontWeight: 500 }}>

@@ -12,6 +12,7 @@ import {
   ListItemAvatar,
   ListItemText,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
 import { ChatAnalyticsData, AnalyticsFilters } from '../../types/analytics';
@@ -113,7 +114,9 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                             sx={{
                               width: '100%',
                               height: 4,
-                              backgroundColor: 'grey.200',
+                              backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                                ? 'rgba(255, 255, 255, 0.1)' 
+                                : 'rgba(0, 0, 0, 0.1)',
                               borderRadius: 2,
                               mt: 1,
                               overflow: 'hidden',
@@ -265,7 +268,9 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                         sx={{
                           width: '100%',
                           height: 6,
-                          backgroundColor: 'grey.200',
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                            ? 'rgba(255, 255, 255, 0.1)' 
+                            : 'rgba(0, 0, 0, 0.1)',
                           borderRadius: 3,
                           overflow: 'hidden',
                         }}
