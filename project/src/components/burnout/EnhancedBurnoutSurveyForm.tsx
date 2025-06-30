@@ -532,9 +532,44 @@ export const EnhancedBurnoutSurveyForm: React.FC<EnhancedBurnoutSurveyFormProps>
               <Psychology />
               Mental Health Assessment
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-              Please rate how much you agree with each statement on a scale of 1 to 5.
-            </Typography>
+            <Box sx={{ mb: 4, p: 3, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                📋 Instructions for Responding:
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Please read each statement carefully and indicate how much you agree or disagree with it. Use the following 5-point scale to record your response:
+              </Typography>
+              <Box component="ul" sx={{ pl: 2, mb: 2, '& li': { mb: 1 } }}>
+                <li>
+                  <Typography variant="body2">
+                    <strong>1 – Strongly Disagree:</strong> You completely disagree with the statement.
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2">
+                    <strong>2 – Disagree:</strong> You generally disagree with the statement.
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2">
+                    <strong>3 – Neutral:</strong> You neither agree nor disagree.
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2">
+                    <strong>4 – Agree:</strong> You generally agree with the statement.
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2">
+                    <strong>5 – Strongly Agree:</strong> You completely agree with the statement.
+                  </Typography>
+                </li>
+              </Box>
+              <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 500 }}>
+                ✅ Choose the number that best represents your opinion for each item.
+              </Typography>
+            </Box>
             
             {/* Mental Fatigue Slider */}
             {sliderFields.filter(f => f.stepIndex === 2).map(field => (

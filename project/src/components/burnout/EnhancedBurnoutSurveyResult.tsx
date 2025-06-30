@@ -23,26 +23,18 @@ import {
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
-  Psychology as PsychologyIcon,
-  TrendingUp as TrendingUpIcon,
   Lightbulb as LightbulbIcon,
   Assessment as AssessmentIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
   Info as InfoIcon,
-  Star as StarIcon,
-  Timeline as TimelineIcon,
   LocalHospital as HealthIcon,
-  EmojiObjects as IdeasIcon,
   Support as SupportIcon,
-  Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { CombinedAnalysisResponse } from '../../services/api';
 import ErrorBoundary from '../common/ErrorBoundary';
 
 // Lazy load chart components
-const RadarChartComp = React.lazy(() => import('../charts/RadarChartComp'));
-const PieChartComp = React.lazy(() => import('../charts/PieChartComp'));
 const BarChartComp = React.lazy(() => import('../charts/BarChartComp'));
 
 // Extended interface for the component with additional properties
@@ -108,7 +100,7 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
 
   useEffect(() => {
     // Animate sections in sequence
-    const sections = ['header', 'overview', 'assessment', 'insights', 'recommendations'];
+    const sections = ['header', 'overview', 'assessment', 'recommendations'];
     sections.forEach((section, index) => {
       setTimeout(() => {
         setVisibleSections(prev => ({ ...prev, [section]: true }));
@@ -150,51 +142,48 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
 
   // Memoized chart data preparation
   const chartData = useMemo(() => {
-    // Assessment metrics data for radar chart
-    const assessmentData = [
-      { name: 'Designation', value: result.employeeData?.designation_encoded || 0 },
-      { name: 'Gender', value: result.employeeData?.gender_encoded || 0 },
-      { name: 'Company Type', value: result.employeeData?.company_type_encoded || 0 },
-      { name: 'WFH Setup', value: result.employeeData?.wfh_setup_available_encoded || 0 },
-      { name: 'Mental Fatigue', value: result.employeeData?.mental_fatigue_score || 0 },
-      { name: 'Resource Access', value: result.employeeData?.resource_allocation || 0 },
-    ].filter(item => item.value > 0);
-
-    // Wellness distribution data for pie chart
-    const wellnessData = [
+    // Bar chart data with meaningful assessment metrics (normalized to 0-100 scale)
+    const assessmentBarData = [
       { 
         name: 'Burnout Risk', 
-        value: Math.round((result.burnoutScore || 0) * 100), 
-        color: theme.palette.error.main 
+        value: Math.max(Math.round((result.burnoutScore || 0) * 100), 1), 
+        color: theme.palette.error.main,
+        originalValue: `${Math.round((result.burnoutScore || 0) * 100)}%`
       },
       { 
         name: 'Stress Level', 
-        value: result.surveyResults?.stress_level || 0, 
-        color: theme.palette.warning.main 
+        value: Math.max(Math.round(((result.surveyResults?.stress_level || 3) / 5) * 100), 1), 
+        color: theme.palette.warning.main,
+        originalValue: `${result.surveyResults?.stress_level || 3}/5`
       },
       { 
         name: 'Job Satisfaction', 
-        value: result.surveyResults?.job_satisfaction || 0, 
-        color: theme.palette.success.main 
+        value: Math.max(Math.round(((result.surveyResults?.job_satisfaction || 3) / 5) * 100), 1), 
+        color: theme.palette.success.main,
+        originalValue: `${result.surveyResults?.job_satisfaction || 3}/5`
       },
       { 
         name: 'Work-Life Balance', 
-        value: result.surveyResults?.work_life_balance || 0, 
-        color: theme.palette.info.main 
+        value: Math.max(Math.round(((result.surveyResults?.work_life_balance || 3) / 5) * 100), 1), 
+        color: theme.palette.info.main,
+        originalValue: `${result.surveyResults?.work_life_balance || 3}/5`
       },
-    ].filter(item => item.value > 0);
-
-    // Breakdown data for bar chart
-    const breakdownData = result.breakdown?.map(item => ({
-      name: item.category,
-      value: item.score,
-      color: theme.palette.primary.main
-    })) || [];
+      { 
+        name: 'Mental Fatigue', 
+        value: Math.max(Math.round(((result.employeeData?.mental_fatigue_score || 5) / 10) * 100), 1), 
+        color: theme.palette.secondary.main,
+        originalValue: `${result.employeeData?.mental_fatigue_score || 5}/10`
+      },
+      { 
+        name: 'Resource Allocation', 
+        value: Math.max(Math.round(((result.employeeData?.resource_allocation || 5) / 10) * 100), 1), 
+        color: theme.palette.primary.main,
+        originalValue: `${result.employeeData?.resource_allocation || 5}/10`
+      },
+    ];
 
     return {
-      assessmentData,
-      wellnessData,
-      breakdownData
+      assessmentBarData
     };
   }, [result, theme.palette]);
 
@@ -314,7 +303,7 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
                   py: 2,
                 }}
               >
-                <TimelineIcon sx={{ mr: 2, color: theme.palette.primary.main }} />
+                <AssessmentIcon sx={{ mr: 2, color: theme.palette.primary.main }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Assessment Overview
                 </Typography>
@@ -324,7 +313,7 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
                   <Grid item xs={12} md={6}>
                     <Box sx={{ mb: 3 }}>
                       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <PsychologyIcon color="primary" />
+                        <InfoIcon color="primary" />
                         Analysis Summary
                       </Typography>
                       <Typography variant="body1" paragraph>
@@ -356,7 +345,7 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
                   <Grid item xs={12} md={6}>
                     <Box>
                       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <TrendingUpIcon color="primary" />
+                        <AssessmentIcon color="primary" />
                         Key Metrics
                       </Typography>
                       <Grid container spacing={2}>
@@ -434,40 +423,14 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
               </AccordionSummary>
               <AccordionDetails sx={{ p: 3 }}>
                 <Grid container spacing={4}>
-                  <Grid item xs={12} lg={4}>
+                  <Grid item xs={12}>
                     <Paper sx={{ p: 3, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
                       <ErrorBoundary>
                         <Suspense fallback={<ChartLoader />}>
-                          <RadarChartComp
-                            data={chartData.assessmentData}
-                            title="Assessment Metrics"
-                            height={350}
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} lg={4}>
-                    <Paper sx={{ p: 3, borderRadius: 2, bgcolor: alpha(theme.palette.secondary.main, 0.02) }}>
-                      <ErrorBoundary>
-                        <Suspense fallback={<ChartLoader />}>
-                          <PieChartComp
-                            data={chartData.wellnessData}
-                            title="Wellness Distribution"
-                            height={350}
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} lg={4}>
-                    <Paper sx={{ p: 3, borderRadius: 2, bgcolor: alpha(theme.palette.success.main, 0.02) }}>
-                      <ErrorBoundary>
-                        <Suspense fallback={<ChartLoader />}>
                           <BarChartComp
-                            data={chartData.breakdownData}
-                            title="Analysis Breakdown"
-                            height={350}
+                            data={chartData.assessmentBarData}
+                            title="Assessment Analysis"
+                            height={400}
                           />
                         </Suspense>
                       </ErrorBoundary>
@@ -480,88 +443,7 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
         </Card>
       </Slide>
 
-      {/* AI Insights */}
-      <Slide direction="up" in={visibleSections.insights} timeout={1000}>
-        <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
-          <CardContent sx={{ p: 0 }}>
-            <Accordion 
-              expanded={expanded === 'insights'} 
-              onChange={handleAccordionChange('insights')}
-              sx={{ boxShadow: 'none' }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                sx={{
-                  bgcolor: alpha(theme.palette.success.main, 0.05),
-                  '& .MuiAccordionSummary-content': { alignItems: 'center' },
-                  py: 2,
-                }}
-              >
-                <IdeasIcon sx={{ mr: 2, color: theme.palette.success.main }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  AI-Powered Insights
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: 3 }}>
-                <Alert
-                  severity={result.riskLevel === 'High' ? 'error' : result.riskLevel === 'Medium' ? 'warning' : 'success'}
-                  sx={{ mb: 3, borderRadius: 2 }}
-                  icon={<PsychologyIcon />}
-                >
-                  <Typography variant="h6" gutterBottom>
-                    Mental Health Assessment
-                  </Typography>
-                  <Typography variant="body1">
-                    {result.mental_health_summary || 'Your mental health assessment indicates areas for attention and improvement.'}
-                  </Typography>
-                </Alert>
-                
-                <Box sx={{ mt: 3 }}>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <StarIcon color="warning" />
-                    Key Insights
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
-                      <Paper sx={{ p: 2, height: '100%', bgcolor: alpha(theme.palette.info.main, 0.05) }}>
-                        <HealthIcon sx={{ color: theme.palette.info.main, mb: 1 }} />
-                        <Typography variant="subtitle2" gutterBottom>
-                          Risk Assessment
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Your current risk level is <strong>{result.riskLevel || 'Unknown'}</strong> based on comprehensive analysis.
-                        </Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Paper sx={{ p: 2, height: '100%', bgcolor: alpha(theme.palette.success.main, 0.05) }}>
-                        <TrendingUpIcon sx={{ color: theme.palette.success.main, mb: 1 }} />
-                        <Typography variant="subtitle2" gutterBottom>
-                          Analysis Method
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Results generated using <strong>{result.source || 'AI Analysis'}</strong> for accurate insights.
-                        </Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Paper sx={{ p: 2, height: '100%', bgcolor: alpha(theme.palette.warning.main, 0.05) }}>
-                        <ScheduleIcon sx={{ color: theme.palette.warning.main, mb: 1 }} />
-                        <Typography variant="subtitle2" gutterBottom>
-                          Follow-up
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Regular monitoring recommended for optimal mental health maintenance.
-                        </Typography>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-          </CardContent>
-        </Card>
-      </Slide>
+
 
       {/* Recommendations */}
       <Slide direction="up" in={visibleSections.recommendations} timeout={1200}>

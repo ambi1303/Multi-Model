@@ -55,61 +55,23 @@ export const VideoAnalysis: React.FC = () => {
     if (isActive) stop(); // Stop camera when switching tabs
   };
 
-  function aggregateResults(results: VideoAnalysisResult[]): VideoAnalysisResult | null {
-    if (!results.length) return null;
-    // Count emotions
-    const emotionCounts: Record<string, number> = {};
-    let totalConfidence = 0;
-    let total = 0;
-    results.forEach(r => {
-      r.emotions.forEach(e => {
-        emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1;
-        totalConfidence += e.confidence;
-        total++;
-      });
-    });
-    // Find dominant
-    let dominantEmotion = '';
-    let maxCount = 0;
-    Object.entries(emotionCounts).forEach(([emotion, count]) => {
-      if (count > maxCount) {
-        dominantEmotion = emotion;
-        maxCount = count;
-      }
-    });
-    return {
-      emotions: Object.entries(emotionCounts).map(([emotion, count]) => ({ emotion, confidence: count / total, timestamp: Date.now() })),
-      dominantEmotion,
-      averageConfidence: total ? totalConfidence / total : 0,
-      timestamp: Date.now(),
-    };
-  }
 
-  const analyzeFor10Seconds = async () => {
+
+  const analyzeContinuous = async () => {
     setIsAnalyzing(true);
     setAnalysis(null);
-    const results = [];
-    const startTime = Date.now();
-    let elapsed = 0;
-    while (elapsed < 10000) {
-      const imageData = capture();
-      if (imageData) {
-        try {
-           
-          const result = await videoApi.analyzeFrame(imageData);
-          results.push(result);
-        } catch (_e) {
-          // ignore errors for individual frames
-        }
-      }
-       
-      await new Promise(res => setTimeout(res, 500));
-      elapsed = Date.now() - startTime;
+    
+    try {
+      const result = await videoApi.analyzeContinuous(10);
+      setAnalysis(result);
+      addAnalysisResult('video', result);
+      showSuccess('Continuous video analysis complete! Enhanced emotion detection used.');
+    } catch (error) {
+      console.error('Continuous analysis failed:', error);
+      showError('Continuous analysis failed. Camera may not be available.');
+    } finally {
+      setIsAnalyzing(false);
     }
-    const agg = aggregateResults(results);
-    setAnalysis(agg);
-    setIsAnalyzing(false);
-    showSuccess('10-second video analysis complete!');
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,13 +248,15 @@ export const VideoAnalysis: React.FC = () => {
                     <>
                       <Button
                         variant="contained"
-                        size="large"
+                        color="primary"
+                        size="large"                        
                         startIcon={<CameraIcon />}
-                        onClick={analyzeFor10Seconds}
+                        onClick={analyzeContinuous}
                         disabled={loading || isAnalyzing}
                         fullWidth
+                        sx={{ mb: 1 }}
                       >
-                        Analyze 10s Video
+                        🎯 Enhanced Analysis (10s)
                       </Button>
                       <Button
                         variant="outlined"
@@ -372,7 +336,11 @@ export const VideoAnalysis: React.FC = () => {
       {(loading || isAnalyzing) && (
         <Card sx={{ mb: 4 }}>
           <CardContent>
-            <LoadingSpinner message={isAnalyzing ? "Analyzing video for 10 seconds..." : "Analyzing emotions..."} />
+            <LoadingSpinner message={
+              isAnalyzing 
+                ? "🎯 Performing enhanced emotion analysis for 10 seconds..." 
+                : "Analyzing emotions..."
+            } />
           </CardContent>
         </Card>
       )}
@@ -385,6 +353,14 @@ export const VideoAnalysis: React.FC = () => {
               <CardContent>
                 <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
                   Analysis Results
+                  {(analysis as any)?.analysis_details && (
+                    <Chip 
+                      label="Enhanced Analysis" 
+                      color="primary" 
+                      size="small" 
+                      sx={{ ml: 2 }} 
+                    />
+                  )}
                 </Typography>
                 
                 <Box
@@ -412,6 +388,18 @@ export const VideoAnalysis: React.FC = () => {
                   <Typography variant="body2" color="text.secondary">
                     Average confidence: {Math.round(analysis.averageConfidence * 100)}%
                   </Typography>
+                  
+                  {/* Enhanced analysis details */}
+                  {(analysis as any)?.analysis_details && (
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        🎯 Analysis Quality: {(analysis as any).analysis_details.confidence_level}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        📊 Total Detections: {(analysis as any).analysis_details.total_detections}
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -448,6 +436,46 @@ export const VideoAnalysis: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
+
+                {/* Target Emotions Analysis for Enhanced Analysis */}
+                {(analysis as any)?.analysis_details?.target_emotions_analysis && (
+                  <Box sx={{ mt: 4 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      🎭 Target Emotions Analysis
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {Object.entries((analysis as any).analysis_details.target_emotions_analysis).map(([emotion, data]: [string, any]) => (
+                        <Box key={emotion} sx={{ 
+                          p: 2, 
+                          borderRadius: 2, 
+                          backgroundColor: 'grey.50',
+                          border: '1px solid',
+                          borderColor: 'grey.200'
+                        }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body1" sx={{ textTransform: 'capitalize', fontWeight: 500 }}>
+                              {emotion}
+                            </Typography>
+                            <Chip
+                              label={data.intensity}
+                              size="small"
+                              color={
+                                data.intensity === 'STRONG' ? 'error' :
+                                data.intensity === 'MODERATE' ? 'warning' :
+                                data.intensity === 'MILD' ? 'info' : 'default'
+                              }
+                            />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {data.percentage.toFixed(1)}% presence ({data.count} detections)
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+
               </CardContent>
             </Card>
           </Grid>

@@ -22,8 +22,28 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
 }) => {
   const theme = useTheme();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const maxValue = Math.max(...data.map(d => d.value));
-  const minValue = Math.min(...data.map(d => d.value));
+  
+  // Validate and filter data
+  const validData = data?.filter(item => 
+    item && 
+    typeof item.value === 'number' && 
+    !isNaN(item.value) && 
+    item.value > 0 &&
+    item.name
+  ) || [];
+  
+  if (validData.length === 0) {
+    return (
+      <Box sx={{ width: '100%', height, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          No valid data available to display
+        </Typography>
+      </Box>
+    );
+  }
+  
+  const maxValue = Math.max(...validData.map(d => d.value));
+  const minValue = Math.min(...validData.map(d => d.value));
   
   // Chart dimensions
   const chartWidth = 400;
@@ -51,7 +71,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
     const levels = 5; // Number of concentric circles
     
     // Normalize data to 0-1 scale for radar chart
-    const normalizedData = data.map(item => ({
+    const normalizedData = validData.map(item => ({
       ...item,
       normalizedValue: item.value / maxValue
     }));
@@ -274,8 +294,8 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
   };
 
   const renderBarChart = () => {
-    const barWidth = innerWidth / data.length * 0.8;
-    const barSpacing = innerWidth / data.length * 0.2;
+    const barWidth = innerWidth / validData.length * 0.8;
+    const barSpacing = innerWidth / validData.length * 0.2;
 
     return (
       <Box sx={{ width: '100%', height, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -340,7 +360,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
           })}
 
           {/* Bars */}
-          {data.map((item, index) => {
+          {validData.map((item, index) => {
             const x = padding.left + (index * (barWidth + barSpacing)) + barSpacing / 2;
             const barHeight = (item.value / maxValue) * innerHeight;
             const y = chartHeight - padding.bottom - barHeight;
@@ -383,7 +403,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
   };
 
   const renderLineChart = () => {
-    const pointSpacing = innerWidth / (data.length - 1);
+    const pointSpacing = innerWidth / (validData.length - 1);
 
     return (
       <Box sx={{ width: '100%', height, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -421,7 +441,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
 
           {/* Line path */}
           <path
-            d={`M ${data.map((item, index) => {
+            d={`M ${validData.map((item, index) => {
               const x = padding.left + (index * pointSpacing);
               const y = chartHeight - padding.bottom - ((item.value / maxValue) * innerHeight);
               return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -434,7 +454,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
           />
 
           {/* Data points */}
-          {data.map((item, index) => {
+          {validData.map((item, index) => {
             const x = padding.left + (index * pointSpacing);
             const y = chartHeight - padding.bottom - ((item.value / maxValue) * innerHeight);
             
@@ -476,7 +496,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
   };
 
   const renderPieChart = () => {
-    const total = data.reduce((sum, item) => sum + item.value, 0);
+    const total = validData.reduce((sum, item) => sum + item.value, 0);
     const centerX = chartWidth * 0.35; // Move pie chart to the left
     const centerY = chartHeight / 2;
     const radius = Math.min(chartWidth * 0.25, chartHeight / 2) - 20; // Smaller radius
@@ -493,7 +513,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, width: '100%' }}>
           {/* Pie Chart */}
           <svg width={chartWidth * 0.7} height={chartHeight}>
-            {data.map((item, index) => {
+            {validData.map((item, index) => {
               const percentage = (item.value / total) * 100;
               const angle = (item.value / total) * 360;
               
@@ -553,7 +573,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
           
           {/* Legend */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 150 }}>
-            {data.map((item, index) => (
+            {validData.map((item, index) => (
               <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Box
                   sx={{
@@ -580,15 +600,7 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
     );
   };
 
-  if (!data || data.length === 0) {
-    return (
-      <Box sx={{ width: '100%', height, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
-          No data available
-        </Typography>
-      </Box>
-    );
-  }
+
 
   switch (type) {
     case 'radar':

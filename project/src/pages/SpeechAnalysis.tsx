@@ -143,7 +143,7 @@ export const SpeechAnalysis: React.FC = () => {
   const [analysis, setAnalysis] = useState<SpeechAnalysisResult | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [playingAudio, setPlayingAudio] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0])); // First section expanded by default
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   // Custom hooks
@@ -254,16 +254,7 @@ export const SpeechAnalysis: React.FC = () => {
     setTab(value as 'record' | 'history');
   }, []);
 
-  // Technical report helper functions
-  const toggleSection = useCallback((index: number) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedSections(newExpanded);
-  }, [expandedSections]);
+
 
   const extractMetrics = useCallback((text: string) => {
     const metrics: Array<{ label: string; value: string; color: string }> = [];
@@ -945,269 +936,85 @@ export const SpeechAnalysis: React.FC = () => {
                     </Stack>
                   </Box>
 
-                  {/* Interactive Technical Report Sections */}
-                  {(() => {
-                    const reportSections = analysis.technicalReport.split('\n\n').filter(section => section.trim());
-                    
-                    return (
-                      <Stack spacing={2}>
-                        {reportSections.map((section, index) => {
-                          const isExpanded = expandedSections.has(index);
-                          const sectionTitle = section.split('\n')[0] || `Section ${index + 1}`;
-                          const sectionContent = section.split('\n').slice(1).join('\n').trim();
-                          const metrics = extractMetrics(section);
-                          
-                          return (
-                            <Box key={index}>
-                              {/* Section Header */}
-                              <Box
-                                onClick={() => toggleSection(index)}
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  p: 2,
-                                  backgroundColor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
-                                  borderRadius: 2,
-                                  cursor: 'pointer',
-                                  border: '1px solid',
-                                  borderColor: 'divider',
-                                  '&:hover': {
-                                    backgroundColor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.200',
-                                  },
-                                  transition: 'all 0.3s ease',
-                                }}
-                              >
-                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                                  {sectionTitle.length > 50 ? sectionTitle.substring(0, 50) + '...' : sectionTitle}
-                                </Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  {metrics.length > 0 && (
-                                    <Chip
-                                      label={`${metrics.length} metrics`}
-                                      size="small"
-                                      color="primary"
-                                      variant="outlined"
-                                    />
-                                  )}
-                                  <IconButton size="small">
-                                    {isExpanded ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
-                                  </IconButton>
-                                </Box>
-                              </Box>
+                  {/* Simplified Technical Report - All Content Expanded */}
+                  <Box
+                    sx={{
+                      p: 3,
+                      backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* Copy Button for Report */}
+                    <Tooltip title="Copy Full Report">
+                      <IconButton
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          top: 16,
+                          right: 16,
+                          backgroundColor: 'background.paper',
+                          '&:hover': {
+                            backgroundColor: 'primary.light',
+                          },
+                        }}
+                        onClick={() => {
+                          navigator.clipboard.writeText(analysis.technicalReport);
+                          showSuccess('Full report copied! 📋');
+                        }}
+                      >
+                        <SaveIcon />
+                      </IconButton>
+                    </Tooltip>
 
-                              {/* Section Content */}
-                              <Collapse in={isExpanded}>
-                                <Box sx={{ mt: 1 }}>
-                                  {/* Extracted Metrics */}
-                                  {metrics.length > 0 && (
-                                    <Box sx={{ mb: 2 }}>
-                                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                        📊 Key Metrics
-                                      </Typography>
-                                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                        {metrics.map((metric, metricIndex) => (
-                                          <Chip
-                                            key={metricIndex}
-                                            label={`${metric.label}: ${metric.value}`}
-                                            color={metric.color as any}
-                                            variant="outlined"
-                                            size="small"
-                                            sx={{
-                                              fontFamily: 'monospace',
-                                              fontWeight: 'bold',
-                                            }}
-                                          />
-                                        ))}
-                                      </Stack>
-                                    </Box>
-                                  )}
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-line',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.6,
+                        color: 'text.primary',
+                        pr: 6, // Space for copy button
+                      }}
+                    >
+                      {analysis.technicalReport}
+                    </Typography>
+                  </Box>
 
-                                  {/* Section Text Content */}
-                                  <Box
-                                    sx={{
-                                      p: 3,
-                                      backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                                      borderRadius: 2,
-                                      border: '1px solid',
-                                      borderColor: 'divider',
-                                      position: 'relative',
-                                    }}
-                                  >
-                                    {/* Copy Button for Section */}
-                                    <Tooltip title="Copy Section">
-                                      <IconButton
-                                        size="small"
-                                        sx={{
-                                          position: 'absolute',
-                                          top: 8,
-                                          right: 8,
-                                          backgroundColor: 'background.paper',
-                                          '&:hover': {
-                                            backgroundColor: 'primary.light',
-                                          },
-                                        }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigator.clipboard.writeText(section);
-                                          showSuccess('Section copied! 📋');
-                                        }}
-                                      >
-                                        <SaveIcon />
-                                      </IconButton>
-                                    </Tooltip>
 
-                                    <Typography
-                                      variant="body2"
-                                      sx={{
-                                        fontFamily: 'monospace',
-                                        whiteSpace: 'pre-line',
-                                        fontSize: '0.9rem',
-                                        lineHeight: 1.5,
-                                        color: 'text.primary',
-                                        pr: 5, // Space for copy button
-                                      }}
-                                    >
-                                      {sectionContent || sectionTitle}
-                                    </Typography>
 
-                                    {/* Progress indicators for numeric values */}
-                                    {(() => {
-                                      const percentageMatches = sectionContent.match(/(\d+\.?\d*)%/g);
-                                      if (percentageMatches && percentageMatches.length > 0) {
-                                        return (
-                                          <Box sx={{ mt: 2 }}>
-                                            <Typography variant="caption" sx={{ mb: 1, display: 'block' }}>
-                                              📈 Progress Indicators
-                                            </Typography>
-                                            {percentageMatches.slice(0, 3).map((match, progIndex) => {
-                                              const value = parseFloat(match.replace('%', ''));
-                                              const color = value > 80 ? 'success' : value > 60 ? 'warning' : 'error';
-                                              return (
-                                                <Box key={progIndex} sx={{ mb: 1 }}>
-                                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                                    <Typography variant="caption">
-                                                      Metric {progIndex + 1}
-                                                    </Typography>
-                                                    <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                                                      {match}
-                                                    </Typography>
-                                                  </Box>
-                                                  <LinearProgress
-                                                    variant="determinate"
-                                                    value={Math.min(value, 100)}
-                                                    color={color as any}
-                                                    sx={{
-                                                      height: 6,
-                                                      borderRadius: 3,
-                                                      backgroundColor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.300',
-                                                    }}
-                                                  />
-                                                </Box>
-                                              );
-                                            })}
-                                          </Box>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                  </Box>
-                                </Box>
-                              </Collapse>
-                            </Box>
-                          );
-                        })}
-
-                        {/* Summary Statistics */}
-                        <Box sx={{ mt: 3, p: 2, backgroundColor: 'primary.light', borderRadius: 2, opacity: 0.8 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                            📈 Report Summary
-                          </Typography>
-                          <Grid container spacing={2}>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="caption" color="text.secondary">
-                                Sections
-                              </Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                {reportSections.length}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="caption" color="text.secondary">
-                                Total Words
-                              </Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                {analysis.technicalReport.split(/\s+/).length}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="caption" color="text.secondary">
-                                Metrics Found
-                              </Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                {reportSections.reduce((total, section) => total + extractMetrics(section).length, 0)}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="caption" color="text.secondary">
-                                Generated
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                {new Date().toLocaleTimeString()}
-                              </Typography>
-                            </Grid>
-                          </Grid>
-                        </Box>
-
-                        {/* Quick Actions */}
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => {
-                              const allIndices = new Set(Array.from({ length: reportSections.length }, (_, i) => i));
-                              setExpandedSections(allIndices);
-                            }}
-                          >
-                            Expand All
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => setExpandedSections(new Set())}
-                          >
-                            Collapse All
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="primary"
-                            onClick={() => {
-                              const reportData = {
-                                timestamp: new Date().toISOString(),
-                                duration: analysis.duration,
-                                sections: reportSections.length,
-                                content: analysis.technicalReport,
-                                metrics: reportSections.reduce((total, section) => total + extractMetrics(section).length, 0)
-                              };
-                              const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `speech-analysis-report-${new Date().toISOString().slice(0, 10)}.json`;
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              URL.revokeObjectURL(url);
-                              showSuccess('Detailed report exported! 📊');
-                            }}
-                          >
-                            Export JSON
-                          </Button>
-                        </Box>
-                      </Stack>
-                    );
-                  })()}
+                  {/* Export Action */}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => {
+                        const reportData = {
+                          timestamp: new Date().toISOString(),
+                          duration: analysis.duration,
+                          content: analysis.technicalReport,
+                          wordCount: analysis.technicalReport.split(/\s+/).length,
+                          characterCount: analysis.technicalReport.length
+                        };
+                        const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `speech-analysis-report-${new Date().toISOString().slice(0, 10)}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        showSuccess('Report exported! 📊');
+                      }}
+                    >
+                      Export JSON
+                    </Button>
+                  </Box>
                 </CardContent>
               </EnhancedCard>
             )}

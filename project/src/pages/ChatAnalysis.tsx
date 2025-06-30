@@ -307,6 +307,9 @@ export const ChatAnalysis: React.FC = () => {
         throw new Error('Please select a file or add messages');
       }
 
+      console.log('Batch analysis result:', result);
+      console.log('Mental states data:', result.mental_states_data);
+      console.log('Sentiment trend data:', result.sentiment_trend_data);
       setBatchResult(result);
 
     } catch (error) {
@@ -1089,12 +1092,33 @@ export const ChatAnalysis: React.FC = () => {
                     <Grid container spacing={3}>
                       {batchResult.mental_states_data?.length > 0 && (
                         <Grid item xs={12} lg={6}>
-                          <MentalStatesChart data={batchResult.mental_states_data} />
+                          <MentalStatesChart 
+                            data={batchResult.mental_states_data.filter(item => {
+                              const isValid = item.name && 
+                                typeof item.value === 'number' && 
+                                !isNaN(item.value) && 
+                                item.value > 0;
+                              if (!isValid) {
+                                console.warn('Invalid mental states data item:', item);
+                              }
+                              return isValid;
+                            })} 
+                          />
                         </Grid>
                       )}
                       {batchResult.sentiment_trend_data?.length > 0 && (
                         <Grid item xs={12} lg={6}>
-                          <SentimentTrendChart data={batchResult.sentiment_trend_data} />
+                          <SentimentTrendChart 
+                            data={batchResult.sentiment_trend_data.filter(item => {
+                              const isValid = item.timestamp &&
+                                typeof item.sentiment === 'number' &&
+                                !isNaN(item.sentiment);
+                              if (!isValid) {
+                                console.warn('Invalid sentiment trend data item:', item);
+                              }
+                              return isValid;
+                            })} 
+                          />
                         </Grid>
                       )}
                     </Grid>

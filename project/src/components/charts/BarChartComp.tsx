@@ -7,7 +7,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  Cell
 } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { Box, Typography } from '@mui/material';
@@ -16,6 +17,7 @@ export interface BarChartData {
   name: string;
   value: number;
   color?: string;
+  originalValue?: string;
 }
 
 interface BarChartCompProps {
@@ -56,6 +58,7 @@ const BarChartComp: React.FC<BarChartCompProps> = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0];
+      const originalData = data.payload;
       return (
         <Box
           sx={{
@@ -70,8 +73,13 @@ const BarChartComp: React.FC<BarChartCompProps> = ({
             {label}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Value: {data.value}
+            Normalized: {data.value}%
           </Typography>
+          {originalData.originalValue && (
+            <Typography variant="body2" color="text.secondary">
+              Original: {originalData.originalValue}
+            </Typography>
+          )}
         </Box>
       );
     }
@@ -87,14 +95,22 @@ const BarChartComp: React.FC<BarChartCompProps> = ({
   return (
     <Box sx={{ width: '100%', height }}>
       {title && (
-        <Typography
-          variant="h6"
-          align="center"
-          gutterBottom
-          sx={{ mb: 2, fontWeight: 600 }}
-        >
-          {title}
-        </Typography>
+        <Box sx={{ textAlign: 'center', mb: 2 }}>
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{ fontWeight: 600 }}
+          >
+            {title}
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', mt: 0.5 }}
+          >
+            All values normalized to 0-100% scale for comparison
+          </Typography>
+        </Box>
       )}
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
@@ -125,7 +141,8 @@ const BarChartComp: React.FC<BarChartCompProps> = ({
               fill: theme.palette.text.secondary,
               fontFamily: theme.typography.fontFamily
             }}
-            domain={[0, 'dataMax + 1']}
+            domain={[0, 100]}
+            tickFormatter={(value) => `${value}%`}
           />
           <Tooltip content={<CustomTooltip />} />
           {showLegend && (
