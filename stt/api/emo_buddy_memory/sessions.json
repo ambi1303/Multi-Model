@@ -1,0 +1,148 @@
+[
+  {
+    "session_id": 0,
+    "timestamp": "2025-07-03T20:47:04.788633",
+    "duration": "2025-07-03 20:46:50.040527",
+    "summary": "\n==================================================\n\ud83d\udd04 Session Complete\n==================================================\n\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:00:14.747578\n\ud83d\udcac Total Interactions: 3\n\n\ud83e\udde0 EMOTIONAL STATE ANALYSIS:\n- anxiety\n\n\ud83d\udcbc WORKPLACE STRESSORS IDENTIFIED:\n\n\n\ud83c\udfaf WORK CONTEXT: General Office\n\n\ud83d\udea8 URGENCY LEVEL: 3/5\n\n\ud83d\udca1 KEY INSIGHTS:\n\n\n\ud83d\ude80 IMMEDIATE ACTIONS RECOMMENDED:\n\u2022 Take 10-minute break before starting work session\n\u2022 Use breathing exercises to manage immediate stress\n\u2022 Set up comfortable workspace with good lighting\n\u2022 Plan work breaks every 45-60 minutes\n\n\ud83c\udf31 ONGOING SUPPORT SUGGESTIONS:\n\u2022 Discuss workload management with supervisor\n\u2022 Explore company wellness resources or EAP\n\u2022 Consider time management or stress reduction workshops\n\u2022 Build regular exercise or mindfulness into routine\n\n\ud83d\udd27 QUICK REMEDIES PROVIDED:\n\u2022 \ud83e\udec1 **4-7-8 Breathing**: Inhale 4, hold 7, exhale 8 (repeat 3 times)\n\u2022 \ud83c\udfb5 **Focus Music**: Try lo-fi hip hop or brown noise for coding\n\n\ud83c\udfad THERAPEUTIC TECHNIQUES USED:\n- cbt: 1 times\n\n\ud83d\udcdd NEXT STEPS:\n- Apply immediate actions before your next work session\n- Monitor emotional responses to workplace situations\n- Return for support when needed\n\n\ud83c\udf1f Remember: You have practical tools and strategies to manage workplace stress effectively. \ud83c\udf1f\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-03T20:46:50.040846",
+        "sentiment": "negative",
+        "emotions": [
+          "anxiety",
+          "stress",
+          "overwhelm"
+        ],
+        "source": "technical_analysis",
+        "intensity": "high"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-03T20:46:50.059633",
+        "technique": "cbt",
+        "context": "I'm worried about my performance at work",
+        "rationale": "User showing thought patterns that could benefit from cognitive restructuring"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "I'm feeling really stressed about work and I don't know what to do",
+      "I'm worried about my performance at work"
+    ],
+    "initial_analysis": {
+      "transcription": "I'm feeling really stressed about work and I don't know what to do",
+      "sentiment": {
+        "label": "negative",
+        "confidence": 0.85,
+        "scores": {
+          "negative": 0.85,
+          "neutral": 0.1,
+          "positive": 0.05
+        },
+        "polarity": -0.6,
+        "subjectivity": 0.8,
+        "intensity": "high"
+      },
+      "emotions": [
+        {
+          "emotion": "anxiety",
+          "confidence": 0.92
+        },
+        {
+          "emotion": "stress",
+          "confidence": 0.88
+        },
+        {
+          "emotion": "overwhelm",
+          "confidence": 0.75
+        }
+      ]
+    }
+  },
+  {
+    "session_id": 1,
+    "timestamp": "2025-07-03T21:30:28.910022",
+    "duration": "2025-07-03 21:28:21.351642",
+    "summary": "\n==================================================\n\ud83d\udd04 Session Complete\n==================================================\n\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:02:07.557771\n\ud83d\udcac Total Interactions: 9\n\n\ud83e\udde0 EMOTIONAL STATE ANALYSIS:\n- stress\n\n\ud83d\udcbc WORKPLACE STRESSORS IDENTIFIED:\n- Workload Pressure\n\n\ud83c\udfaf WORK CONTEXT: General Office\n\n\ud83d\udea8 URGENCY LEVEL: 1/5\n\n\ud83d\udca1 KEY INSIGHTS:\n\n\n\ud83d\ude80 IMMEDIATE ACTIONS RECOMMENDED:\n\n\n\ud83c\udf31 ONGOING SUPPORT SUGGESTIONS:\n\u2022 Discuss workload management with supervisor\n\u2022 Explore company wellness resources or EAP\n\u2022 Consider time management or stress reduction workshops\n\u2022 Build regular exercise or mindfulness into routine\n\n\ud83d\udd27 QUICK REMEDIES PROVIDED:\n\u2022 \ud83e\udec1 **4-7-8 Breathing**: Inhale 4, hold 7, exhale 8 (repeat 3 times)\n\u2022 \ud83c\udfb5 **Focus Music**: Try lo-fi hip hop or brown noise for coding\n\n\ud83c\udfad THERAPEUTIC TECHNIQUES USED:\n- validation: 4 times\n\n\ud83d\udcdd NEXT STEPS:\n- Apply immediate actions before your next work session\n- Monitor emotional responses to workplace situations\n- Return for support when needed\n\n\ud83c\udf1f Remember: You have practical tools and strategies to manage workplace stress effectively. \ud83c\udf1f\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-03T21:28:21.351981",
+        "sentiment": "neutral",
+        "emotions": [
+          "desire",
+          "neutral",
+          "caring"
+        ],
+        "source": "technical_analysis",
+        "intensity": "Mild"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-03T21:28:56.525261",
+        "technique": "validation",
+        "context": "yes im stressed about work , not feeling well rn",
+        "rationale": "User needs acknowledgment and normalization of their experience"
+      },
+      {
+        "timestamp": "2025-07-03T21:29:30.240705",
+        "technique": "validation",
+        "context": "I have a lot of work and deadline is tomorrow",
+        "rationale": "User needs acknowledgment and normalization of their experience"
+      },
+      {
+        "timestamp": "2025-07-03T21:30:09.567355",
+        "technique": "validation",
+        "context": "I think I can manage , can you give some good advice to uplift mood",
+        "rationale": "User needs acknowledgment and normalization of their experience"
+      },
+      {
+        "timestamp": "2025-07-03T21:30:22.018188",
+        "technique": "validation",
+        "context": "thanks",
+        "rationale": "User needs acknowledgment and normalization of their experience"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "I want to go home someone please help",
+      "yes im stressed about work , not feeling well rn",
+      "I have a lot of work and deadline is tomorrow",
+      "I think I can manage , can you give some good advice to uplift mood"
+    ],
+    "initial_analysis": {
+      "transcription": "I want to go home someone please help",
+      "sentiment": {
+        "label": "neutral",
+        "confidence": 0.6784601211547852,
+        "scores": {
+          "negative": 0.17450766265392303,
+          "neutral": 0.6784601211547852,
+          "positive": 0.14703217148780823
+        },
+        "polarity": 0,
+        "subjectivity": 0,
+        "intensity": "Mild"
+      },
+      "emotions": [
+        {
+          "emotion": "desire",
+          "confidence": 0.785097599029541
+        },
+        {
+          "emotion": "neutral",
+          "confidence": 0.08835571259260178
+        },
+        {
+          "emotion": "caring",
+          "confidence": 0.04631011188030243
+        }
+      ],
+      "genAIInsights": "**A Simple Summary:**\n\nIt seems like you're feeling a strong desire to return to a place that feels safe and comfortable, which is completely understandable. You might be feeling a bit overwhelmed or uncertain about your current situation, and going home feels like a way to escape or find solace. Your emotions are likely feeling a bit neutral, like you're stuck in a state of limbo.\n\n**Wellness Tips:**\n\n1. **Take a break and breathe**: Give yourself permission to step away from the situation and take a few deep breaths. Sometimes, taking a short timeout can help clear your mind and calm your emotions.\n2. **Connect with a supportive friend or loved one**: Reach out to someone you trust and talk to them about how you're feeling. Even a small chat can help you feel more grounded and understood.\n3. **Visualize your happy place**: Close your eyes and imagine yourself in a place that makes you feel happy and relaxed. Visualize the sights, sounds, and sensations that bring you comfort. This can help you feel more centered and calm.\n4. **Consider reaching out to a mental health professional**: If these feelings of desire to escape or uncertainty persist, consider talking to a mental health professional who can help you explore the underlying causes and develop coping strategies. They can provide you with personalized support and guidance.\n\nRemember, it's okay to feel overwhelmed, and taking small steps towards self-care can make a big difference. You got this!",
+      "technicalReport": "TRANSCRIPTION\n------------------------------------\nI want to go home someone please help\n\nSENTIMENT\n------------------------------------\n  - Label: Neutral\n  - Confidence: 0.68\n  - Polarity: 0.00 (Negative < 0 < Positive)\n  - Subjectivity: 0.00 (Objective < 0.5 < Subjective)\n  - Intensity: Mild\n\nTOP EMOTIONS\n------------------------------------\n  - Desire: 0.79\n  - Neutral: 0.09\n  - Caring: 0.05",
+      "duration": 7,
+      "timestamp": 1751558281693
+    }
+  }
+]

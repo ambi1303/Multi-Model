@@ -57,6 +57,7 @@ import { EnhancedCard } from '../components/common/EnhancedCard';
 import { GradientButton } from '../components/common/GradientButton';
 import { EmotionChip, getEmotionInfo } from '../components/common/EmotionChip';
 import { useAnalysisProgress } from '../hooks/useAnalysisProgress';
+import { EmoBuddyPopup } from '../components/common/EmoBuddyPopup';
 
 // Styled Components
 const AudioVisualizer = styled(Box)(({ theme }) => ({
@@ -143,6 +144,8 @@ export const SpeechAnalysis: React.FC = () => {
   const [analysis, setAnalysis] = useState<SpeechAnalysisResult | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [playingAudio, setPlayingAudio] = useState(false);
+  const [showEmoBuddy, setShowEmoBuddy] = useState(false);
+  const [emoBuddyAnalysis, setEmoBuddyAnalysis] = useState<SpeechAnalysisResult | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
@@ -182,6 +185,12 @@ export const SpeechAnalysis: React.FC = () => {
       addAnalysis(enhancedResult);
       addAnalysisResult('speech', enhancedResult);
       showSuccess('Audio analyzed successfully! 🎉');
+      
+      // Show Emo Buddy popup after successful analysis
+      setEmoBuddyAnalysis(enhancedResult);
+      setTimeout(() => {
+        setShowEmoBuddy(true);
+      }, 2000); // Show popup 2 seconds after analysis completes
     } catch (err) {
       showError('Failed to analyze audio. Please try again.');
     } finally {
@@ -1097,6 +1106,17 @@ export const SpeechAnalysis: React.FC = () => {
            onClick={() => setTab('history')}
          />
       </SpeedDial>
+
+      {/* Emo Buddy Popup */}
+      {showEmoBuddy && (
+        <EmoBuddyPopup
+          analysisResult={emoBuddyAnalysis}
+          onClose={() => {
+            setShowEmoBuddy(false);
+            setEmoBuddyAnalysis(null);
+          }}
+        />
+      )}
     </Box>
   );
 };

@@ -90,12 +90,22 @@ models = [
     ("stt/api", "venv", "main", "app", 8002),
     ("chat/chat/mental_state_analyzer", "venv", "api", "app", 8003),
     ("survey/survey", "venv", "backend", "app", 8004),
+    ("emo_buddy", "venv", "api", "app", 8005),
 ]
 
 for rel_path, venv_folder, module, app, port in models:
     full_path = os.path.join(base, rel_path)
     venv_path = os.path.join(full_path, venv_folder)
-    process = start_backend(full_path, venv_path, module, app, port)
+    
+    # For emo_buddy, run from project root to handle it as a package
+    if "emo_buddy" in rel_path:
+        cwd = base
+        # The module path should be dot-separated for Python to find it
+        module_path = f"{os.path.basename(rel_path)}.{module}"
+        process = start_backend(cwd, venv_path, module_path, app, port)
+    else:
+        process = start_backend(full_path, venv_path, module, app, port)
+    
     if process:
         processes.append(process)
 

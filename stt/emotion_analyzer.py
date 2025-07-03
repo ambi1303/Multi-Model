@@ -13,6 +13,11 @@ from collections import Counter
 import re
 import torch
 from groq import Groq
+from emo_buddy import EmoBuddyAgent
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,36 +26,30 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_SIZE = 8000
 
-# Create a dictionary to hold the models
-models = {}
+# Initialize models globally
+logger.info("Loading sentiment and emotion models...")
+# Initialize sentiment model
+sentiment_tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
+sentiment_model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
+
+# Initialize emotion model
+emotion_tokenizer = AutoTokenizer.from_pretrained("SamLowe/roberta-base-go_emotions")
+emotion_model = AutoModelForSequenceClassification.from_pretrained("SamLowe/roberta-base-go_emotions")
+
+logger.info("All models loaded successfully")
 
 def load_models():
-    """Load all models and store them in the global models dictionary."""
-    if models:
-        logger.info("Models already loaded.")
-        return
-
-    logger.info("Loading sentiment and emotion models...")
-    # Initialize sentiment model
-    models['sentiment_tokenizer'] = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
-    models['sentiment_model'] = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
-
-    # Initialize emotion model
-    models['emotion_tokenizer'] = AutoTokenizer.from_pretrained("SamLowe/roberta-base-go_emotions")
-    models['emotion_model'] = AutoModelForSequenceClassification.from_pretrained("SamLowe/roberta-base-go_emotions")
-
-    # Initialize Vosk model
-    vosk_model_path = "../vosk-model-small-en-us-0.15"
-    if not os.path.exists(vosk_model_path):
-        vosk_model_path = "vosk-model-small-en-us-0.15" # Fallback for different CWD
-    models['vosk_model'] = Model(vosk_model_path)
-
-    logger.info("All models loaded successfully")
+    """Load all required models for the API"""
+    global sentiment_tokenizer, sentiment_model, emotion_tokenizer, emotion_model
+    
+    logger.info("Loading models for API...")
+    
+    # Models are already loaded at module level
+    # This function is called by the API during startup
+    logger.info("Models loaded successfully for API")
 
 def get_sentiment(text):
     """Get detailed sentiment analysis using RoBERTa"""
-    sentiment_tokenizer = models['sentiment_tokenizer']
-    sentiment_model = models['sentiment_model']
     inputs = sentiment_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
     outputs = sentiment_model(**inputs)
     scores = torch.nn.functional.softmax(outputs.logits, dim=1)
@@ -73,8 +72,6 @@ def get_sentiment(text):
 
 def get_emotions(text):
     """Get detailed emotion analysis using RoBERTa"""
-    emotion_tokenizer = models['emotion_tokenizer']
-    emotion_model = models['emotion_model']
     inputs = emotion_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
     outputs = emotion_model(**inputs)
     scores = torch.nn.functional.sigmoid(outputs.logits)
@@ -150,7 +147,7 @@ def transcribe_with_vosk(audio_file):
     """Transcribe using Vosk as fallback"""
     try:
         # Initialize Vosk model
-        model = models['vosk_model']
+        model = Model("vosk-model-small-en-us-0.15")
         wf = wave.open(audio_file, "rb")
         
         # Create recognizer
@@ -255,12 +252,12 @@ def get_gen_ai_insights(analysis_report):
         You are a compassionate and empathetic wellness assistant. Your role is to analyze a person's statement and a technical emotional analysis report to provide a simple, easy-to-understand summary and gentle, actionable wellness advice. You should be supportive and encouraging. Do not give medical advice, but you can suggest seeking professional help. Frame your advice as suggestions, not commands.
 
         **User Data:**
-        - **The user said:** \"{text}\"
+        - **The user said:** "{text}"
         - **Technical Analysis:** The user is expressing a '{sentiment_label.upper()}' sentiment with '{prominent_emotion.upper()}' as the most prominent emotion.
 
         **Your Task:**
         Based on this information, please provide the following in a clear, formatted response:
-        1.  **A Simple Summary:** Briefly explain what the analysis suggests about the person's current emotional state in 1-2 sentences. Make it very easy to understand.
+        1.  **A Simple Summary:** Briefly explain what the analysis suggests about the person's current emotional state in 3-4 sentences. Make it very easy to understand.
         2.  **Wellness Tips:** Offer 3-4 gentle, actionable wellness suggestions tailored to the detected emotions. For example, if sadness is high, you might suggest listening to uplifting music or talking to a friend. If stress is detected, suggest a short meditation. Always include a gentle suggestion to consider talking to a mental health professional if these feelings persist.
         """
 
@@ -271,7 +268,7 @@ def get_gen_ai_insights(analysis_report):
                     "content": prompt,
                 }
             ],
-            model="llama3-8b-8192", # Or "llama3-70b-8192" for a more powerful model
+            model="llama3-70b-8192", # Or "llama3-70b-8192" for a more powerful model
         )
         return chat_completion.choices[0].message.content
 
@@ -301,7 +298,75 @@ def print_full_report(analysis, gen_ai_insights):
     print(gen_ai_insights)
     print("\n" + "="*50)
 
+def start_emo_buddy_session(analysis_report):
+    """
+    Start an Emo Buddy therapeutic session
+    """
+    print("\n" + "🤖 Starting Emo Buddy Session...")
+    print("="*50)
+    
+    try:
+        # Initialize Emo Buddy agent
+        emo_buddy = EmoBuddyAgent()
+        
+        # Start session with analysis report
+        initial_response = emo_buddy.start_session(analysis_report)
+        
+        print(f"\n🤖 Emo Buddy: {initial_response}")
+        
+        # Main conversation loop
+        while True:
+            try:
+                user_input = input("\n💬 You: ").strip()
+                
+                if not user_input:
+                    continue
+                
+                # Check for exit commands
+                if user_input.lower() in ['exit', 'quit', 'end session', 'goodbye', 'bye']:
+                    break
+                
+                # Continue conversation
+                response, should_continue = emo_buddy.continue_conversation(user_input)
+                print(f"\n🤖 Emo Buddy: {response}")
+                
+                # Check if session should naturally end
+                if not should_continue:
+                    print("\n🤖 Emo Buddy: It seems like we've made good progress. Would you like to continue or wrap up our session?")
+                    continue_choice = input("Continue? (y/n): ").strip().lower()
+                    if continue_choice != 'y':
+                        break
+                
+            except KeyboardInterrupt:
+                print("\n\n🤖 Emo Buddy: I understand you want to end our session. That's perfectly okay.")
+                break
+            except Exception as e:
+                logger.error(f"Error in Emo Buddy conversation: {e}")
+                print("🤖 Emo Buddy: I'm having some technical difficulties. Let me try to help you in a different way.")
+                continue
+        
+        # End session and get summary
+        print("\n" + "="*50)
+        print("🔄 Ending Emo Buddy Session...")
+        print("="*50)
+        
+        session_summary = emo_buddy.end_session()
+        print(session_summary)
+        
+    except Exception as e:
+        logger.error(f"Error initializing Emo Buddy: {e}")
+        print("⚠️  Sorry, Emo Buddy is currently unavailable. Please ensure you have set up your GEMINI_API_KEY environment variable.")
+        print("You can still use the main voice analysis features.")
+
 def main():
+    print("🎤 Voice Analysis & Emo Buddy System")
+    print("="*50)
+    print("This system provides:")
+    print("1. Voice analysis with sentiment & emotion detection")
+    print("2. AI-powered wellness advice")
+    print("3. Optional Emo Buddy therapeutic companion")
+    print("="*50)
+    
     while True:
         input("\nPress Enter to start recording (10 seconds) or Ctrl+C to exit...")
         try:
@@ -318,8 +383,28 @@ def main():
                 
                 # Step 3: Print the combined report
                 print_full_report(analysis, gen_ai_insights)
+                
+                # Step 4: Offer Emo Buddy session
+                print("\n" + "="*50)
+                print("🤖 EMO BUDDY THERAPEUTIC COMPANION")
+                print("="*50)
+                print("Would you like to continue with Emo Buddy for deeper emotional support?")
+                print("Emo Buddy can help you:")
+                print("• Understand your emotions more clearly")
+                print("• Explore your thoughts and feelings")
+                print("• Learn coping strategies")
+                print("• Provide personalized therapeutic guidance")
+                
+                emo_buddy_choice = input("\nWould you like to talk with Emo Buddy? (y/n): ").strip().lower()
+                
+                if emo_buddy_choice == 'y':
+                    start_emo_buddy_session(analysis)
+                else:
+                    print("That's perfectly fine! The Emo Buddy option is always available when you need it.")
+                    
             else:
                 print("⚠️ No speech recognized. Try speaking louder or closer to the microphone.")
+                
         except KeyboardInterrupt:
             print("\nExiting...")
             break

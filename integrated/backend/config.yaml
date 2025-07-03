@@ -4,6 +4,7 @@ backend_urls:
   stt: http://localhost:8002/analyze-speech
   chat: http://localhost:8003/analyze/single
   survey: http://localhost:8004/analyze
+  emo_buddy: http://localhost:8005
 
 # Logging
 logging:

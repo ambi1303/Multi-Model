@@ -34,6 +34,7 @@ const navigationItems = [
   { text: 'Video Analysis', icon: VideocamIcon, path: '/video' },
   { text: 'Speech Analysis', icon: MicIcon, path: '/speech' },
   { text: 'Chat Analysis', icon: ChatIcon, path: '/chat' },
+  { text: 'Emo-Buddy - AI Companion', icon: ChatIcon, path: '/emo-buddy' },
   { text: 'Enhanced Burnout Survey', icon: AssignmentIcon, path: '/enhanced-survey' },
   { text: 'Analytics', icon: TrendingUpIcon, path: '/analytics' },
 ];

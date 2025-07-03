@@ -1,0 +1,58 @@
+[
+  {
+    "session_id": 0,
+    "timestamp": "2025-07-03T19:55:26.534955",
+    "duration": "2025-07-03 19:53:33.082070",
+    "summary": "\n==================================================\n\ud83d\udd04 Session Complete\n==================================================\n\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:01:53.452551\n\ud83d\udcac Total Interactions: 3\n\n\ud83e\udde0 EMOTIONAL STATE ANALYSIS:\n- general_work_stress\n\n\ud83d\udcbc WORKPLACE STRESSORS IDENTIFIED:\n- Workload Pressure\n\n\ud83c\udfaf WORK CONTEXT: General Office\n\n\ud83d\udea8 URGENCY LEVEL: 3/5\n\n\ud83d\udca1 KEY INSIGHTS:\n\n\n\ud83d\ude80 IMMEDIATE ACTIONS RECOMMENDED:\n\u2022 Take 10-minute break before starting work session\n\u2022 Use breathing exercises to manage immediate stress\n\u2022 Set up comfortable workspace with good lighting\n\u2022 Plan work breaks every 45-60 minutes\n\n\ud83c\udf31 ONGOING SUPPORT SUGGESTIONS:\n\u2022 Discuss workload management with supervisor\n\u2022 Explore company wellness resources or EAP\n\u2022 Consider time management or stress reduction workshops\n\u2022 Build regular exercise or mindfulness into routine\n\n\ud83d\udd27 QUICK REMEDIES PROVIDED:\n\u2022 \ud83e\udec1 **4-7-8 Breathing**: Inhale 4, hold 7, exhale 8 (repeat 3 times)\n\u2022 \ud83c\udfb5 **Focus Music**: Try lo-fi hip hop or brown noise for coding\n\n\ud83c\udfad THERAPEUTIC TECHNIQUES USED:\n- cbt: 1 times\n\n\ud83d\udcdd NEXT STEPS:\n- Apply immediate actions before your next work session\n- Monitor emotional responses to workplace situations\n- Return for support when needed\n\n\ud83c\udf1f Remember: You have practical tools and strategies to manage workplace stress effectively. \ud83c\udf1f\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-03T19:54:03.590330",
+        "sentiment": "NEGATIVE",
+        "emotions": [
+          "anxiety",
+          "neutral",
+          "neutral"
+        ],
+        "source": "technical_analysis",
+        "intensity": "moderate"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-03T19:54:51.266687",
+        "technique": "cbt",
+        "context": "i want to go",
+        "rationale": "User showing thought patterns that could benefit from cognitive restructuring"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hi im feeling anxious because of so much work and deadline is tomorrow"
+    ],
+    "initial_analysis": {
+      "transcription": "hi im feeling anxious because of so much work and deadline is tomorrow",
+      "sentiment": {
+        "label": "NEGATIVE",
+        "confidence": 0.7,
+        "intensity": "moderate"
+      },
+      "emotions": [
+        {
+          "emotion": "anxiety",
+          "confidence": 0.5
+        },
+        {
+          "emotion": "neutral",
+          "confidence": 0.1
+        },
+        {
+          "emotion": "neutral",
+          "confidence": 0.1
+        }
+      ],
+      "source": "standalone_chat",
+      "timestamp": "2025-07-03T19:54:03.589547",
+      "workplace_context": true
+    }
+  }
+]

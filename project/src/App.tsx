@@ -15,6 +15,7 @@ const ChatAnalysis = React.lazy(() => import('./pages/ChatAnalysis').then(m => (
 const EnhancedBurnoutSurvey = React.lazy(() => import('./pages/EnhancedBurnoutSurvey').then(m => ({ default: m.EnhancedBurnoutSurvey })));
 const Home = React.lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
 const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
+const EmoBuddy = React.lazy(() => import('./pages/EmoBuddy').then(m => ({ default: m.EmoBuddy })));
 
 function App() {
   return (
@@ -69,6 +70,14 @@ function App() {
                   element={
                     <Suspense fallback={<LoadingSpinner message="Loading Chat Analysis..." />}>
                       <ChatAnalysis />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="emo-buddy"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Emo Buddy..." />}>
+                      <EmoBuddy />
                     </Suspense>
                   }
                 />

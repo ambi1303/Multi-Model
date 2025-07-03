@@ -38,7 +38,8 @@ def load_config():
                 "video": "http://localhost:8001/analyze-emotion",
                 "stt": "http://localhost:8002/analyze-speech",
                 "chat": "http://localhost:8003/analyze/single",
-                "survey": "http://localhost:8004/analyze"
+                "survey": "http://localhost:8004/analyze",
+                "emo_buddy": "http://localhost:8005"
             },
             "logging": {
                 "level": "INFO",
@@ -123,6 +124,7 @@ VIDEO_BACKEND_URL = backend_urls.get("video", "http://localhost:8001/analyze-emo
 STT_BACKEND_URL = backend_urls.get("stt", "http://localhost:8002/analyze-speech")
 CHAT_BACKEND_URL = backend_urls.get("chat", "http://localhost:8003/analyze/single")
 SURVEY_BACKEND_URL = backend_urls.get("survey", "http://localhost:8004/analyze")
+EMO_BUDDY_BACKEND_URL = backend_urls.get("emo_buddy", "http://localhost:8005")
 
 # In-memory storage for video analytics (for demo; replace with DB for production)
 video_analysis_results = []
@@ -488,6 +490,105 @@ async def analyze_speech(audio_file: UploadFile = File(...)):
         return JSONResponse(content={"error": str(e)}, status_code=500)
     finally:
         PROCESSING_TIME.labels(endpoint='analyze-speech').observe(time.time() - start_time)
+
+# Emo Buddy Proxy Endpoints
+@app.post("/emo-buddy/start")
+async def start_emo_buddy_session(request: Request):
+    """Start an Emo Buddy therapeutic session"""
+    REQUESTS.labels(endpoint='emo-buddy-start').inc()
+    start_time = time.time()
+    
+    try:
+        payload = await request.json()
+        logger.info("Starting Emo Buddy session")
+        
+        # Forward to standalone Emo Buddy service
+        emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/start-session"
+        
+        async with session.post(emo_buddy_url, json=payload) as resp:
+            data = await resp.json()
+            logger.info("Emo Buddy session started successfully")
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error starting Emo Buddy session: {str(e)}")
+        ERROR_COUNT.labels(endpoint='emo-buddy-start', error_type='general').inc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='emo-buddy-start').observe(time.time() - start_time)
+
+@app.post("/emo-buddy/continue")
+async def continue_emo_buddy_conversation(request: Request):
+    """Continue an Emo Buddy conversation"""
+    REQUESTS.labels(endpoint='emo-buddy-continue').inc()
+    start_time = time.time()
+    
+    try:
+        payload = await request.json()
+        logger.info(f"Continuing Emo Buddy conversation for session: {payload.get('session_id')}")
+        
+        # Forward to standalone Emo Buddy service
+        emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/continue-session"
+        
+        async with session.post(emo_buddy_url, json=payload) as resp:
+            data = await resp.json()
+            logger.info("Emo Buddy conversation continued successfully")
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error continuing Emo Buddy conversation: {str(e)}")
+        ERROR_COUNT.labels(endpoint='emo-buddy-continue', error_type='general').inc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='emo-buddy-continue').observe(time.time() - start_time)
+
+@app.post("/emo-buddy/end")
+async def end_emo_buddy_session(request: Request):
+    """End an Emo Buddy session"""
+    REQUESTS.labels(endpoint='emo-buddy-end').inc()
+    start_time = time.time()
+    
+    try:
+        payload = await request.json()
+        logger.info(f"Ending Emo Buddy session: {payload.get('session_id')}")
+        
+        # Forward to standalone Emo Buddy service
+        emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/end-session"
+        
+        async with session.post(emo_buddy_url, json=payload) as resp:
+            data = await resp.json()
+            logger.info("Emo Buddy session ended successfully")
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error ending Emo Buddy session: {str(e)}")
+        ERROR_COUNT.labels(endpoint='emo-buddy-end', error_type='general').inc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+        PROCESSING_TIME.labels(endpoint='emo-buddy-end').observe(time.time() - start_time)
+
+@app.get("/emo-buddy/availability")
+async def check_emo_buddy_availability():
+    """Check if Emo Buddy service is available"""
+    try:
+        logger.info("Checking Emo Buddy availability")
+        
+        # Forward to standalone Emo Buddy health endpoint
+        emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/health"
+        
+        async with session.get(emo_buddy_url, timeout=3) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                logger.info("Emo Buddy availability check completed")
+                # Assuming the health check of the standalone service is a good proxy for availability
+                return JSONResponse(content={"available": True, "details": data}, status_code=200)
+            else:
+                logger.warning(f"Emo Buddy availability check failed: {resp.status}")
+                return JSONResponse(content={"available": False, "message": "Emo Buddy service is not available"}, status_code=200)
+                
+    except Exception as e:
+        logger.error(f"Error checking Emo Buddy availability: {str(e)}")
+        return JSONResponse(content={"available": False, "message": "Emo Buddy service check failed"}, status_code=200)
 
 @app.post("/analyze-chat")
 async def analyze_chat(request: Request):

@@ -9,11 +9,14 @@ import pstats
 import io
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from fastapi.responses import Response
+from typing import Dict, Any
+from pydantic import BaseModel
 
 # Load environment variables from .env file
 load_dotenv()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,8 +25,35 @@ import numpy as np
 import ffmpeg
 from emotion_analyzer import analyze_text, get_gen_ai_insights, transcribe_audio, load_models
 
+# Import EmoBuddyAgent with error handling
+try:
+    from emo_buddy.emo_buddy_agent import EmoBuddyAgent
+    EMO_BUDDY_AVAILABLE = True
+    logger = logging.getLogger("main")
+    logger.info("EmoBuddyAgent imported successfully")
+except ImportError as e:
+    logger = logging.getLogger("main")
+    logger.error(f"Failed to import EmoBuddyAgent: {e}")
+    logger.error("Emo Buddy functionality will be disabled")
+    EMO_BUDDY_AVAILABLE = False
+    EmoBuddyAgent = None
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
+
+# Pydantic models for request/response bodies
+class EmoBuddySessionRequest(BaseModel):
+    analysis_report: Dict[str, Any]
+
+class EmoBuddyConversationRequest(BaseModel):
+    session_id: str
+    user_input: str
+
+class EmoBuddyEndSessionRequest(BaseModel):
+    session_id: str
+
+# Store active Emo Buddy sessions
+active_sessions: Dict[str, EmoBuddyAgent] = {}
 
 # Prometheus metrics
 REQUESTS = Counter('stt_requests_total', 'Total speech analysis requests', ['endpoint'])
@@ -89,13 +119,31 @@ def read_root():
 async def health_check():
     """Health check endpoint"""
     update_system_metrics()
-    return {"status": "healthy", "message": "STT Analysis API is running"}
+    return {
+        "status": "healthy", 
+        "message": "STT Analysis API is running",
+        "emo_buddy_available": EMO_BUDDY_AVAILABLE
+    }
 
 @app.get("/metrics")
 async def metrics():
     """Expose Prometheus metrics"""
     update_system_metrics()
     return Response(content=generate_latest(), media_type="text/plain")
+
+@app.get("/emo-buddy-availability")
+async def check_emo_buddy_availability():
+    """Check if Emo Buddy service is available"""
+    return {
+        "available": EMO_BUDDY_AVAILABLE,
+        "message": "Emo Buddy service is available" if EMO_BUDDY_AVAILABLE else "Emo Buddy service is not available",
+        "features": {
+            "therapeutic_sessions": EMO_BUDDY_AVAILABLE,
+            "crisis_detection": EMO_BUDDY_AVAILABLE,
+            "memory_system": EMO_BUDDY_AVAILABLE,
+            "corporate_context": EMO_BUDDY_AVAILABLE
+        }
+    }
 
 @app.post("/analyze-speech")
 async def analyze_speech(audio_file: UploadFile = File(...), profile: bool = Query(False, description="Enable profiling for this request")):
@@ -245,6 +293,202 @@ async def get_profile_report():
         raise HTTPException(status_code=500, detail=f"Failed to generate profile report: {str(e)}")
     finally:
         PROCESSING_TIME.labels(endpoint='profile-report').observe(time.time() - start_time)
+
+@app.post("/start-emo-buddy")
+async def start_emo_buddy_session(request: EmoBuddySessionRequest):
+    """Start a new Emo Buddy therapeutic session"""
+    REQUESTS.labels(endpoint='start-emo-buddy').inc()
+    start_time = time.time()
+    
+    try:
+        # Check if Emo Buddy is available
+        if not EMO_BUDDY_AVAILABLE:
+            raise HTTPException(
+                status_code=503, 
+                detail="Emo Buddy service is not available. Please ensure the emo_buddy module is properly installed and configured."
+            )
+        
+        # Generate unique session ID
+        session_id = f"emo_buddy_{int(time.time() * 1000)}"
+        
+        # Initialize Emo Buddy agent
+        emo_buddy = EmoBuddyAgent()
+        
+        # Start session with analysis report
+        initial_response = emo_buddy.start_session(request.analysis_report)
+        
+        # Store session
+        active_sessions[session_id] = emo_buddy
+        
+        # Update metrics
+        update_system_metrics()
+        
+        return {
+            "session_id": session_id,
+            "response": initial_response,
+            "status": "session_started"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting Emo Buddy session: {e}", exc_info=True)
+        ERROR_COUNT.labels(endpoint='start-emo-buddy', error_type='session_start').inc()
+        raise HTTPException(status_code=500, detail=f"Failed to start Emo Buddy session: {str(e)}")
+    finally:
+        PROCESSING_TIME.labels(endpoint='start-emo-buddy').observe(time.time() - start_time)
+
+@app.post("/continue-emo-buddy")
+async def continue_emo_buddy_conversation(request: EmoBuddyConversationRequest):
+    """Continue an existing Emo Buddy conversation"""
+    REQUESTS.labels(endpoint='continue-emo-buddy').inc()
+    start_time = time.time()
+    
+    try:
+        # Check if Emo Buddy is available
+        if not EMO_BUDDY_AVAILABLE:
+            raise HTTPException(
+                status_code=503, 
+                detail="Emo Buddy service is not available."
+            )
+        
+        # Check if session exists
+        if request.session_id not in active_sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        emo_buddy = active_sessions[request.session_id]
+        
+        # Continue conversation
+        response, should_continue = emo_buddy.continue_conversation(request.user_input)
+        
+        # Update metrics
+        update_system_metrics()
+        
+        return {
+            "session_id": request.session_id,
+            "response": response,
+            "should_continue": should_continue,
+            "status": "conversation_continued"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error continuing Emo Buddy conversation: {e}", exc_info=True)
+        ERROR_COUNT.labels(endpoint='continue-emo-buddy', error_type='conversation_error').inc()
+        raise HTTPException(status_code=500, detail=f"Failed to continue conversation: {str(e)}")
+    finally:
+        PROCESSING_TIME.labels(endpoint='continue-emo-buddy').observe(time.time() - start_time)
+
+@app.post("/end-emo-buddy")
+async def end_emo_buddy_session(request: EmoBuddyEndSessionRequest):
+    """End an Emo Buddy therapeutic session"""
+    REQUESTS.labels(endpoint='end-emo-buddy').inc()
+    start_time = time.time()
+    
+    try:
+        # Check if Emo Buddy is available
+        if not EMO_BUDDY_AVAILABLE:
+            raise HTTPException(
+                status_code=503, 
+                detail="Emo Buddy service is not available."
+            )
+        
+        # Check if session exists
+        if request.session_id not in active_sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        emo_buddy = active_sessions[request.session_id]
+        
+        # End session and get summary
+        session_summary = emo_buddy.end_session()
+        
+        # Remove session from active sessions
+        del active_sessions[request.session_id]
+        
+        # Update metrics
+        update_system_metrics()
+        
+        return {
+            "session_id": request.session_id,
+            "summary": session_summary,
+            "status": "session_ended"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error ending Emo Buddy session: {e}", exc_info=True)
+        ERROR_COUNT.labels(endpoint='end-emo-buddy', error_type='session_end').inc()
+        raise HTTPException(status_code=500, detail=f"Failed to end session: {str(e)}")
+    finally:
+        PROCESSING_TIME.labels(endpoint='end-emo-buddy').observe(time.time() - start_time)
+
+@app.get("/emo-buddy-status/{session_id}")
+async def get_emo_buddy_status(session_id: str):
+    """Get the status of an Emo Buddy session"""
+    try:
+        # Check if Emo Buddy is available
+        if not EMO_BUDDY_AVAILABLE:
+            return {
+                "session_id": session_id, 
+                "status": "service_unavailable", 
+                "active": False,
+                "message": "Emo Buddy service is not available"
+            }
+        
+        if session_id not in active_sessions:
+            return {"session_id": session_id, "status": "not_found", "active": False}
+        
+        emo_buddy = active_sessions[session_id]
+        
+        return {
+            "session_id": session_id,
+            "status": "active",
+            "active": True,
+            "session_info": {
+                "start_time": emo_buddy.current_session.get("start_time").isoformat() if emo_buddy.current_session.get("start_time") else None,
+                "messages_count": len(emo_buddy.current_session.get("messages", [])),
+                "emotions_tracked": len(emo_buddy.current_session.get("emotions_tracked", [])),
+                "techniques_used": len(emo_buddy.current_session.get("techniques_used", []))
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting Emo Buddy status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get session status: {str(e)}")
+
+@app.get("/active-sessions")
+async def get_active_sessions():
+    """Get list of active Emo Buddy sessions"""
+    try:
+        # Check if Emo Buddy is available
+        if not EMO_BUDDY_AVAILABLE:
+            return {
+                "active_sessions_count": 0,
+                "sessions": [],
+                "message": "Emo Buddy service is not available"
+            }
+        
+        sessions_info = []
+        for session_id, emo_buddy in active_sessions.items():
+            session_info = {
+                "session_id": session_id,
+                "start_time": emo_buddy.current_session.get("start_time").isoformat() if emo_buddy.current_session.get("start_time") else None,
+                "messages_count": len(emo_buddy.current_session.get("messages", [])),
+                "emotions_tracked": len(emo_buddy.current_session.get("emotions_tracked", [])),
+                "techniques_used": len(emo_buddy.current_session.get("techniques_used", []))
+            }
+            sessions_info.append(session_info)
+        
+        return {
+            "active_sessions_count": len(active_sessions),
+            "sessions": sessions_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting active sessions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get active sessions: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
