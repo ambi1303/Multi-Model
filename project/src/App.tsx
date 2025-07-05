@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
+import ThemeHandler from './contexts/ThemeHandler';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
@@ -16,12 +17,16 @@ const EnhancedBurnoutSurvey = React.lazy(() => import('./pages/EnhancedBurnoutSu
 const Home = React.lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
 const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 const EmoBuddy = React.lazy(() => import('./pages/EmoBuddy').then(m => ({ default: m.EmoBuddy })));
+const Wellness = React.lazy(() => import('./pages/Wellness').then(m => ({ default: m.default })));
 const FAQSection = React.lazy(() => import('./pages/FAQ').then(m => ({ default: m.default })));
+const Admin = React.lazy(() => import('./pages/Admin').then(m => ({ default: m.default })));
+const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.default })));
 
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
+        <ThemeHandler />
         <NotificationProvider>
           <Router>
             <Routes>
@@ -107,10 +112,34 @@ function App() {
                   }
                 />
                 <Route
+                  path="wellness"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Wellness..." />}>
+                      <Wellness />
+                    </Suspense>
+                  }
+                />
+                <Route
                   path="faq"
                   element={
                     <Suspense fallback={<LoadingSpinner message="Loading FAQ..." />}>
                       <FAQSection />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="admin"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Admin Panel..." />}>
+                      <Admin />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading Settings..." />}>
+                      <Settings />
                     </Suspense>
                   }
                 />

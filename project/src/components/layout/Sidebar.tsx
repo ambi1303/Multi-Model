@@ -2,24 +2,31 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Drawer,
+  Box,
+  Typography,
   List,
   ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Box,
-  Typography,
+  Avatar,
   Chip,
-  Button,
+  Divider,
 } from '@mui/material';
+import { useTheme } from '../../contexts/ThemeContext';
 import {
-  DashboardIcon,
+  HomeIcon,
+  BarChartIcon,
   VideoCallIcon as VideocamIcon,
   MicIcon,
   ChatIcon,
-  AssignmentIcon,
+  HeartIcon,
+  HelpIcon,
+  SettingsIcon,
   TrendingUpIcon,
-  InfoIcon as StarIcon,
+  StarIcon,
+  AssignmentIcon,
+  DashboardIcon,
 } from '../../utils/icons';
 
 interface SidebarProps {
@@ -29,18 +36,82 @@ interface SidebarProps {
   width: number;
 }
 
-const navigationItems = [
-  { text: 'Dashboard', icon: DashboardIcon, path: '/dashboard' },
-  { text: 'Video Analysis', icon: VideocamIcon, path: '/video' },
-  { text: 'Speech Analysis', icon: MicIcon, path: '/speech' },
-  { text: 'Chat Analysis', icon: ChatIcon, path: '/chat' },
-  { text: 'Emo-Buddy - AI Companion', icon: ChatIcon, path: '/emo-buddy' },
-  { text: 'Enhanced Burnout Survey', icon: AssignmentIcon, path: '/enhanced-survey' },
-  { text: 'Analytics', icon: TrendingUpIcon, path: '/analytics' },
-  { text: 'FAQ', icon: StarIcon, path: '/faq' },
+interface NavItem {
+  text: string;
+  icon: React.FC<any> | string;
+  path: string;
+  description: string;
+  live?: boolean;
+  special?: 'sparkle' | 'heart' | 'pro';
+}
+
+interface NavSection {
+  title?: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    items: [
+      { text: 'Home', icon: HomeIcon, path: '/', description: 'Welcome & Overview' },
+      { text: 'Dashboard', icon: DashboardIcon, path: '/dashboard', description: 'Key metrics at a glance' },
+      { text: 'Analytics', icon: BarChartIcon, path: '/analytics', description: 'Real-time insights & metrics', live: true },
+    ],
+  },
+  {
+    title: 'ANALYSIS TOOLS',
+    items: [
+      { text: 'Video Analysis', icon: VideocamIcon, path: '/video', description: 'Facial expression analysis' },
+      { text: 'Audio Analysis', icon: MicIcon, path: '/speech', description: 'Voice sentiment analysis' },
+      { text: 'Chat Analysis', icon: ChatIcon, path: '/chat', description: 'Conversation sentiment' },
+      { text: 'Burnout Survey', icon: AssignmentIcon, path: '/enhanced-survey', description: 'Assess and track burnout levels' },
+    ],
+  },
+  {
+    title: 'AI COMPANION',
+    items: [
+      { text: 'Emo-Buddy', icon: '🤖', path: '/emo-buddy', description: 'AI emotional companion', special: 'sparkle' },
+    ],
+  },
+  {
+    title: 'WELLNESS & SUPPORT',
+    items: [
+      { text: 'Wellness Center', icon: HeartIcon, path: '/wellness', description: 'Mental health & meditation', special: 'heart' },
+      { text: 'FAQ & Help', icon: HelpIcon, path: '/faq', description: 'Frequently asked questions' },
+    ],
+  },
+  {
+    title: 'SYSTEM',
+    items: [
+      { text: 'Admin Panel', icon: SettingsIcon, path: '/admin', description: 'User & system management', special: 'pro' },
+      { text: 'Settings', icon: SettingsIcon, path: '/settings', description: 'Application preferences' },
+    ],
+  },
 ];
 
+const SpecialIndicator = ({ type }: { type: string }) => {
+  const styles = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+  };
+  if (type === 'live') {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#10B981' }} />
+        <Typography variant="body2" sx={{ color: '#10B981', fontWeight: 500 }}>Live</Typography>
+      </Box>
+    );
+  }
+  if (type === 'sparkle') return <Box sx={styles}>✨</Box>;
+  if (type === 'heart') return <Box sx={styles}>❤️‍🔥</Box>;
+  if (type === 'pro') return <StarIcon sx={{ color: '#F59E0B', fontSize: '18px' }} />;
+  return null;
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width }) => {
+  const { mode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -51,116 +122,158 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
     }
   };
 
+  const colors = {
+    bg: mode === 'dark' ? '#111827' : '#FFFFFF',
+    textPrimary: mode === 'dark' ? '#F9FAFB' : '#111827',
+    textSecondary: mode === 'dark' ? '#9CA3AF' : '#6B7280',
+    itemBgActive: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+    itemBgHover: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#F3F4F6',
+    title: mode === 'dark' ? '#9CA3AF' : '#6B7280',
+    divider: mode === 'dark' ? '#374151' : '#E5E7EB',
+  };
+
   const drawerContent = (
-    <Box sx={{ 
-      height: '100%', 
-      display: 'flex', 
+    <Box sx={{
+      height: '100%',
+      display: 'flex',
       flexDirection: 'column',
+      bgcolor: colors.bg,
+      color: colors.textPrimary,
+      p: 2,
     }}>
+      {/* User Profile */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Avatar src="https://i.pravatar.cc/150?u=a042581f4e29026704d" sx={{ width: 48, height: 48 }} />
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: colors.textPrimary }}>
+            Admin User
+          </Typography>
+          <Typography variant="body2" sx={{ color: colors.textSecondary }}>
+            IT Department
+          </Typography>
+        </Box>
+        <Chip label="Admin" size="small" sx={{ ml: 'auto', bgcolor: '#EDE9FE', color: '#5B21B6', fontWeight: 600 }} />
+      </Box>
+
+      {/* Access Level */}
+      <Box sx={{
+        bgcolor: mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : '#EEF2FF',
+        borderRadius: 3,
+        p: 2,
+        mb: 3,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+      }}>
+        <HelpIcon sx={{ color: '#6366F1' }} />
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.textPrimary }}>
+            Access Level
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#6366F1' }}>
+            12 of 12 features available
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+          {[...Array(4)].map((_, i) => (
+            <Box key={i} sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#6366F1', opacity: i === 3 ? 0.4 : 1 }} />
+          ))}
+        </Box>
+      </Box>
+
       {/* Navigation */}
-      <List sx={{ flex: 1, pt: 2 }}>
-        {navigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path;
-          
-          return (
-            <ListItem key={item.text} disablePadding sx={{ px: 2, mb: 1 }}>
-              <ListItemButton
-                onClick={() => handleNavigation(item.path)}
-                sx={{
-                  borderRadius: 2,
-                  backgroundColor: isActive ? 'primary.main' : 'transparent',
-                  color: isActive ? 'primary.contrastText' : 'text.primary',
-                  '&:hover': {
-                    backgroundColor: isActive ? 'primary.dark' : 'action.hover',
-                  },
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    color: isActive ? 'primary.contrastText' : 'text.secondary',
-                    minWidth: 40,
-                  }}
-                >
-                  <Icon />
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text}
-                  sx={{
-                    '& .MuiListItemText-primary': {
-                      fontSize: '0.875rem',
-                      fontWeight: isActive ? 600 : 400,
-                    },
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
-      </List>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+        {navSections.map((section, index) => (
+          <List key={index} subheader={section.title ? (
+            <Typography variant="caption" sx={{
+              fontWeight: 700,
+              color: colors.title,
+              pl: 1.5,
+              mt: index > 0 ? 2 : 0,
+              display: 'block'
+            }}>
+              {section.title}
+            </Typography>
+          ) : null}>
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path || (location.pathname.startsWith(item.path) && item.path !== '/dashboard');
 
-      {/* Status Section */}
-      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <Chip
-            label="9 Live Analyses"
-            size="small"
-            color="primary"
-            variant="filled"
-            sx={{ fontSize: '0.75rem' }}
-          />
-          <Chip
-            label="19% Stress"
-            size="small"
-            color="success"
-            variant="filled"
-            sx={{ fontSize: '0.75rem' }}
-          />
-        </Box>
-        
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Advanced sentiment analysis using multiple machine learning models for accurate emotion detection and text classification across various domains.
-        </Typography>
+              return (
+                <ListItem key={item.text} disablePadding sx={{ my: 0.5 }}>
+                  <ListItemButton
+                    onClick={() => handleNavigation(item.path)}
+                    sx={{
+                      borderRadius: 2.5,
+                      py: 1.5,
+                      px: 2,
+                      background: isActive ? colors.itemBgActive : 'transparent',
+                      color: isActive ? '#FFFFFF' : colors.textPrimary,
+                      '&:hover': {
+                        background: isActive ? colors.itemBgActive : colors.itemBgHover,
+                      },
+                      transition: 'background 0.3s, color 0.3s',
+                    }}
+                  >
+                    <ListItemIcon sx={{
+                      minWidth: 40,
+                      color: 'inherit',
+                      fontSize: typeof Icon === 'string' ? '24px' : 'inherit'
+                    }}>
+                      {typeof Icon === 'string' ? Icon : <Icon />}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.text}
+                      secondary={item.description}
+                      primaryTypographyProps={{ sx: { fontWeight: 600, fontSize: '0.9rem' } }}
+                      secondaryTypographyProps={{ sx: {
+                        color: isActive ? 'rgba(255,255,255,0.7)' : colors.textSecondary,
+                        fontSize: '0.75rem'
+                      }}}
+                    />
+                    {item.live && <SpecialIndicator type="live" />}
+                    {item.special && <SpecialIndicator type={item.special} />}
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
+          </List>
+        ))}
+      </Box>
 
-        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<StarIcon />}
-            fullWidth
-            sx={{ fontSize: '0.75rem' }}
-          >
-            Tutorials
-          </Button>
-        </Box>
+      <Divider sx={{ my: 2, borderColor: colors.divider }} />
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="text"
-            size="small"
-            fullWidth
-            sx={{ fontSize: '0.75rem' }}
-          >
-            Contact Us
-          </Button>
-          <Button
-            variant="text"
-            size="small"
-            fullWidth
-            sx={{ fontSize: '0.75rem' }}
-          >
-            Report Issues
-          </Button>
+      {/* Footer Stats */}
+      <Box>
+        <Box sx={{
+          bgcolor: mode === 'dark' ? '#0596691A' : '#F0FDF4',
+          borderRadius: 3,
+          p: 2,
+          mb: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+        }}>
+          <TrendingUpIcon sx={{ color: '#10B981' }} />
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.textPrimary }}>
+              System Status
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#10B981' }}>
+              All systems operational
+            </Typography>
+          </Box>
         </Box>
-        
-        <Button
-          variant="text"
-          size="small"
-          fullWidth
-          sx={{ fontSize: '0.75rem', mt: 1 }}
-        >
-          Service Status
-        </Button>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+          <Box sx={{ bgcolor: colors.itemBgHover, borderRadius: 3, p: 2 }}>
+            <Typography variant="body2" sx={{ color: colors.textSecondary, mb: 0.5 }}>Your Analyses</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: colors.textPrimary }}>1,247</Typography>
+          </Box>
+          <Box sx={{ bgcolor: colors.itemBgHover, borderRadius: 3, p: 2 }}>
+            <Typography variant="body2" sx={{ color: colors.textSecondary, mb: 0.5 }}>Accuracy</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#10B981' }}>94.8%</Typography>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
@@ -176,27 +289,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
         '& .MuiDrawer-paper': {
           width: width,
           boxSizing: 'border-box',
-          borderRight: 1,
-          borderColor: 'divider',
-          ...(variant === 'persistent' && {
-            position: 'static',
-            height: '100%',
-            zIndex: 'auto',
-          }),
-          ...(variant === 'temporary' && {
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            height: '100vh',
-            zIndex: (theme) => theme.zIndex.drawer,
-          }),
-          overflowX: 'hidden',
-          overflowY: 'auto',
+          borderRight: 'none',
+          bgcolor: 'transparent',
+          overflow: 'hidden',
         },
       }}
-      ModalProps={{
-        keepMounted: true,
-      }}
+      ModalProps={{ keepMounted: true }}
     >
       {drawerContent}
     </Drawer>
