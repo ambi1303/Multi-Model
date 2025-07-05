@@ -82,7 +82,7 @@ export const MicIcon: React.FC = () => <Mic size={ICON_SIZE} />;
 export const ChatIcon: React.FC = () => <MessageCircle size={ICON_SIZE} />;
 export const AssignmentIcon: React.FC = () => <FileText size={ICON_SIZE} />;
 export const SettingsIcon: React.FC = () => <Settings size={ICON_SIZE} />;
-export const HelpIcon: React.FC = () => <HelpCircle size={ICON_SIZE} />;
+export const HelpIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => <HelpCircle {...props} />;
 export const AccountCircleIcon: React.FC = () => <User size={ICON_SIZE} />;
 export const NotificationsIcon: React.FC = () => <Bell size={ICON_SIZE} />;
 export const SearchIcon: React.FC = () => <Search size={ICON_SIZE} />;
