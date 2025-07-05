@@ -37,6 +37,7 @@ const navigationItems = [
   { text: 'Emo-Buddy - AI Companion', icon: ChatIcon, path: '/emo-buddy' },
   { text: 'Enhanced Burnout Survey', icon: AssignmentIcon, path: '/enhanced-survey' },
   { text: 'Analytics', icon: TrendingUpIcon, path: '/analytics' },
+  { text: 'FAQ', icon: StarIcon, path: '/faq' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width }) => {

@@ -8,10 +8,11 @@ from typing import Dict, Any
 import uuid
 from datetime import datetime
 from dotenv import load_dotenv
-from .emo_buddy_agent import EmoBuddyAgent
+from emo_buddy.emo_buddy_agent import EmoBuddyAgent
+import os
 
-# Load env vars
-load_dotenv()
+# Explicitly load .env from the emo_buddy directory
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = FastAPI(title="Emo Buddy Standalone API", version="1.0.0")
 

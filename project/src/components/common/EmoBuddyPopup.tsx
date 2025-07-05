@@ -143,6 +143,8 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastSendCall = useRef<number>(0);
+  const lastEndCall = useRef<number>(0);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -198,6 +200,9 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
 
   // Handle sending message
   const handleSendMessage = async () => {
+    const now = Date.now();
+    if (now - lastSendCall.current < 2000) return; // throttle: 2 seconds
+    lastSendCall.current = now;
     if (!inputValue.trim() || !session || isLoading) return;
 
     const userMessage: Message = {
@@ -239,6 +244,9 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
 
   // Handle ending session
   const handleEndSession = async () => {
+    const now = Date.now();
+    if (now - lastEndCall.current < 2000) return; // throttle: 2 seconds
+    lastEndCall.current = now;
     if (!session) return;
 
     try {

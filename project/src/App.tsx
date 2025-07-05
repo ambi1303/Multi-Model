@@ -16,6 +16,7 @@ const EnhancedBurnoutSurvey = React.lazy(() => import('./pages/EnhancedBurnoutSu
 const Home = React.lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
 const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 const EmoBuddy = React.lazy(() => import('./pages/EmoBuddy').then(m => ({ default: m.EmoBuddy })));
+const FAQSection = React.lazy(() => import('./pages/FAQ').then(m => ({ default: m.default })));
 
 function App() {
   return (
@@ -102,6 +103,14 @@ function App() {
                   element={
                     <Suspense fallback={<LoadingSpinner message="Loading Analytics..." />}>
                       <Analytics />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="faq"
+                  element={
+                    <Suspense fallback={<LoadingSpinner message="Loading FAQ..." />}>
+                      <FAQSection />
                     </Suspense>
                   }
                 />

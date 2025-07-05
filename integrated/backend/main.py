@@ -502,6 +502,11 @@ async def start_emo_buddy_session(request: Request):
         payload = await request.json()
         logger.info("Starting Emo Buddy session")
         
+        # Transform payload for standalone Emo Buddy backend
+        if "analysis_report" in payload:
+            user_message = payload["analysis_report"].get("transcription", "")
+            payload = {"user_message": user_message}
+        
         # Forward to standalone Emo Buddy service
         emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/start-session"
         
@@ -525,12 +530,20 @@ async def continue_emo_buddy_conversation(request: Request):
     
     try:
         payload = await request.json()
-        logger.info(f"Continuing Emo Buddy conversation for session: {payload.get('session_id')}")
-        
-        # Forward to standalone Emo Buddy service
+        logger.info(f"Original payload: {payload}")
+
+        # Always transform to what standalone expects
+        session_id = payload.get("session_id")
+        user_message = payload.get("user_message") or payload.get("user_input") or ""
+        transformed_payload = {"session_id": session_id, "user_message": user_message}
+        logger.info(f"Transformed payload: {transformed_payload}")
+
+        if not session_id or not user_message:
+            logger.error(f"Missing session_id or user_message: {transformed_payload}")
+            return JSONResponse(content={"error": "Missing session_id or user_message"}, status_code=400)
+
         emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/continue-session"
-        
-        async with session.post(emo_buddy_url, json=payload) as resp:
+        async with session.post(emo_buddy_url, json=transformed_payload) as resp:
             data = await resp.json()
             logger.info("Emo Buddy conversation continued successfully")
             return JSONResponse(content=data, status_code=resp.status)

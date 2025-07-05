@@ -15,9 +15,9 @@ import {
   ListItemText,
   Alert,
 } from '@mui/material';
-import { ChatIcon, SendIcon, EmojiEmotionsIcon, CheckCircleIcon, InfoIcon, WarningIcon } from '../utils/icons';
+import {  SendIcon, EmojiEmotionsIcon, CheckCircleIcon, InfoIcon, WarningIcon } from '../utils/icons';
 
-const EMO_BUDDY_API = 'http://localhost:8005';
+const EMO_BUDDY_API = 'http://localhost:9000/emo-buddy';
 
 interface Message {
   id: string;
@@ -68,6 +68,7 @@ export const EmoBuddy: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [firstMessageSent, setFirstMessageSent] = useState(false);
+  const lastEndSessionCall = useRef<number>(0);
 
   // Scroll to bottom on new message
   React.useEffect(() => {
@@ -89,7 +90,7 @@ export const EmoBuddy: React.FC = () => {
     try {
       if (!firstMessageSent) {
         // First message: start session
-        const res = await fetch(`${EMO_BUDDY_API}/start-session`, {
+        const res = await fetch(`${EMO_BUDDY_API}/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_message: userMessage.content }),
@@ -108,8 +109,13 @@ export const EmoBuddy: React.FC = () => {
         ]);
         setFirstMessageSent(true);
       } else if (sessionId) {
+        if (!sessionId || !userMessage.content) {
+          setError("Session or message missing.");
+          setIsLoading(false);
+          return;
+        }
         // Continue session
-        const res = await fetch(`${EMO_BUDDY_API}/continue-session`, {
+        const res = await fetch(`${EMO_BUDDY_API}/continue`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId, user_message: userMessage.content }),
@@ -140,7 +146,24 @@ export const EmoBuddy: React.FC = () => {
     }
   };
 
-  const handleNewSession = () => {
+  const callEndSession = async () => {
+    if (!sessionId) return;
+    const now = Date.now();
+    if (now - lastEndSessionCall.current < 2000) return; // throttle: 2 seconds
+    lastEndSessionCall.current = now;
+    try {
+      await fetch(`${EMO_BUDDY_API}/end-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+    } catch (e) {
+      // Optionally handle error
+    }
+  };
+
+  const handleNewSession = async () => {
+    await callEndSession();
     setSessionId(null);
     setMessages([]);
     setInputValue('');

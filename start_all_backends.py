@@ -33,7 +33,7 @@ def uvicorn_executable(venv_dir):
     else:
         return os.path.join(venv_dir, 'bin', 'uvicorn')
 
-def start_backend(path, venv_dir, module, app, port):
+def start_backend(path, venv_dir, module, app, port, extra_env=None):
     if not os.path.exists(venv_dir):
         print(f"Error: Virtual environment not found at {venv_dir}")
         return None
@@ -47,9 +47,13 @@ def start_backend(path, venv_dir, module, app, port):
     command = [uvicorn_exec, f'{module}:{app}', '--reload', '--port', str(port)]
 
     try:
+        env = os.environ.copy()
+        if extra_env:
+            env.update(extra_env)
         process = subprocess.Popen(
             command,
             cwd=path,
+            env=env,
             creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
         )
         print(f"Started {module} on port {port}, waiting for readiness...")
@@ -97,12 +101,14 @@ for rel_path, venv_folder, module, app, port in models:
     full_path = os.path.join(base, rel_path)
     venv_path = os.path.join(full_path, venv_folder)
     
-    # For emo_buddy, run from project root to handle it as a package
+    # For emo_buddy, run from its own directory to allow local .env loading
     if "emo_buddy" in rel_path:
-        cwd = base
-        # The module path should be dot-separated for Python to find it
-        module_path = f"{os.path.basename(rel_path)}.{module}"
-        process = start_backend(cwd, venv_path, module_path, app, port)
+        module_path = module  # Use just 'api' as the module name
+        # Set PYTHONPATH to the project root
+        process = start_backend(
+            full_path, venv_path, module_path, app, port,
+            extra_env={"PYTHONPATH": base}
+        )
     else:
         process = start_backend(full_path, venv_path, module, app, port)
     
