@@ -29,6 +29,29 @@ import {
   DashboardIcon,
 } from '../../utils/icons';
 
+// --- Prefetching Logic ---
+const lazyLoadMap: { [key: string]: () => Promise<any> } = {
+  '/': () => import('../../pages/Home'),
+  '/dashboard': () => import('../../pages/Dashboard'),
+  '/analytics': () => import('../../pages/Analytics'),
+  '/video': () => import('../../pages/VideoAnalysis'),
+  '/speech': () => import('../../pages/SpeechAnalysis'),
+  '/chat': () => import('../../pages/ChatAnalysis'),
+  '/enhanced-survey': () => import('../../pages/EnhancedBurnoutSurvey'),
+  '/emo-buddy': () => import('../../pages/EmoBuddy'),
+  '/wellness': () => import('../../pages/Wellness'),
+  '/faq': () => import('../../pages/FAQ'),
+  '/admin': () => import('../../pages/Admin'),
+  '/settings': () => import('../../pages/Settings'),
+};
+
+const prefetchComponent = (path: string) => {
+  if (lazyLoadMap[path]) {
+    lazyLoadMap[path]();
+  }
+};
+// -------------------------
+
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
@@ -106,7 +129,13 @@ const SpecialIndicator = ({ type }: { type: string }) => {
   }
   if (type === 'sparkle') return <Box sx={styles}>✨</Box>;
   if (type === 'heart') return <Box sx={styles}>❤️‍🔥</Box>;
-  if (type === 'pro') return <StarIcon sx={{ color: '#F59E0B', fontSize: '18px' }} />;
+  if (type === 'pro') {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <StarIcon style={{ color: '#F59E0B', fontSize: 18 }} />
+      </Box>
+    );
+  }
   return null;
 };
 
@@ -165,7 +194,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
         alignItems: 'center',
         gap: 2,
       }}>
-        <HelpIcon sx={{ color: '#6366F1' }} />
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <HelpIcon style={{ color: '#6366F1' }} />
+        </Box>
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.textPrimary }}>
             Access Level
@@ -203,6 +234,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
                 <ListItem key={item.text} disablePadding sx={{ my: 0.5 }}>
                   <ListItemButton
                     onClick={() => handleNavigation(item.path)}
+                    onMouseEnter={() => prefetchComponent(item.path)}
                     sx={{
                       borderRadius: 2.5,
                       py: 1.5,
@@ -220,7 +252,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
                       color: 'inherit',
                       fontSize: typeof Icon === 'string' ? '24px' : 'inherit'
                     }}>
-                      {typeof Icon === 'string' ? Icon : <Icon />}
+                      {typeof Icon === 'string'
+                        ? <Box component="span" sx={{ fontSize: '24px', display: 'flex', alignItems: 'center' }}>{Icon}</Box>
+                        : React.createElement(Icon, { style: { color: 'inherit', fontSize: 24 } })}
                     </ListItemIcon>
                     <ListItemText
                       primary={item.text}
@@ -254,7 +288,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
           alignItems: 'center',
           gap: 2,
         }}>
-          <TrendingUpIcon sx={{ color: '#10B981' }} />
+          {/* TrendingUpIcon does not support sx prop directly, so use style instead */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <TrendingUpIcon style={{ color: '#10B981' }} />
+          </Box>
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.textPrimary }}>
               System Status

@@ -124,5 +124,69 @@
       "timestamp": "2025-07-05T12:14:35.982240",
       "workplace_context": false
     }
+  },
+  {
+    "session_id": 2,
+    "timestamp": "2025-07-05T19:44:47.753722",
+    "duration": "2025-07-05 19:40:48.755102",
+    "summary": "\n==================================================\n\ud83d\udd04 Session Complete\n==================================================\n\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:03:58.997623\n\ud83d\udcac Total Interactions: 5\n\n\ud83e\udde0 EMOTIONAL STATE ANALYSIS:\n- general_work_stress\n\n\ud83d\udcbc WORKPLACE STRESSORS IDENTIFIED:\n\n\n\ud83c\udfaf WORK CONTEXT: General Office\n\n\ud83d\udea8 URGENCY LEVEL: 1/5\n\n\ud83d\udca1 KEY INSIGHTS:\n\n\n\ud83d\ude80 IMMEDIATE ACTIONS RECOMMENDED:\n\n\n\ud83c\udf31 ONGOING SUPPORT SUGGESTIONS:\n\u2022 Discuss workload management with supervisor\n\u2022 Explore company wellness resources or EAP\n\u2022 Consider time management or stress reduction workshops\n\u2022 Build regular exercise or mindfulness into routine\n\n\ud83d\udd27 QUICK REMEDIES PROVIDED:\n\n\n\ud83c\udfad THERAPEUTIC TECHNIQUES USED:\n- validation: 2 times\n\n\ud83d\udcdd NEXT STEPS:\n- Apply immediate actions before your next work session\n- Monitor emotional responses to workplace situations\n- Return for support when needed\n\n\ud83c\udf1f Remember: You have practical tools and strategies to manage workplace stress effectively. \ud83c\udf1f\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-05T19:40:48.755102",
+        "sentiment": "NEUTRAL",
+        "emotions": [
+          "neutral",
+          "neutral",
+          "neutral"
+        ],
+        "source": "technical_analysis",
+        "intensity": "low"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-05T19:43:27.387534",
+        "technique": "validation",
+        "context": "i want to spend night with shubham and want to have sex",
+        "rationale": "User needs acknowledgment and normalization of their experience"
+      },
+      {
+        "timestamp": "2025-07-05T19:44:10.262098",
+        "technique": "validation",
+        "context": "what is the best way to ask shubham for the sex",
+        "rationale": "User needs acknowledgment and normalization of their experience"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hello Shubham how are you I am feeling horny",
+      "i want to spend night with shubham and want to have sex",
+      "what is the best way to ask shubham for the sex"
+    ],
+    "initial_analysis": {
+      "transcription": "hello Shubham how are you I am feeling horny",
+      "sentiment": {
+        "label": "NEUTRAL",
+        "confidence": 0.5,
+        "intensity": "low"
+      },
+      "emotions": [
+        {
+          "emotion": "neutral",
+          "confidence": 0.5
+        },
+        {
+          "emotion": "neutral",
+          "confidence": 0.1
+        },
+        {
+          "emotion": "neutral",
+          "confidence": 0.1
+        }
+      ],
+      "source": "standalone_chat",
+      "timestamp": "2025-07-05T19:40:43.775297",
+      "workplace_context": false
+    }
   }
 ]

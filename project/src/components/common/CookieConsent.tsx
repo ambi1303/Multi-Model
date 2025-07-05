@@ -4,54 +4,31 @@ import {
   Typography,
   Button,
   Paper,
-  Switch,
-  FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Chip,
-  Divider,
-  Link,
   Stack,
   useTheme,
   useMediaQuery
 } from '@mui/material';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   InfoIcon, 
-  SettingsIcon, 
-  CheckCircleIcon,
-  WarningIcon
 } from '../../utils/icons';
 import { 
   EmotiAnalyzeCookies, 
   CookieCategory, 
-  COOKIE_REGISTRY,
-  type CookieInfo 
 } from '../../utils/cookies';
 
 interface CookieConsentProps {
   onAcceptAll?: () => void;
   onRejectAll?: () => void;
-  onSavePreferences?: (preferences: Record<CookieCategory, boolean>) => void;
 }
 
 const CookieConsent: React.FC<CookieConsentProps> = ({
   onAcceptAll,
   onRejectAll,
-  onSavePreferences
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const [isVisible, setIsVisible] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [preferences, setPreferences] = useState<Record<CookieCategory, boolean>>({
-    [CookieCategory.NECESSARY]: true,
-    [CookieCategory.FUNCTIONAL]: false,
-    [CookieCategory.ANALYTICS]: false,
-    [CookieCategory.MARKETING]: false
-  });
 
   useEffect(() => {
     const existingConsent = EmotiAnalyzeCookies.getConsent();
@@ -85,53 +62,6 @@ const CookieConsent: React.FC<CookieConsentProps> = ({
     EmotiAnalyzeCookies.setConsent(necessaryOnly);
     setIsVisible(false);
     onRejectAll?.();
-  };
-
-  const handleSavePreferences = () => {
-    EmotiAnalyzeCookies.setConsent(preferences);
-    setIsVisible(false);
-    onSavePreferences?.(preferences);
-  };
-
-  const handlePreferenceChange = (category: CookieCategory, enabled: boolean) => {
-    setPreferences(prev => ({
-      ...prev,
-      [category]: category === CookieCategory.NECESSARY ? true : enabled
-    }));
-  };
-
-  const getCookiesByCategory = (category: CookieCategory): CookieInfo[] => {
-    return COOKIE_REGISTRY.filter(cookie => cookie.category === category);
-  };
-
-  const getCategoryIcon = (category: CookieCategory) => {
-    switch (category) {
-      case CookieCategory.NECESSARY:
-        return <CheckCircleIcon />;
-      case CookieCategory.FUNCTIONAL:
-        return <SettingsIcon />;
-      case CookieCategory.ANALYTICS:
-        return <InfoIcon />;
-      case CookieCategory.MARKETING:
-        return <WarningIcon />;
-      default:
-        return <InfoIcon />;
-    }
-  };
-
-  const getCategoryColor = (category: CookieCategory) => {
-    switch (category) {
-      case CookieCategory.NECESSARY:
-        return 'success';
-      case CookieCategory.FUNCTIONAL:
-        return 'primary';
-      case CookieCategory.ANALYTICS:
-        return 'info';
-      case CookieCategory.MARKETING:
-        return 'warning';
-      default:
-        return 'default';
-    }
   };
 
   if (!isVisible) return null;

@@ -12,7 +12,6 @@ import {
   ListItemAvatar,
   ListItemText,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
 import { ChatAnalyticsData, AnalyticsFilters } from '../../types/analytics';
@@ -23,7 +22,7 @@ interface ChatAnalyticsDashboardProps {
   filters: AnalyticsFilters;
 }
 
-export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ data, filters }) => {
+export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ data}) => {
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
       case 'positive': return <Box sx={{ color: 'success.main' }}><TrendingUpIcon /></Box>;
@@ -208,7 +207,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                   Top Keywords by Sentiment
                 </Typography>
                 <Grid container spacing={2}>
-                  {data.keywordAnalysis.map((keyword, index) => (
+                  {data.keywordAnalysis.map((keyword) => (
                     <Grid item xs={12} sm={6} md={4} key={keyword.word}>
                       <Box
                         sx={{
@@ -254,7 +253,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                   User Engagement Metrics
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {data.userEngagementMetrics.map((metric, index) => (
+                  {data.userEngagementMetrics.map((metric) => (
                     <Box key={metric.metric}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>

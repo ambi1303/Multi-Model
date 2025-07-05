@@ -12,16 +12,15 @@ import {
   Avatar,
   Alert,
 } from '@mui/material';
-import { SimpleChartFallback } from '../charts/SimpleChartFallback';
+import { SimpleBarChart, SimpleLineChart } from '../charts/SimpleCharts';
 import { motion } from 'framer-motion';
-import { VideoAnalyticsData, AnalyticsFilters } from '../../types/analytics';
+import { VideoAnalyticsData } from '../../types/analytics';
 
 interface VideoAnalyticsDashboardProps {
   data: VideoAnalyticsData;
-  filters: AnalyticsFilters;
 }
 
-export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = ({ data, filters }) => {
+export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = ({ data }) => {
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.8) return 'success';
     if (confidence >= 0.6) return 'warning';
@@ -35,6 +34,50 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
       case 'failed': return 'error';
       default: return 'default';
     }
+  };
+
+  const confidenceDistributionData = {
+    labels: data.confidenceDistribution?.map(item => item.range) || [],
+    datasets: [
+      {
+        label: 'Count',
+        data: data.confidenceDistribution?.map(item => item.count) || [],
+        backgroundColor: '#2563eb',
+      },
+    ],
+  };
+
+  const emotionAccuracyData = {
+    labels: data.emotionAccuracy?.map(item => item.emotion) || [],
+    datasets: [
+      {
+        label: 'Accuracy',
+        data: data.emotionAccuracy?.map(item => item.accuracy) || [],
+        backgroundColor: '#059669',
+      },
+    ],
+  };
+
+  const processingTimeData = {
+    labels: data.processingTimeAnalysis?.map(item => `${item.processingTime}ms`) || [],
+    datasets: [
+      {
+        label: 'Confidence',
+        data: data.processingTimeAnalysis?.map(item => item.confidence) || [],
+        borderColor: '#7c3aed',
+        tension: 0.4,
+        fill: true,
+        backgroundColor: 'rgba(124, 58, 237, 0.2)',
+      },
+    ],
+  };
+
+  const commonChartOptions = {
+    plugins: {
+      legend: {
+        display: false,
+      },
+    },
   };
 
   return (
@@ -52,15 +95,9 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Confidence Score Distribution
                 </Typography>
-                <SimpleChartFallback
-                  data={data.confidenceDistribution?.map(item => ({
-                    name: item.range,
-                    value: item.count,
-                    color: '#2563eb'
-                  })) || []}
-                  type="bar"
-                  height={300}
-                  title=""
+                <SimpleBarChart
+                  data={confidenceDistributionData}
+                  options={commonChartOptions}
                 />
               </CardContent>
             </Card>
@@ -79,15 +116,9 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Emotion Detection Accuracy
                 </Typography>
-                <SimpleChartFallback
-                  data={data.emotionAccuracy?.map(item => ({
-                    name: item.emotion,
-                    value: item.accuracy,
-                    color: '#059669'
-                  })) || []}
-                  type="bar"
-                  height={300}
-                  title=""
+                <SimpleBarChart
+                  data={emotionAccuracyData}
+                  options={commonChartOptions}
                 />
               </CardContent>
             </Card>
@@ -106,15 +137,9 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Processing Time vs Confidence
                 </Typography>
-                <SimpleChartFallback
-                  data={data.processingTimeAnalysis?.map((item, index) => ({
-                    name: `${item.processingTime}ms`,
-                    value: item.confidence,
-                    color: '#7c3aed'
-                  })) || []}
-                  type="line"
-                  height={300}
-                  title=""
+                <SimpleLineChart
+                  data={processingTimeData}
+                  options={commonChartOptions}
                 />
               </CardContent>
             </Card>
@@ -134,7 +159,7 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                   Feature Importance
                 </Typography>
                 <List>
-                  {data.featureImportance.map((feature, index) => (
+                  {data.featureImportance.map((feature) => (
                     <ListItem key={feature.feature} sx={{ px: 0 }}>
                       <ListItemText
                         primary={

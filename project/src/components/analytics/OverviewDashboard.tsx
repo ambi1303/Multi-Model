@@ -23,7 +23,7 @@ interface OverviewDashboardProps {
   filters: AnalyticsFilters;
 }
 
-export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filters }) => {
+export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => {
   const getTrendIcon = (trend: 'positive' | 'negative' | 'neutral') => {
     switch (trend) {
       case 'positive': return <Box sx={{ color: 'success.main' }}><TrendingUpIcon /></Box>;

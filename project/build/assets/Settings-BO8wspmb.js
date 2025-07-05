@@ -1,0 +1,1 @@
+import{j as s,B as e,T as i,v as n}from"./index-bax0hkam.js";const r=()=>s.jsxs(e,{sx:{p:4},children:[s.jsx(i,{variant:"h4",gutterBottom:!0,children:"Settings"}),s.jsxs(n,{sx:{p:2},children:[s.jsx(i,{variant:"h6",children:"Application Preferences"}),s.jsx(i,{children:"This is where application preferences and settings will be."})]})]});export{r as default};

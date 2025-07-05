@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, useTheme, Tooltip, Fade } from '@mui/material';
+import { Box, Typography, useTheme} from '@mui/material';
 
 interface SimpleChartData {
   name: string;

@@ -5,6 +5,7 @@ import { HeroSection } from '../components/landing/HeroSection';
 import { Footer } from '../components/layout/Footer';
 import { useAppStore } from '../store/useAppStore';
 import { LazyLoadSpinner } from '../components/common/LazyLoadSpinner';
+import SEO from '../components/common/SEO';
 
 // Lazy load below-the-fold sections for faster initial load
 const FeaturesSection = React.lazy(() => import('../components/landing/FeaturesSection').then(m => ({ default: m.FeaturesSection })));
@@ -68,49 +69,55 @@ export const Home: React.FC = () => {
   }, []);
 
   return (
-    <Box 
-      sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        minHeight: '100vh',
-        width: '100vw',
-        margin: 0,
-        padding: 0,
-        position: 'relative',
-        overflow: 'hidden',
-        '& > *': {
-          width: '100%',
-        }
-      }}
-    >
-      {/* Full-screen Hero Section */}
+    <>
+      <SEO
+        title="Home - AI-Powered Emotion Analysis"
+        description="Welcome to EmotiAnalyze. Discover real-time insights into human emotion through advanced analysis of video, speech, and text. Unlock a deeper understanding of your users."
+      />
       <Box 
         sx={{ 
-          flex: 1,
+          display: 'flex', 
+          flexDirection: 'column', 
           minHeight: '100vh',
-          width: '100%',
+          width: '100vw',
+          margin: 0,
+          padding: 0,
           position: 'relative',
+          overflow: 'hidden',
+          '& > *': {
+            width: '100%',
+          }
         }}
       >
-        <HeroSection onGetStarted={handleGetStarted} />
-        
-        {/* Invisible trigger element to detect when to load below-the-fold content */}
-        <div ref={triggerRef} style={{ height: '1px', position: 'absolute', bottom: '80vh' }} />
-      </Box>
-      
-      {/* Below-the-fold content */}
-      {shouldLoadBelowFold && (
-        <Box sx={{ width: '100%' }}>
-          <Suspense fallback={<LazyLoadSpinner message="Loading content..." minimal />}>
-            <StatsSection />
-            <FeaturesSection />
-            <CTASection onGetStarted={handleGetStarted} />
-          </Suspense>
+        {/* Full-screen Hero Section */}
+        <Box 
+          sx={{ 
+            flex: 1,
+            minHeight: '100vh',
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          <HeroSection onGetStarted={handleGetStarted} />
+          
+          {/* Invisible trigger element to detect when to load below-the-fold content */}
+          <div ref={triggerRef} style={{ height: '1px', position: 'absolute', bottom: '80vh' }} />
         </Box>
-      )}
-      
-      {/* Footer */}
-      <Footer />
-    </Box>
+        
+        {/* Below-the-fold content */}
+        {shouldLoadBelowFold && (
+          <Box sx={{ width: '100%' }}>
+            <Suspense fallback={<LazyLoadSpinner message="Loading content..." minimal />}>
+              <StatsSection />
+              <FeaturesSection />
+              <CTASection onGetStarted={handleGetStarted} />
+            </Suspense>
+          </Box>
+        )}
+        
+        {/* Footer */}
+        <Footer />
+      </Box>
+    </>
   );
 }; 

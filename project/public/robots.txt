@@ -1,0 +1,10 @@
+# Allow all reputable search engine crawlers
+User-agent: *
+Allow: /
+
+# Disallow specific crawlers if needed in the future
+# User-agent: BadBot
+# Disallow: /
+
+# Sitemap location
+Sitemap: /sitemap.xml 

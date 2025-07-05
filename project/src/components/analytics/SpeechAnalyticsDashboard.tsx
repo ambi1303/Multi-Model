@@ -9,7 +9,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
   LinearProgress,
 } from '@mui/material';
 import { SimpleChartFallback } from '../charts/SimpleChartFallback';
@@ -21,7 +20,7 @@ interface SpeechAnalyticsDashboardProps {
   filters: AnalyticsFilters;
 }
 
-export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> = ({ data, filters }) => {
+export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> = ({ data}) => {
   return (
     <Box sx={{ p: 3 }}>
       <Grid container spacing={3}>
@@ -65,7 +64,7 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                   Transcription Accuracy
                 </Typography>
                 <List>
-                  {data.transcriptionAccuracy.map((metric, index) => (
+                  {data.transcriptionAccuracy.map((metric) => (
                     <ListItem key={metric.metric} sx={{ px: 0 }}>
                       <ListItemText
                         primary={
@@ -167,7 +166,7 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                   Language Distribution
                 </Typography>
                 <Grid container spacing={2}>
-                  {data.languageDistribution.map((lang, index) => (
+                  {data.languageDistribution.map((lang) => (
                     <Grid item xs={12} sm={6} md={4} key={lang.language}>
                       <Box
                         sx={{

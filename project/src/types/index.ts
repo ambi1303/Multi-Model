@@ -132,7 +132,11 @@ export interface BurnoutResult {
   burnRate: number;
   surveyScore: string;
   mentalHealthSummary: string;
-  recommendations: string[];
+  recommendations: {
+    title: string;
+    description: string;
+    icon: string;
+  }[];
   riskLevel: 'Low' | 'Medium' | 'High';
   breakdown?: {
     category: string;

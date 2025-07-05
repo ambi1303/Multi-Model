@@ -109,12 +109,22 @@ export interface CompleteAnalysisResponse {
     analysis_duration: number;
     dominant_mental_state: string;
     average_sentiment: number;
+    mental_state_distribution?: Record<string, string>;
+    most_common_emotion?: string;
+    time_span?: {
+      start: string;
+      end: string;
+    };
   };
   analyzed_messages: Array<{
     text: string;
     sentiment: number;
+    sentiment_score?: number;
     mental_state: string;
     timestamp: string;
+    person_id?: string;
+    primary_emotion?: string;
+    emotion_score?: number;
   }>;
   mental_states_data: MentalStatesData[];
   sentiment_trend_data: SentimentTrendData[];

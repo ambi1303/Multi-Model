@@ -1,68 +1,35 @@
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState,  useMemo, Suspense } from 'react';
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
   Chip,
-  LinearProgress,
   Grid,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Avatar,
   Button,
-  Divider,
-  Alert,
   Paper,
   Fade,
-  Slide,
   useTheme,
   alpha,
   CircularProgress,
 } from '@mui/material';
 import {
-  ExpandMore as ExpandMoreIcon,
-  Lightbulb as LightbulbIcon,
-  Assessment as AssessmentIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
-  Info as InfoIcon,
-  LocalHospital as HealthIcon,
-  Support as SupportIcon,
-} from '@mui/icons-material';
-import { CombinedAnalysisResponse } from '../../services/api';
-import ErrorBoundary from '../common/ErrorBoundary';
+  ArrowDownwardIcon as ExpandMoreIcon,
+  LightbulbIcon,
+  AssessmentIcon,
+  WarningIcon,
+  CheckCircleIcon,
+  InfoIcon,
+  HeartIcon as HealthIcon,
+  HelpIcon as SupportIcon,
+} from '../../utils/icons';
+import { ExtendedAnalysisResponse } from '../../types/survey';
+import { StyledIcon } from '../common/StyledIcon';
 
 // Lazy load chart components
 const BarChartComp = React.lazy(() => import('../charts/BarChartComp'));
-
-// Extended interface for the component with additional properties
-interface ExtendedAnalysisResponse extends CombinedAnalysisResponse {
-  riskLevel?: 'Low' | 'Medium' | 'High';
-  burnoutScore?: number;
-  employeeData?: {
-    designation_encoded?: number;
-    gender_encoded?: number;
-    company_type_encoded?: number;
-    wfh_setup_available_encoded?: number;
-    mental_fatigue_score?: number;
-    resource_allocation?: number;
-  };
-  surveyResults?: {
-    stress_level?: number;
-    job_satisfaction?: number;
-    work_life_balance?: number;
-    emotional_exhaustion?: number;
-  };
-  mlResult?: any;
-  surveyResult?: any;
-  breakdown?: Array<{
-    category: string;
-    score: number;
-    description: string;
-  }>;
-}
 
 interface EnhancedBurnoutSurveyResultProps {
   result: ExtendedAnalysisResponse;
@@ -95,20 +62,9 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
   mlAnalysisComplete = true,
 }) => {
   const theme = useTheme();
-  const [visibleSections, setVisibleSections] = useState<{ [key: string]: boolean }>({});
   const [expanded, setExpanded] = useState<string | false>('overview');
 
-  useEffect(() => {
-    // Animate sections in sequence
-    const sections = ['header', 'overview', 'assessment', 'recommendations'];
-    sections.forEach((section, index) => {
-      setTimeout(() => {
-        setVisibleSections(prev => ({ ...prev, [section]: true }));
-      }, index * 200);
-    });
-  }, []);
-
-  const handleAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+  const handleAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpanded(isExpanded ? panel : false);
   };
 
@@ -125,18 +81,20 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
     }
   };
 
-  const getRiskIcon = (riskLevel: string) => {
+  const getRiskIconComponent = (riskLevel: string) => {
     switch (riskLevel?.toLowerCase()) {
       case 'high':
-        return <WarningIcon />;
+        return WarningIcon;
       case 'medium':
-        return <InfoIcon />;
+        return InfoIcon;
       case 'low':
-        return <CheckCircleIcon />;
+        return CheckCircleIcon;
       default:
-        return <InfoIcon />;
+        return InfoIcon;
     }
   };
+
+  const RiskIcon = getRiskIconComponent(result.riskLevel || 'Unknown');
 
   const riskColors = getRiskColor(result.riskLevel || 'Unknown');
 
@@ -148,37 +106,31 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
         name: 'Burnout Risk', 
         value: Math.max(Math.round((result.burnoutScore || 0) * 100), 1), 
         color: theme.palette.error.main,
-        originalValue: `${Math.round((result.burnoutScore || 0) * 100)}%`
       },
       { 
         name: 'Stress Level', 
         value: Math.max(Math.round(((result.surveyResults?.stress_level || 3) / 5) * 100), 1), 
         color: theme.palette.warning.main,
-        originalValue: `${result.surveyResults?.stress_level || 3}/5`
       },
       { 
         name: 'Job Satisfaction', 
         value: Math.max(Math.round(((result.surveyResults?.job_satisfaction || 3) / 5) * 100), 1), 
         color: theme.palette.success.main,
-        originalValue: `${result.surveyResults?.job_satisfaction || 3}/5`
       },
       { 
         name: 'Work-Life Balance', 
         value: Math.max(Math.round(((result.surveyResults?.work_life_balance || 3) / 5) * 100), 1), 
         color: theme.palette.info.main,
-        originalValue: `${result.surveyResults?.work_life_balance || 3}/5`
       },
       { 
         name: 'Mental Fatigue', 
         value: Math.max(Math.round(((result.employeeData?.mental_fatigue_score || 5) / 10) * 100), 1), 
         color: theme.palette.secondary.main,
-        originalValue: `${result.employeeData?.mental_fatigue_score || 5}/10`
       },
       { 
         name: 'Resource Allocation', 
         value: Math.max(Math.round(((result.employeeData?.resource_allocation || 5) / 10) * 100), 1), 
         color: theme.palette.primary.main,
-        originalValue: `${result.employeeData?.resource_allocation || 5}/10`
       },
     ];
 
@@ -199,12 +151,12 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3, minHeight: '100vh' }}>
       {/* Header Section */}
-      <Fade in={visibleSections.header} timeout={800}>
+      <Fade in={true} timeout={800}>
         <Paper
           elevation={0}
           sx={{
-            background: `linear-gradient(135deg, ${riskColors.color}15 0%, ${riskColors.color}05 100%)`,
-            border: `1px solid ${riskColors.color}30`,
+            background: `linear-gradient(135deg, ${riskColors.bg} 0%, ${alpha(riskColors.color, 0.05)} 100%)`,
+            border: `1px solid ${alpha(riskColors.color, 0.2)}`,
             borderRadius: 3,
             p: 4,
             mb: 4,
@@ -231,27 +183,21 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
                     bgcolor: riskColors.color,
                     width: 60,
                     height: 60,
-                    fontSize: '1.5rem',
                   }}
                 >
-                  <AssessmentIcon fontSize="large" />
+                  <StyledIcon IconComponent={AssessmentIcon} sx={{ fontSize: '2rem' }} />
                 </Avatar>
                 <Box>
                   <Typography
                     variant="h4"
                     sx={{
                       fontWeight: 700,
-                      background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                      backgroundClip: 'text',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      mb: 1,
                     }}
                   >
-                    Assessment Complete
+                    Burnout Assessment Result
                   </Typography>
-                  <Typography variant="h6" color="text.secondary">
-                    Your Comprehensive Mental Health Analysis
+                  <Typography variant="body1" color="text.secondary">
+                    Analysis based on your survey responses and work-life metrics.
                   </Typography>
                 </Box>
               </Box>
@@ -259,294 +205,99 @@ const EnhancedBurnoutSurveyResult: React.FC<EnhancedBurnoutSurveyResultProps> = 
             <Grid item xs={12} md={4}>
               <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
                 <Chip
-                  icon={getRiskIcon(result.riskLevel || 'Unknown')}
-                  label={`${result.riskLevel || 'Unknown'} Risk Level`}
+                  icon={<StyledIcon IconComponent={RiskIcon} />}
+                  label={`${result.riskLevel || 'Unknown'} Risk`}
                   sx={{
                     bgcolor: riskColors.bg,
                     color: riskColors.color,
-                    fontSize: '1rem',
-                    py: 2,
-                    px: 1,
                     fontWeight: 600,
                     mb: 2,
                   }}
-                  size="medium"
                 />
-                <Box>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Burnout Score
-                  </Typography>
-                  <Typography variant="h3" sx={{ fontWeight: 700, color: riskColors.color }}>
-                    {Math.round((result.burnoutScore || 0) * 100)}%
-                  </Typography>
-                </Box>
+                <Typography variant="caption" display="block" color="text.secondary">
+                  Source: {result.source ?? 'Survey'}
+                </Typography>
               </Box>
             </Grid>
           </Grid>
         </Paper>
       </Fade>
 
-      {/* Overview Section */}
-      <Slide direction="up" in={visibleSections.overview} timeout={600}>
-        <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
-          <CardContent sx={{ p: 0 }}>
-            <Accordion 
-              expanded={expanded === 'overview'} 
-              onChange={handleAccordionChange('overview')}
-              sx={{ boxShadow: 'none' }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                sx={{
-                  bgcolor: alpha(theme.palette.primary.main, 0.05),
-                  '& .MuiAccordionSummary-content': { alignItems: 'center' },
-                  py: 2,
-                }}
-              >
-                <AssessmentIcon sx={{ mr: 2, color: theme.palette.primary.main }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Assessment Overview
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: 3 }}>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Box sx={{ mb: 3 }}>
-                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <InfoIcon color="primary" />
-                        Analysis Summary
-                      </Typography>
-                      <Typography variant="body1" paragraph>
-                        {result.mental_health_summary || 'Your comprehensive mental health assessment has been completed using advanced AI analysis.'}
-                      </Typography>
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                          Analysis Source: {result.source || 'AI-Powered Assessment'}
-                        </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={85}
-                          sx={{
-                            height: 8,
-                            borderRadius: 4,
-                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 4,
-                              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            },
-                          }}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                          Analysis Confidence: 85%
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Box>
-                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AssessmentIcon color="primary" />
-                        Key Metrics
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: alpha(theme.palette.success.main, 0.05) }}>
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: theme.palette.success.main }}>
-                              {result.surveyResults?.job_satisfaction || 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Job Satisfaction
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: alpha(theme.palette.info.main, 0.05) }}>
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: theme.palette.info.main }}>
-                              {result.surveyResults?.work_life_balance || 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Work-Life Balance
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: alpha(theme.palette.warning.main, 0.05) }}>
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
-                              {result.surveyResults?.stress_level || 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Stress Level
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: alpha(riskColors.color, 0.05) }}>
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: riskColors.color }}>
-                              {Math.round((result.burnoutScore || 0) * 100)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Burnout Score
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                      </Grid>
-                    </Box>
-                  </Grid>
+      {/* Accordions */}
+      <Accordion expanded={expanded === 'overview'} onChange={handleAccordionChange('overview')}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <StyledIcon IconComponent={AssessmentIcon} sx={{ mr: 2, color: 'primary.main' }} />
+          <Typography variant="h6">Overview</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Typography>{result.mental_health_summary ?? 'No summary available.'}</Typography>
+        </AccordionDetails>
+      </Accordion>
+      
+      <Accordion expanded={expanded === 'visuals'} onChange={handleAccordionChange('visuals')}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <StyledIcon IconComponent={AssessmentIcon} sx={{ mr: 2, color: 'secondary.main' }} />
+          <Typography variant="h6">Visual Analysis</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Suspense fallback={<ChartLoader />}>
+            <BarChartComp data={chartData.assessmentBarData} />
+          </Suspense>
+        </AccordionDetails>
+      </Accordion>
+
+      <Accordion expanded={expanded === 'recommendations'} onChange={handleAccordionChange('recommendations')}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <StyledIcon IconComponent={LightbulbIcon} sx={{ mr: 2, color: 'warning.main' }} />
+          <Typography variant="h6">Recommendations</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          {result.recommendations && result.recommendations.length > 0 ? (
+            <Grid container spacing={3}>
+              {result.recommendations.map((rec, index) => (
+                <Grid item xs={12} sm={6} key={index}>
+                  <Paper sx={{ p: 2, height: '100%', bgcolor: alpha(theme.palette.primary.light, 0.1) }}>
+                    <Typography variant="h6" gutterBottom>{rec.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">{rec.description}</Typography>
+                  </Paper>
                 </Grid>
-              </AccordionDetails>
-            </Accordion>
-          </CardContent>
-        </Card>
-      </Slide>
-
-      {/* Assessment Visualization */}
-      <Slide direction="up" in={visibleSections.assessment} timeout={800}>
-        <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
-          <CardContent sx={{ p: 0 }}>
-            <Accordion 
-              expanded={expanded === 'assessment'} 
-              onChange={handleAccordionChange('assessment')}
-              sx={{ boxShadow: 'none' }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                sx={{
-                  bgcolor: alpha(theme.palette.secondary.main, 0.05),
-                  '& .MuiAccordionSummary-content': { alignItems: 'center' },
-                  py: 2,
-                }}
-              >
-                <AssessmentIcon sx={{ mr: 2, color: theme.palette.secondary.main }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Visual Assessment Analysis
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: 3 }}>
-                <Grid container spacing={4}>
-                  <Grid item xs={12}>
-                    <Paper sx={{ p: 3, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                      <ErrorBoundary>
-                        <Suspense fallback={<ChartLoader />}>
-                          <BarChartComp
-                            data={chartData.assessmentBarData}
-                            title="Assessment Analysis"
-                            height={400}
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </Paper>
-                  </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Box>
+              <Typography variant="body1" paragraph>
+                Based on your assessment, here are some general recommendations to improve your mental health and well-being.
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, height: '100%', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                    <StyledIcon IconComponent={SupportIcon} sx={{ color: theme.palette.primary.main, mb: 2 }} />
+                    <Typography variant="h6" gutterBottom>
+                      Immediate Actions
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      Consider implementing stress-reduction techniques and seeking professional support if needed.
+                    </Typography>
+                  </Paper>
                 </Grid>
-              </AccordionDetails>
-            </Accordion>
-          </CardContent>
-        </Card>
-      </Slide>
-
-
-
-      {/* Recommendations */}
-      <Slide direction="up" in={visibleSections.recommendations} timeout={1200}>
-        <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
-          <CardContent sx={{ p: 0 }}>
-            <Accordion 
-              expanded={expanded === 'recommendations'} 
-              onChange={handleAccordionChange('recommendations')}
-              sx={{ boxShadow: 'none' }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                sx={{ 
-                  bgcolor: alpha(theme.palette.warning.main, 0.05),
-                  '& .MuiAccordionSummary-content': { alignItems: 'center' },
-                  py: 2,
-                }}
-              >
-                <LightbulbIcon sx={{ mr: 2, color: theme.palette.warning.main }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Personalized Recommendations
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: 3 }}>
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body1" paragraph>
-                    {Array.isArray(result.recommendations) 
-                      ? result.recommendations.join('. ') 
-                      : result.recommendations || 'Based on your assessment, here are personalized recommendations to improve your mental health and well-being.'
-                    }
-                  </Typography>
-                </Box>
-                
-                <Divider sx={{ my: 3 }} />
-                
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3, height: '100%', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                      <SupportIcon sx={{ color: theme.palette.primary.main, mb: 2 }} />
-                      <Typography variant="h6" gutterBottom>
-                        Immediate Actions
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        Consider implementing stress-reduction techniques and seeking professional support if needed.
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        sx={{ mt: 1 }}
-                      >
-                        Learn More
-                      </Button>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3, height: '100%', bgcolor: alpha(theme.palette.success.main, 0.02) }}>
-                      <HealthIcon sx={{ color: theme.palette.success.main, mb: 2 }} />
-                      <Typography variant="h6" gutterBottom>
-                        Long-term Wellness
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        Develop sustainable habits for maintaining good mental health and work-life balance.
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        sx={{ mt: 1 }}
-                      >
-                        Get Resources
-                      </Button>
-                    </Paper>
-                  </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, height: '100%', bgcolor: alpha(theme.palette.success.main, 0.02) }}>
+                    <StyledIcon IconComponent={HealthIcon} sx={{ color: theme.palette.success.main, mb: 2 }} />
+                    <Typography variant="h6" gutterBottom>
+                      Long-term Wellness
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      Develop sustainable habits for maintaining good mental health and work-life balance.
+                    </Typography>
+                  </Paper>
                 </Grid>
-              </AccordionDetails>
-            </Accordion>
-          </CardContent>
-        </Card>
-      </Slide>
+              </Grid>
+            </Box>
+          )}
+        </AccordionDetails>
+      </Accordion>
 
-      {/* Action Buttons */}
-      <Fade in={visibleSections.recommendations} timeout={1400}>
-        <Box sx={{ textAlign: 'center', mt: 4 }}>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={onRetakeAssessment}
-            sx={{
-              px: 4,
-              py: 1.5,
-              borderRadius: 3,
-              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-              boxShadow: theme.shadows[8],
-              '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: theme.shadows[12],
-              },
-              transition: 'all 0.3s ease',
-            }}
-          >
-            Retake Assessment
-          </Button>
-        </Box>
-      </Fade>
+      <Button onClick={onRetakeAssessment} variant="outlined" sx={{ mt: 3 }}>Retake Assessment</Button>
     </Box>
   );
 };

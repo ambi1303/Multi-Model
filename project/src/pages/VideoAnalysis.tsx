@@ -12,7 +12,6 @@ import {
   Chip,
   LinearProgress,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import {
   VideoCallIcon,
   UploadIcon,
@@ -49,14 +48,12 @@ export const VideoAnalysis: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const { addAnalysisResult } = useAppStore();
   
-  const { error, isActive, videoRef, start, stop, capture } = useWebcam();
+  const { error, isActive, videoRef, start, stop } = useWebcam();
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     if (isActive) stop(); // Stop camera when switching tabs
   };
-
-
 
   const analyzeContinuous = async () => {
     setIsAnalyzing(true);
@@ -68,7 +65,6 @@ export const VideoAnalysis: React.FC = () => {
       addAnalysisResult('video', result);
       showSuccess('Continuous video analysis complete! Enhanced emotion detection used.');
     } catch (error) {
-      console.error('Continuous analysis failed:', error);
       showError('Continuous analysis failed. Camera may not be available.');
     } finally {
       setIsAnalyzing(false);
@@ -111,6 +107,17 @@ export const VideoAnalysis: React.FC = () => {
     emotion: emotion.emotion,
     confidence: Math.round(emotion.confidence * 100),
   })) || [];
+
+  const barChartData = {
+    labels: chartData.map(item => item.emotion),
+    datasets: [
+      {
+        label: 'Confidence',
+        data: chartData.map(item => item.confidence),
+        backgroundColor: '#6366f1',
+      },
+    ],
+  };
 
   return (
     <Box>
@@ -495,13 +502,14 @@ export const VideoAnalysis: React.FC = () => {
                 
                 {chartData.length > 0 && (
                   <SimpleBarChart
-                    data={chartData.map(item => ({
-                      name: item.emotion,
-                      value: item.confidence,
-                      color: '#2563eb'
-                    }))}
-                    height={300}
-                    title="Confidence Distribution"
+                    data={barChartData}
+                    options={{
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                      },
+                    }}
                   />
                 )}
               </CardContent>

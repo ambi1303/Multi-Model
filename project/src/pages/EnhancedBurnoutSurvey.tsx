@@ -118,9 +118,17 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
         return 'Medium';
       })();
 
+      // Transform recommendations from string[] to object[] to match component props
+      const formattedRecommendations = (combinedResult.recommendations || []).map((rec, index) => ({
+        title: `Recommendation #${index + 1}`,
+        description: rec,
+        icon: 'Lightbulb', // Placeholder icon name
+      }));
+
       // Create a proper CombinedAnalysisResponse with additional properties for the component
       const finalResult = {
         ...combinedResult,
+        recommendations: formattedRecommendations, // Use the newly formatted array
         burnoutScore: mlResult.burnout_score / 100, // Normalize to 0-1 range
         riskLevel: inferredRisk,
         employeeData: {
@@ -166,7 +174,7 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
         burnRate: mlResult.burnout_score,
         surveyScore: surveyResult.risk_level,
         mentalHealthSummary: combinedResult.mental_health_summary,
-        recommendations: combinedResult.recommendations,
+        recommendations: formattedRecommendations, // Use formatted recommendations here too
         riskLevel: inferredRisk,
         breakdown: finalResult.breakdown
       };

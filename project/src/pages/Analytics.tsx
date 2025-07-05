@@ -1,4 +1,5 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Box,
   Typography,
@@ -7,7 +8,6 @@ import {
   CardContent,
   Tabs,
   Tab,
-  Button,
   Alert,
   FormControl,
   InputLabel,
@@ -30,23 +30,13 @@ import { useNotification } from '../contexts/NotificationContext';
 import { OptimizedLoadingSpinner } from '../components/common/OptimizedLoadingSpinner';
 import { analyticsApi } from '../services/analyticsApi';
 import { AnalyticsFilters, AnalyticsData } from '../types/analytics';
-
-// Lazy load analytics dashboards to reduce initial bundle
-const OverviewDashboard = lazy(() => 
-  import('../components/analytics/OverviewDashboard').then(m => ({ default: m.OverviewDashboard }))
-);
-
-const VideoAnalyticsDashboard = lazy(() => 
-  import('../components/analytics/VideoAnalyticsDashboard').then(m => ({ default: m.VideoAnalyticsDashboard }))
-);
-
-const SpeechAnalyticsDashboard = lazy(() => 
-  import('../components/analytics/SpeechAnalyticsDashboard').then(m => ({ default: m.SpeechAnalyticsDashboard }))
-);
-
-const ChatAnalyticsDashboard = lazy(() => 
-  import('../components/analytics/ChatAnalyticsDashboard').then(m => ({ default: m.ChatAnalyticsDashboard }))
-);
+import SEO from '../components/common/SEO';
+import { 
+  OverviewDashboard, 
+  VideoAnalyticsDashboard, 
+  SpeechAnalyticsDashboard, 
+  ChatAnalyticsDashboard 
+} from '../components/LazyComponents';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -73,9 +63,6 @@ const tabs = [
 
 export const Analytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<AnalyticsFilters>({
     dateRange: {
       start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
@@ -88,25 +75,22 @@ export const Analytics: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const { showSuccess, showError } = useNotification();
 
-  const fetchAnalyticsData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const analyticsData = await analyticsApi.getAnalytics(filters);
-      setData(analyticsData);
-      showSuccess('Analytics data loaded successfully');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load analytics data';
-      setError(errorMessage);
-      showError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, error, isLoading, isSuccess, isError, refetch } = useQuery<AnalyticsData, Error>({
+    queryKey: ['analytics', filters],
+    queryFn: () => analyticsApi.getAnalytics(filters),
+  });
 
   useEffect(() => {
-    fetchAnalyticsData();
-  }, [filters]);
+    if (isSuccess) {
+      showSuccess('Analytics data loaded successfully.');
+    }
+  }, [isSuccess, showSuccess]);
+
+  useEffect(() => {
+    if (isError) {
+      showError(error?.message || 'An unknown error occurred.');
+    }
+  }, [isError, error, showError]);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -139,7 +123,7 @@ export const Analytics: React.FC = () => {
     
     const highRiskSessions = data.overview.riskDistribution.find(r => r.level === 'High')?.count || 0;
     const totalSessions = data.overview.totalSessions;
-    const riskPercentage = (highRiskSessions / totalSessions) * 100;
+    const riskPercentage = totalSessions > 0 ? (highRiskSessions / totalSessions) * 100 : 0;
     
     if (riskPercentage > 20) return 'error';
     if (riskPercentage > 10) return 'warning';
@@ -148,6 +132,10 @@ export const Analytics: React.FC = () => {
 
   return (
     <Box>
+      <SEO
+        title="Analytics Dashboard"
+        description="Dive deep into emotion analytics. Explore comprehensive dashboards for video, speech, and text analysis to gain actionable insights."
+      />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -189,7 +177,7 @@ export const Analytics: React.FC = () => {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Refresh Data">
-                <IconButton onClick={fetchAnalyticsData} disabled={loading}>
+                <IconButton onClick={() => refetch()} disabled={isLoading}>
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
@@ -262,6 +250,13 @@ export const Analytics: React.FC = () => {
               </Grid>
             </motion.div>
           )}
+
+          {isLoading && <OptimizedLoadingSpinner message="Fetching analytics data..." />}
+          {isError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              Failed to load analytics data: {error?.message}
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -280,47 +275,28 @@ export const Analytics: React.FC = () => {
         </Alert>
       )}
 
-      {/* Error State */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 4 }}>
-          <Typography>{error}</Typography>
-          <Button onClick={fetchAnalyticsData} sx={{ mt: 1 }}>
-            <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
-              <RefreshIcon />
-            </Box>
-            Retry
-          </Button>
-        </Alert>
-      )}
-
-      {/* Loading State */}
-      {loading && !data && (
-        <OptimizedLoadingSpinner message="Loading analytics data..." minHeight="400px" />
-      )}
-
       {/* Main Content */}
       {data && (
         <Card>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto">
-              {tabs.map((tab, index) => (
-                <Tab key={index} label={tab.label} icon={tab.icon} iconPosition="start" />
-              ))}
-            </Tabs>
-          </Box>
-
-          <TabPanel value={activeTab} index={0}>
-            <OverviewDashboard data={data.overview} filters={filters} />
-          </TabPanel>
-          <TabPanel value={activeTab} index={1}>
-            <VideoAnalyticsDashboard data={data.video} filters={filters} />
-          </TabPanel>
-          <TabPanel value={activeTab} index={2}>
-            <SpeechAnalyticsDashboard data={data.speech} filters={filters} />
-          </TabPanel>
-          <TabPanel value={activeTab} index={3}>
-            <ChatAnalyticsDashboard data={data.chat} filters={filters} />
-          </TabPanel>
+          <Tabs value={activeTab} onChange={handleTabChange} centered>
+            {tabs.map((tab, index) => (
+              <Tab key={index} label={tab.label} icon={tab.icon} />
+            ))}
+          </Tabs>
+          <CardContent>
+            <TabPanel value={activeTab} index={0}>
+              {data?.overview && <OverviewDashboard data={data.overview} filters={filters} />}
+            </TabPanel>
+            <TabPanel value={activeTab} index={1}>
+              {data?.video && <VideoAnalyticsDashboard data={data.video} />}
+            </TabPanel>
+            <TabPanel value={activeTab} index={2}>
+              {data?.speech && <SpeechAnalyticsDashboard data={data.speech} filters={filters} />}
+            </TabPanel>
+            <TabPanel value={activeTab} index={3}>
+              {data?.chat && <ChatAnalyticsDashboard data={data.chat} filters={filters} />}
+            </TabPanel>
+          </CardContent>
         </Card>
       )}
     </Box>

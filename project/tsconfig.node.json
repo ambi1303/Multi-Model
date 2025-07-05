@@ -16,7 +16,10 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Type Resolution */
+    "typeRoots": ["./node_modules/@types"]
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "postcss.config.js"]
 }

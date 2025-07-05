@@ -1,6 +1,6 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import  { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button, Alert } from '@mui/material';
-import { RefreshOutlined as RefreshIcon } from '@mui/icons-material';
+import { RefreshIcon } from '../../utils/icons';
 
 interface Props {
   children: ReactNode;

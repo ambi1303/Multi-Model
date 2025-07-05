@@ -15,7 +15,6 @@ import {
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon,
-  Snackbar,
   Tabs,
   Tab,
   Paper,
@@ -45,8 +44,6 @@ import {
   SettingsIcon,
   DeleteIcon,
   SaveIcon,
-  ArrowUpwardIcon,
-  ArrowDownwardIcon,
 } from '../utils/icons';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { speechApi } from '../services/speechApi';
@@ -261,39 +258,6 @@ export const SpeechAnalysis: React.FC = () => {
   // Tab change handler
   const handleTabChange = useCallback((_: React.SyntheticEvent, value: string) => {
     setTab(value as 'record' | 'history');
-  }, []);
-
-
-
-  const extractMetrics = useCallback((text: string) => {
-    const metrics: Array<{ label: string; value: string; color: string }> = [];
-    
-    // Extract common audio metrics
-    const patterns = [
-      { regex: /(\d+\.?\d*)\s*Hz/gi, label: 'Frequency', unit: 'Hz', color: 'primary' },
-      { regex: /(\d+\.?\d*)\s*dB/gi, label: 'Volume', unit: 'dB', color: 'secondary' },
-      { regex: /(\d+\.?\d*)%/gi, label: 'Confidence', unit: '%', color: 'success' },
-      { regex: /(\d+\.?\d*)\s*ms/gi, label: 'Duration', unit: 'ms', color: 'info' },
-      { regex: /(\d+\.?\d*)\s*kHz/gi, label: 'Sample Rate', unit: 'kHz', color: 'warning' },
-    ];
-
-    patterns.forEach(pattern => {
-      const matches = text.match(pattern.regex);
-      if (matches && matches.length > 0) {
-        matches.slice(0, 3).forEach((match, index) => { // Limit to 3 matches per pattern
-          const value = match.match(/(\d+\.?\d*)/)?.[1];
-          if (value) {
-            metrics.push({
-              label: `${pattern.label}${matches.length > 1 ? ` ${index + 1}` : ''}`,
-              value: `${value} ${pattern.unit}`,
-              color: pattern.color
-            });
-          }
-        });
-      }
-    });
-
-    return metrics;
   }, []);
 
   // Audio visualizer component
@@ -912,17 +876,6 @@ export const SpeechAnalysis: React.FC = () => {
                       <Chip label="Detailed" size="small" color="info" />
                     </Typography>
                     <Stack direction="row" spacing={1}>
-                      <Tooltip title="Copy Report">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            navigator.clipboard.writeText(analysis.technicalReport);
-                            showSuccess('Technical report copied to clipboard! 📋');
-                          }}
-                        >
-                          <SaveIcon />
-                        </IconButton>
-                      </Tooltip>
                       <Tooltip title="Download Report">
                         <IconButton
                           size="small"
@@ -956,28 +909,6 @@ export const SpeechAnalysis: React.FC = () => {
                       position: 'relative',
                     }}
                   >
-                    {/* Copy Button for Report */}
-                    <Tooltip title="Copy Full Report">
-                      <IconButton
-                        size="small"
-                        sx={{
-                          position: 'absolute',
-                          top: 16,
-                          right: 16,
-                          backgroundColor: 'background.paper',
-                          '&:hover': {
-                            backgroundColor: 'primary.light',
-                          },
-                        }}
-                        onClick={() => {
-                          navigator.clipboard.writeText(analysis.technicalReport);
-                          showSuccess('Full report copied! 📋');
-                        }}
-                      >
-                        <SaveIcon />
-                      </IconButton>
-                    </Tooltip>
-
                     <Typography
                       variant="body2"
                       sx={{
@@ -992,8 +923,6 @@ export const SpeechAnalysis: React.FC = () => {
                       {analysis.technicalReport}
                     </Typography>
                   </Box>
-
-
 
                   {/* Export Action */}
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
@@ -1066,13 +995,6 @@ export const SpeechAnalysis: React.FC = () => {
           </Box>
         </Fade>
       )}
-
-      {/* Success Notification */}
-      <Snackbar
-        open={false}
-        message="Analysis completed successfully!"
-        autoHideDuration={3000}
-      />
 
       {/* Floating Action Button */}
       <SpeedDial
