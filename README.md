@@ -1,39 +1,33 @@
-# Integrated Multi-Modal Emotion & Mental State Analyzer
+# Multi-Modal Emotion & Mental State Analyzer
 
-This project is an integrated platform for analyzing emotion and mental state using multiple modalities:
-- **Video Emotion Recognition**: Real-time emotion detection from webcam or uploaded images
-- **Speech-to-Text Emotion Analyzer**: Voice recording analysis with transcription and sentiment detection
-- **Chat Mental State Analyzer**: Mental state analysis from chat messages
-- **Employee Burnout Prediction Survey**: Structured survey for burnout prediction
+A next-generation, enterprise-ready platform for analyzing emotion and mental state using video, speech, chat, and survey data. Built with a modular microservices architecture and a modern React frontend.
 
 ## Features
 
-- **Video Analysis**: Real-time emotion detection using DeepFace
-- **Speech Analysis**: 
-  - Speech-to-text conversion using Vosk
-  - Sentiment analysis using TextBlob
-  - Emotion detection from transcribed text
-- **Chat Analysis**: Mental state analysis from chat messages
-- **Survey Analysis**: Employee burnout prediction using machine learning models
-- **Performance Monitoring**:
-  - Prometheus metrics for all services
-  - Health check endpoints
-  - Profiling capabilities
-  - Load testing tools
+- **Video Emotion Recognition**: Real-time emotion detection from webcam or uploaded images
+- **Speech-to-Text Emotion Analyzer**: Voice recording analysis with transcription, sentiment, and emotion detection
+- **Chat Mental State Analyzer**: Mental state and sentiment analysis from chat messages and batch uploads
+- **Employee Burnout Prediction Survey**: Structured survey for burnout and stress prediction
+- **AI Companion (Emo-Buddy)**: Conversational AI for emotional support and crisis detection
+- **Performance Monitoring**: Prometheus metrics, health checks, and load testing tools
 
 ## Project Structure
 
 ```
 .
-├── integrated/
-│   ├── backend/         # Unified FastAPI backend (API gateway)
-│   └── frontend/        # Unified React frontend
-├── stt/                 # Speech-to-text service
-├── survey/             # Survey service
-├── video/              # Video service
-├── chat/               # Chat service
-├── setup.sh            # Setup script for all services
-└── README.md           # This file
+├── apps/
+│   └── frontend/           # Modern React (Vite + MUI) frontend
+├── services/
+│   ├── chat/               # Chat mental state analyzer (FastAPI)
+│   ├── emo_buddy/          # AI companion and memory (FastAPI)
+│   ├── integrated/         # API gateway and unified backend (FastAPI)
+│   ├── stt/                # Speech-to-text and emotion (FastAPI)
+│   ├── survey/             # Burnout survey backend (FastAPI)
+│   └── video/              # Video emotion recognition backend (FastAPI)
+├── setup.sh                # Setup script for all services
+├── start_all_backends.py   # Script to launch all backends in parallel
+├── docker-compose.yml      # (Optional) Compose for local dev
+└── README.md               # This file
 ```
 
 ## Prerequisites
@@ -56,13 +50,13 @@ This project is an integrated platform for analyzing emotion and mental state us
    chmod +x setup.sh
    ./setup.sh
    ```
-   This script will:
+   This will:
    - Create virtual environments for all Python services
-   - Install all required dependencies
-   - Download necessary models
+   - Install all dependencies
+   - Download required models
    - Set up the frontend
 
-3. **Start all services:**
+3. **Start all backend services:**
    ```bash
    python start_all_backends.py
    ```
@@ -71,276 +65,95 @@ This project is an integrated platform for analyzing emotion and mental state us
    - STT backend (port 8002)
    - Chat backend (port 8003)
    - Survey backend (port 8004)
-   - Integrated backend (port 9000)
+   - Emo-Buddy backend (port 8005)
+   - Integrated API gateway (port 9000)
 
-4. **Access the application:**
-   Open your browser and navigate to:
+4. **Start the frontend:**
+   ```bash
+   cd apps/frontend
+   npm run dev
    ```
-   http://localhost:3000
+   The app will be available at:
+   ```
+   http://localhost:5173
    ```
 
 ## Manual Setup (Alternative)
 
-If you prefer to set up services manually:
-
 ### 1. Set Up Python Virtual Environments
 
-For each service (video, stt, chat, survey):
-
+For each service in `services/`:
 ```bash
-cd <service_directory>
+cd services/<service_name>
 python -m venv venv
 source venv/bin/activate  # On Linux/Mac
 # or
-venv\Scripts\activate     # On Windows
+venv\Scripts\activate    # On Windows
 pip install -r requirements.txt
 ```
 
 ### 2. Set Up Frontend
-
 ```bash
-cd integrated/frontend
+cd apps/frontend
 npm install
 ```
 
 ### 3. Start Services
-
 Start each backend service in a separate terminal:
-
 ```bash
 # Video Backend
-cd video/emp_face
-source venv/bin/activate
+cd services/video/emp_face
+source ../../venv/bin/activate
 uvicorn api:app --reload --port 8001
 
 # STT Backend
-cd stt/stt/api
-source venv/bin/activate
+cd services/stt/api
+source ../../venv/bin/activate
 uvicorn main:app --reload --port 8002
 
 # Chat Backend
-cd chat/chat/mental_state_analyzer
-source venv/bin/activate
+cd services/chat/chat/mental_state_analyzer
+source ../../../venv/bin/activate
 uvicorn api:app --reload --port 8003
 
 # Survey Backend
-cd survey/survey
-source venv/bin/activate
+cd services/survey/survey
+source ../../venv/bin/activate
 uvicorn backend:app --reload --port 8004
 
-# Integrated Backend
-cd integrated/backend
+# Emo-Buddy Backend
+cd services/emo_buddy
 source venv/bin/activate
+uvicorn api:app --reload --port 8005
+
+# Integrated Backend
+cd services/integrated/backend
+source ../../venv/bin/activate
 uvicorn main:app --reload --port 9000
 
 # Frontend
-cd integrated/frontend
-npm start
+cd apps/frontend
+npm run dev
 ```
 
 ## Usage
 
-1. **Video Analysis**:
-   - Allow camera access when prompted
-   - Click "Start Camera" to begin real-time emotion detection
-   - Upload an image for static analysis
+- **Video Analysis**: Real-time webcam or image-based emotion detection
+- **Speech Analysis**: Record and analyze speech for emotion, sentiment, and transcription
+- **Chat Analysis**: Analyze single or batch chat messages for mental state and sentiment
+- **Survey Analysis**: Fill out and submit burnout/stress surveys for ML-based prediction
+- **Emo-Buddy**: Chat with an AI companion for emotional support and crisis detection
 
-2. **Speech Analysis**:
-   - Click "Start Recording" to begin voice recording
-   - Speak clearly into your microphone
-   - Click "Stop Recording" to analyze the speech
-   - View transcription, sentiment, and emotion results
+## Monitoring & Health
 
-3. **Chat Analysis**:
-   - Enter your message in the chat input
-   - Click "Analyze" to get mental state analysis
-   - View sentiment and emotion breakdown
-
-4. **Survey Analysis**:
-   - Fill out the employee survey form
-   - Submit to get burnout prediction and stress level analysis
-
-## Performance Monitoring
-
-The system includes comprehensive performance monitoring and profiling capabilities:
-
-### Prometheus Metrics
-
-All services expose Prometheus metrics at the `/metrics` endpoint:
-- Request counts by endpoint
-- Processing time histograms
-- Error counts by type
-- Memory and CPU usage
-
-Example:
-```
-curl http://localhost:9000/metrics
-```
-
-### Health Checks
-
-All services provide health check endpoints at `/health`:
-- Service status
-- Backend availability (for integrated service)
-- System resource usage
-
-Example:
-```
-curl http://localhost:9000/health
-```
-
-### Profiling
-
-The STT service includes profiling capabilities:
-
-1. **On-demand profiling** for individual requests:
-```
-curl -X POST "http://localhost:8002/analyze-speech?profile=true" -F "audio_file=@your_audio.wav"
-```
-
-2. **System-wide profiling report**:
-```
-curl http://localhost:8002/profile-report
-```
-
-### Load Testing
-
-The integrated backend includes a load testing endpoint for performance testing:
-
-```
-curl -X POST http://localhost:9000/load-test -H "Content-Type: application/json" -d '{"test_type": "all", "iterations": 5}'
-```
-
-Options for `test_type`:
-- `all`: Test all services
-- `video`: Test only video service
-- `speech`: Test only speech service
-- `chat`: Test only chat service
-- `survey`: Test only survey service
-
-## Troubleshooting
-
-1. **Camera/Microphone Access**:
-   - Ensure your browser has permission to access camera/microphone
-   - Check if other applications are using these devices
-
-2. **Port Conflicts**:
-   - Ensure no other services are using ports 8001-8004 and 9000
-   - Check if all backend services are running
-
-3. **Model Loading Issues**:
-   - Verify that all model files are downloaded correctly
-   - Check the logs for specific error messages
-
-4. **CORS Errors**:
-   - Ensure all backend services are running
-   - Check browser console for specific CORS error messages
-
-5. **Monitoring Issues**:
-   - Ensure all services have the required dependencies (prometheus_client, psutil)
-   - Check if the metrics endpoints are accessible
-   - Verify that the integrated backend can reach all service health endpoints
-
-## Development
-
-- Each service has its own virtual environment for isolation
-- Backend services use FastAPI for API endpoints
-- Frontend uses React with Material-UI components
-- All services communicate through the integrated backend
-- Performance monitoring is integrated into all services
+- **Prometheus Metrics**: All services expose `/metrics` endpoints
+- **Health Checks**: All services provide `/health` endpoints
+- **Load Testing**: Use `run_load_test.py` for stress testing
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+Contributions are welcome! Please open issues or submit PRs for improvements, bug fixes, or new features.
 
 ## License
 
-MIT
-
-## Support
-
-For issues and feature requests, please create an issue in the repository. 
-
-This monorepo contains a frontend application (`apps/frontend`) and several backend Python services (`services/*`).
-
-## Running the Project
-
-### 1. Setup
-
-First, run the setup script to create a virtual environment for each backend service and install its dependencies:
-
-```bash
-bash setup.sh
-```
-
-### 2. Start all backends
-
-To start all backend services simultaneously, run the Python script:
-
-```bash
-python start_all_backends.py
-```
-
-### 3. Run the frontend
-Navigate to the frontend directory and start the development server:
-```bash
-cd apps/frontend
-npm install
-npm start
-```
-## Service Details
-
-<details>
-<summary>Expand to see service details</summary>
-
-### Services Overview
-
-*   **Video Service**: Analyzes video streams for facial expressions.
-    *   Path: `services/video/emp_face`
-    *   Endpoint: `http://localhost:8001`
-*   **STT Service**: Performs speech-to-text transcription.
-    *   Path: `services/stt/api`
-    *   Endpoint: `http://localhost:8002`
-*   **Chat Service**: Analyzes text for mental state.
-    *   Path: `services/chat/chat/mental_state_analyzer`
-    *   Endpoint: `http://localhost:8003`
-*   **Survey Service**: Predicts burnout from survey data.
-    *   Path: `services/survey/survey`
-    *   Endpoint: `http://localhost:8004`
-*   **EmoBuddy Service**: An AI agent for emotional support.
-    *   Path: `services/emo_buddy`
-    *   Endpoint: `http://localhost:8005`
-*   **Integrated Backend**: A FastAPI server that orchestrates calls to the other services.
-    *   Path: `services/integrated/backend`
-    *   Endpoint: `http://localhost:9000`
-
-</details>
-
-## Manual Service Installation
-
-If you prefer to install services manually, navigate to each service's directory and run the following commands.
-
-Example for the `chat` service:
-
-```bash
-cd services/chat/chat/mental_state_analyzer
-python -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-pip install -r requirements.txt
-```
-
-Repeat this for all directories listed in the `start_all_backends.py` script.
-
-## Docker
-
-A `docker-compose.yml` file is provided for running the entire application stack in containers.
-
-```bash
-docker-compose up --build
-```
-
-This will build images for the frontend and all backend services and run them together. 
+[MIT License](LICENSE) 

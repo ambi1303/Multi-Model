@@ -69,7 +69,7 @@ const useRealTimeData = () => {
   return { data, isLive, setIsLive };
 };
 
-// Animated metric card component
+// MetricCard component
 interface MetricCardProps {
   title: string;
   value: string | number;
@@ -77,116 +77,74 @@ interface MetricCardProps {
   color: string;
   subtitle?: string;
   trend?: string;
-  delay?: number;
 }
 const MetricCard: React.FC<MetricCardProps> = (props) => {
-  const { title, value, icon, color, subtitle, trend, delay = 0 } = props;
-  const [isHovered, setIsHovered] = useState(false);
-
+  const { title, value, icon, color, subtitle, trend } = props;
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ 
-        duration: 0.6, 
-        delay,
-        type: "spring",
-        stiffness: 100,
-        damping: 15
-      }}
-      whileHover={{ 
-        scale: 1.05, 
-        rotateY: 5,
-        boxShadow: "0 20px 40px rgba(0,0,0,0.15)"
-      }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.04, boxShadow: '0 6px 24px rgba(25, 118, 210, 0.08)' }}
+      transition={{ duration: 0.5, type: 'spring', stiffness: 80 }}
+      style={{ height: '100%' }}
     >
       <Card
         sx={{
           height: '100%',
-          background: `linear-gradient(135deg, ${color}20 0%, ${color}40 100%)`,
-          backdropFilter: 'blur(20px)',
-          border: `2px solid ${color}30`,
-          borderRadius: 4,
+          background: '#fff',
+          border: `1px solid #e0e0e0`,
+          borderRadius: 3,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           overflow: 'hidden',
           position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
         }}
       >
-        <motion.div
-          animate={{
-            background: isHovered 
-              ? `linear-gradient(45deg, ${color}30, transparent, ${color}30)`
-              : 'transparent'
-          }}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: '-100%',
-            width: '200%',
-            height: '100%',
-            zIndex: 0,
-          }}
-          transition={{ duration: 0.6 }}
-        />
-        
         <CardContent sx={{ position: 'relative', zIndex: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <motion.div
-              animate={{ 
-                rotate: isHovered ? 360 : 0,
-                scale: isHovered ? 1.2 : 1
+            <Avatar
+              sx={{
+                background: '#f5f5f5',
+                color: color,
+                width: 48,
+                height: 48,
+                mr: 2,
+                fontSize: 28,
+                transition: 'transform 0.3s',
               }}
-              transition={{ duration: 0.6 }}
             >
-              <Avatar
-                sx={{
-                  background: `linear-gradient(135deg, ${color} 0%, ${color}80 100%)`,
-                  width: 56,
-                  height: 56,
-                  mr: 2,
-                }}
-              >
-                {icon}
-              </Avatar>
-            </motion.div>
-            
+              {icon}
+            </Avatar>
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
                 {title}
               </Typography>
               <motion.div
                 key={value}
-                initial={{ scale: 1.2, color: color }}
-                animate={{ scale: 1, color: 'inherit' }}
+                initial={{ scale: 1.15, color: color }}
+                animate={{ scale: 1, color: '#222' }}
                 transition={{ duration: 0.3 }}
               >
-                <Typography variant="h3" sx={{ fontWeight: 800, lineHeight: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1, color: '#222' }}>
                   {value}
                 </Typography>
               </motion.div>
             </Box>
           </Box>
-          
           {subtitle && (
             <Typography variant="caption" color="text.secondary">
               {subtitle}
             </Typography>
           )}
-          
           {trend && (
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Chip
-                label={trend}
-                size="small"
-                color="success"
-                sx={{ mt: 1, fontSize: '0.7rem' }}
-              />
-            </motion.div>
+            <Chip
+              label={trend}
+              size="small"
+              color="success"
+              sx={{ mt: 1, fontSize: '0.7rem', background: '#e8f5e9', color: '#388e3c' }}
+            />
           )}
         </CardContent>
       </Card>
@@ -194,72 +152,7 @@ const MetricCard: React.FC<MetricCardProps> = (props) => {
   );
 };
 
-// Floating emoji animation
-interface FloatingEmojiProps {
-  emoji: string;
-  delay?: number;
-}
-const FloatingEmoji: React.FC<FloatingEmojiProps> = (props) => {
-  const { emoji, delay = 0 } = props;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 100, rotate: 0 }}
-      animate={{ 
-        opacity: [0, 1, 1, 0],
-        y: [100, -20, -40, -100],
-        rotate: [0, 180, 360],
-        scale: [0.5, 1, 1.2, 0.8]
-      }}
-      transition={{
-        duration: 4,
-        delay,
-        repeat: Infinity,
-        repeatDelay: Math.random() * 3,
-        ease: "easeInOut"
-      }}
-      style={{
-        position: 'absolute',
-        left: `${Math.random() * 100}%`,
-        fontSize: '2rem',
-        zIndex: 0,
-      }}
-    >
-      {emoji}
-    </motion.div>
-  );
-};
-
-// Pulse animation component
-interface PulseRingProps {
-  color: string;
-  delay?: number;
-}
-const PulseRing: React.FC<PulseRingProps> = (props) => {
-  const { color, delay = 0 } = props;
-  return (
-    <motion.div
-      initial={{ scale: 0, opacity: 1 }}
-      animate={{ scale: 2, opacity: 0 }}
-      transition={{
-        duration: 2,
-        delay,
-        repeat: Infinity,
-        ease: "easeOut"
-      }}
-      style={{
-        position: 'absolute',
-        width: '100%',
-        height: '100%',
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-        top: 0,
-        left: 0,
-      }}
-    />
-  );
-};
-
-// Live activity feed
+// LiveActivityFeed component
 const LiveActivityFeed = () => {
   const [activities, setActivities] = useState([
     { id: 1, text: "Sarah just completed video analysis", icon: "🎥", time: "2s ago" },
@@ -279,44 +172,40 @@ const LiveActivityFeed = () => {
         "Happy emotions detected 😄",
         "Productivity mode: ON 🔥",
       ];
-      
       const newActivity = {
         id: Date.now(),
         text: newActivities[Math.floor(Math.random() * newActivities.length)],
         icon: "🎯",
         time: "now"
       };
-      
       setActivities(prev => [newActivity, ...prev.slice(0, 4)]);
     }, 3000);
-
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <Box sx={{ maxHeight: 300, overflow: 'hidden' }}>
+    <Box sx={{ maxHeight: 300, overflow: 'auto', bgcolor: '#fafafa', borderRadius: 2, p: 2 }}>
       <AnimatePresence>
-        {activities.map((activity, index) => (
+        {activities.map((activity) => (
           <motion.div
             key={activity.id}
-            initial={{ opacity: 0, x: -50, scale: 0.8 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 50, scale: 0.8 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.4 }}
           >
             <Box
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                p: 2,
+                p: 1.5,
                 mb: 1,
-                borderRadius: 3,
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 2,
+                background: '#fff',
+                border: '1px solid #e0e0e0',
               }}
             >
-              <Typography sx={{ fontSize: '1.5rem', mr: 2 }}>
+              <Typography sx={{ fontSize: '1.3rem', mr: 2 }}>
                 {activity.icon}
               </Typography>
               <Box sx={{ flexGrow: 1 }}>
@@ -348,7 +237,7 @@ export const Dashboard = () => {
 
   const features = [
     {
-              icon: <VideoCallIcon />,
+      icon: <VideoCallIcon />,
       title: 'Video Vibes',
       description: 'Real-time emotion detection from your camera feed',
       route: '/video',
@@ -356,7 +245,7 @@ export const Dashboard = () => {
       emoji: '🎥',
     },
     {
-              icon: <MicIcon />,
+      icon: <MicIcon />,
       title: 'Voice Feels',
       description: 'Analyze emotions from speech patterns',
       route: '/speech',
@@ -364,7 +253,7 @@ export const Dashboard = () => {
       emoji: '🎤',
     },
     {
-              icon: <ChatIcon />,
+      icon: <ChatIcon />,
       title: 'Text Mood',
       description: 'Understand emotions in conversations',
       route: '/chat',
@@ -382,95 +271,65 @@ export const Dashboard = () => {
   ];
 
   return (
-    <Box sx={{ position: 'relative', overflow: 'hidden', minHeight: '100vh' }}>
-      {/* Floating Emojis Background */}
-      {['✨', '🚀', '💫', '⚡', '🎯', '💎', '🔥', '🌟'].map((emoji, index) => (
-        <FloatingEmoji key={index} emoji={emoji} delay={index * 0.5} />
-      ))}
-
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f4f6f8', p: { xs: 2, md: 4 } }}>
       {/* Header Section */}
       <motion.div
-        initial={{ opacity: 0, y: -50 }}
+        initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, type: "spring" }}
+        transition={{ duration: 0.7, type: 'spring', stiffness: 80 }}
       >
-        <Box sx={{ textAlign: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
           <motion.div
-            animate={{ 
-              background: [
-                'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                'linear-gradient(45deg, #4ECDC4, #45B7D1)',
-                'linear-gradient(45deg, #45B7D1, #96CEB4)',
-                'linear-gradient(45deg, #96CEB4, #FF6B6B)',
-              ]
-            }}
-            transition={{ duration: 4, repeat: Infinity }}
-            style={{
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
           >
             <Typography
-              variant="h1"
+              variant="h3"
               sx={{
-                fontWeight: 900,
-                fontSize: { xs: '3rem', md: '5rem' },
-                mb: 2,
-                textShadow: '0 0 30px rgba(255,107,107,0.3)',
+                fontWeight: 800,
+                fontSize: { xs: '2rem', md: '3rem' },
+                mb: 1,
+                color: '#222',
               }}
             >
               EmotiVibe Dashboard
             </Typography>
           </motion.div>
-          
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.4 }}
           >
             <Typography
-              variant="h5"
+              variant="h6"
               sx={{
                 color: 'text.secondary',
                 mb: 2,
-                fontWeight: 300,
+                fontWeight: 400,
               }}
             >
               Real-time emotion intelligence • {currentTime.toLocaleTimeString()}
             </Typography>
           </motion.div>
-
           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 3 }}>
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <motion.div whileHover={{ scale: 1.08 }}>
               <IconButton
                 onClick={() => setIsLive(!isLive)}
                 sx={{
-                  background: isLive 
-                    ? 'linear-gradient(135deg, #FF6B6B, #4ECDC4)' 
-                    : 'linear-gradient(135deg, #666, #999)',
+                  background: isLive ? '#388e3c' : '#bdbdbd',
                   color: 'white',
-                  position: 'relative',
+                  transition: 'background 0.3s',
                 }}
               >
                 {isLive ? <PauseIcon /> : <PlayArrowIcon />}
-                {isLive && (
-                  <>
-                    <PulseRing color="#FF6B6B" />
-                    <PulseRing color="#4ECDC4" delay={0.5} />
-                  </>
-                )}
               </IconButton>
             </motion.div>
-            
             <Tooltip title="View Analytics">
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <motion.div whileHover={{ scale: 1.08 }}>
                 <IconButton
                   onClick={() => navigate('/analytics')}
-                  sx={{
-                    background: 'linear-gradient(135deg, #45B7D1, #96CEB4)',
-                    color: 'white',
-                  }}
+                  sx={{ background: '#1976d2', color: 'white', transition: 'background 0.3s' }}
                 >
                   <TrendingUpIcon />
                 </IconButton>
@@ -481,105 +340,89 @@ export const Dashboard = () => {
       </motion.div>
 
       {/* Real-time Metrics */}
-      <Grid container spacing={2} sx={{ mb: 3, position: 'relative', zIndex: 1 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Live Users"
-            value={data.activeUsers}
-            icon={<PeopleIcon />}
-            color="#FF6B6B"
-            subtitle="Currently vibing"
-            trend="+12% today"
-            delay={0.1}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Emotions Detected"
-            value={data.emotionsDetected.toLocaleString()}
-            icon={<EmojiEmotionsIcon />}
-            color="#4ECDC4"
-            subtitle="Total today"
-            trend="+8% vs yesterday"
-            delay={0.2}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Happiness Level"
-            value={`${data.happinessLevel}%`}
-            icon={<HeartIcon />}
-            color="#45B7D1"
-            subtitle="Team average"
-            trend="+5% this week"
-            delay={0.3}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="AI Confidence"
-            value={`${data.aiConfidence.toFixed(1)}%`}
-            icon={<AutoAwesomeIcon />}
-            color="#96CEB4"
-            subtitle="Model accuracy"
-            trend="Stable"
-            delay={0.4}
-          />
-        </Grid>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {[
+          {
+            title: "Live Users",
+            value: data.activeUsers,
+            icon: <PeopleIcon />,
+            color: "#FF6B6B",
+            subtitle: "Currently online",
+            trend: "+12% today"
+          },
+          {
+            title: "Emotions Detected",
+            value: data.emotionsDetected.toLocaleString(),
+            icon: <EmojiEmotionsIcon />,
+            color: "#4ECDC4",
+            subtitle: "Total today",
+            trend: "+8% vs yesterday"
+          },
+          {
+            title: "Happiness Level",
+            value: `${data.happinessLevel}%`,
+            icon: <HeartIcon />,
+            color: "#45B7D1",
+            subtitle: "Team average",
+            trend: "+5% this week"
+          },
+          {
+            title: "AI Confidence",
+            value: `${data.aiConfidence.toFixed(1)}%`,
+            icon: <AutoAwesomeIcon />,
+            color: "#96CEB4",
+            subtitle: "Model accuracy",
+            trend: "Stable"
+          }
+        ].map((metric, idx) => (
+          <Grid item xs={12} sm={6} md={3} key={metric.title}>
+            <MetricCard {...metric} />
+          </Grid>
+        ))}
       </Grid>
 
       {/* Live Dashboard Grid */}
-      <Grid container spacing={2} sx={{ position: 'relative', zIndex: 1 }}>
+      <Grid container spacing={2}>
         {/* Current Vibe */}
         <Grid item xs={12} md={6}>
           <motion.div
-            initial={{ opacity: 0, x: -50 }}
+            initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5, duration: 0.8 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
           >
             <Card
               sx={{
-                background: 'linear-gradient(135deg, rgba(255,107,107,0.1) 0%, rgba(78,205,196,0.1) 100%)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 4,
+                background: '#fff',
+                border: '1px solid #e0e0e0',
+                borderRadius: 3,
                 p: 3,
                 height: '100%',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <Typography sx={{ fontSize: '3rem', mr: 2 }}>🎯</Typography>
-                </motion.div>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                <Typography sx={{ fontSize: '2.2rem', mr: 2, color: '#1976d2' }}>🎯</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#222' }}>
                   Current Vibe
                 </Typography>
               </Box>
-              
               <motion.div
                 key={data.currentMood}
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.5 }}
               >
                 <Typography
-                  variant="h3"
+                  variant="h4"
                   sx={{
                     fontWeight: 800,
-                    background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
+                    color: '#1976d2',
                     mb: 2,
                   }}
                 >
                   {data.currentMood}
                 </Typography>
               </motion.div>
-              
               <Box sx={{ mb: 3 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Energy Level
@@ -587,7 +430,7 @@ export const Dashboard = () => {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: '100%' }}
-                  transition={{ delay: 0.8, duration: 1 }}
+                  transition={{ delay: 0.2, duration: 0.7 }}
                 >
                   <LinearProgress
                     variant="determinate"
@@ -595,188 +438,43 @@ export const Dashboard = () => {
                     sx={{
                       height: 12,
                       borderRadius: 6,
-                      background: 'rgba(255,255,255,0.1)',
+                      background: '#f5f5f5',
                       '& .MuiLinearProgress-bar': {
-                        background: 'linear-gradient(90deg, #FF6B6B, #4ECDC4)',
-                        borderRadius: 6,
+                        background: '#1976d2',
                       },
                     }}
                   />
                 </motion.div>
-                <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
-                  {data.energyLevel}% - Keep it up! 🔥
-                </Typography>
               </Box>
-              
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Chip
-                  label={`${data.liveAnalyses} Live Analyses`}
-                  color="primary"
-                  size="small"
-                  icon={<ZapIcon />}
-                />
-                <Chip
-                  label={`${data.stressLevel}% Stress`}
-                  color={data.stressLevel > 50 ? 'error' : 'success'}
-                  size="small"
-                />
-              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Team stress level: <b>{data.stressLevel}%</b>
+              </Typography>
             </Card>
           </motion.div>
         </Grid>
-
         {/* Live Activity Feed */}
         <Grid item xs={12} md={6}>
           <motion.div
-            initial={{ opacity: 0, x: 50 }}
+            initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.6, duration: 0.8 }}
+            transition={{ duration: 0.7, delay: 0.3 }}
           >
             <Card
               sx={{
-                background: 'linear-gradient(135deg, rgba(69,183,209,0.1) 0%, rgba(150,206,180,0.1) 100%)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 4,
+                background: '#fff',
+                border: '1px solid #e0e0e0',
+                borderRadius: 3,
                 p: 3,
                 height: '100%',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <Badge badgeContent={data.liveAnalyses} color="error">
-                    <Box sx={{ fontSize: '2rem', mr: 2, color: '#45B7D1', display: 'flex', alignItems: 'center' }}>
-          <NotificationsIcon />
-        </Box>
-                  </Badge>
-                </motion.div>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  Live Activity
-                </Typography>
-              </Box>
-              
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#222' }}>
+                Live Activity Feed
+              </Typography>
               <LiveActivityFeed />
             </Card>
           </motion.div>
-        </Grid>
-
-        {/* Quick Actions */}
-        <Grid item xs={12}>
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.8 }}
-          >
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 700,
-                mb: 3,
-                textAlign: 'center',
-                background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Start Your Vibe Check 🚀
-            </Typography>
-          </motion.div>
-          
-          <Grid container spacing={3}>
-            {features.map((feature, index) => (
-              <Grid item xs={12} sm={6} md={3} key={index}>
-                <motion.div
-                  initial={{ opacity: 0, y: 50, rotateY: -90 }}
-                  animate={{ opacity: 1, y: 0, rotateY: 0 }}
-                  transition={{ 
-                    delay: 0.8 + index * 0.1, 
-                    duration: 0.8,
-                    type: "spring",
-                    stiffness: 100
-                  }}
-                  whileHover={{ 
-                    scale: 1.05, 
-                    rotateY: 10,
-                    boxShadow: "0 25px 50px rgba(0,0,0,0.2)"
-                  }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Card
-                    sx={{
-                      height: '100%',
-                      background: `linear-gradient(135deg, ${feature.color}20 0%, ${feature.color}40 100%)`,
-                      backdropFilter: 'blur(20px)',
-                      border: `2px solid ${feature.color}30`,
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      position: 'relative',
-                      overflow: 'hidden',
-                    }}
-                    onClick={() => navigate(feature.route)}
-                  >
-                    <motion.div
-                      animate={{
-                        background: [
-                          `linear-gradient(45deg, transparent, ${feature.color}20, transparent)`,
-                          `linear-gradient(45deg, transparent, ${feature.color}40, transparent)`,
-                          `linear-gradient(45deg, transparent, ${feature.color}20, transparent)`,
-                        ]
-                      }}
-                      transition={{ duration: 3, repeat: Infinity }}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: '-100%',
-                        width: '200%',
-                        height: '100%',
-                        zIndex: 0,
-                      }}
-                    />
-                    
-                    <CardContent sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-                      <motion.div
-                        animate={{ 
-                          rotate: [0, 10, -10, 0],
-                          scale: [1, 1.1, 1]
-                        }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
-                        <Typography sx={{ fontSize: '4rem', mb: 2 }}>
-                          {feature.emoji}
-                        </Typography>
-                      </motion.div>
-                      
-                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                        {feature.title}
-                      </Typography>
-                      
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        {feature.description}
-                      </Typography>
-                      
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        sx={{
-                          background: `linear-gradient(135deg, ${feature.color} 0%, ${feature.color}80 100%)`,
-                          fontWeight: 600,
-                          '&:hover': {
-                            background: `linear-gradient(135deg, ${feature.color}80 0%, ${feature.color} 100%)`,
-                          },
-                        }}
-                      >
-                        Let's Go! 🚀
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Grid>
-            ))}
-          </Grid>
         </Grid>
       </Grid>
     </Box>
