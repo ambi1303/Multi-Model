@@ -1,15 +1,27 @@
 #!/bin/bash
 
-# Function to setup a Python virtual environment
+# Function to set up a virtual environment in a given directory
 setup_venv() {
-    local dir=$1
-    local venv_dir="$dir/venv"
-    
-    echo "Setting up virtual environment in $dir"
-    python3 -m venv "$venv_dir"
-    source "$venv_dir/bin/activate"
-    pip install -r "$dir/requirements.txt"
-    deactivate
+    DIR=$1
+    echo "--- Setting up $DIR ---"
+    (
+        cd "services/$DIR" || { echo "Directory services/$DIR not found!"; exit 1; }
+        if [ ! -d "venv" ]; then
+            python -m venv venv
+        fi
+        # Activate venv and install requirements
+        if [ -f "venv/bin/activate" ]; then
+            # Linux/macOS
+            source "venv/bin/activate"
+        elif [ -f "venv/Scripts/activate" ]; then
+            # Windows
+            source "venv/Scripts/activate"
+        fi
+        pip install -r requirements.txt
+        deactivate
+    )
+    echo "--- Finished $DIR ---"
+    echo ""
 }
 
 # Setup frontend
@@ -18,19 +30,12 @@ cd integrated/frontend
 npm install
 cd ../..
 
-# Setup video backend
+# Setup individual backends
 setup_venv "video/emp_face"
-
-# Setup STT backend
 setup_venv "stt/api"
-
-# Setup chat backend
 setup_venv "chat/chat/mental_state_analyzer"
-
-# Setup survey backend
 setup_venv "survey/survey"
-
-# Setup integrated backend
+setup_venv "emo_buddy"
 setup_venv "integrated/backend"
 
 echo "Setup complete! You can now run the project using either:"

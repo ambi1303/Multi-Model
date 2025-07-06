@@ -3,12 +3,12 @@ version: '3.8'
 services:
   frontend:
     build:
-      context: ./integrated/frontend
+      context: ./apps/frontend
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
     volumes:
-      - ./integrated/frontend:/app
+      - ./apps/frontend:/app
       - /app/node_modules # Exclude node_modules from host bind mount
     command: ["npm", "start"]
     environment:
@@ -26,60 +26,60 @@ services:
 
   video-backend:
     build:
-      context: ./video/emp_face
+      context: ./services/video/emp_face
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
     volumes:
-      - ./video/emp_face:/app
+      - ./services/video/emp_face:/app
     environment:
       PYTHONUNBUFFERED: 1
     # command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
 
   stt-backend:
     build:
-      context: ./stt/stt/api
+      context: ./services/stt/api
       dockerfile: Dockerfile
     ports:
       - "8002:8002"
     volumes:
-      - ./stt/stt/api:/app
+      - ./services/stt/api:/app
     environment:
       PYTHONUNBUFFERED: 1
     # command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
 
   chat-backend:
     build:
-      context: ./chat/chat/mental_state_analyzer
+      context: ./services/chat/chat/mental_state_analyzer
       dockerfile: Dockerfile
     ports:
       - "8003:8003"
     volumes:
-      - ./chat/chat/mental_state_analyzer:/app
+      - ./services/chat/chat/mental_state_analyzer:/app
     environment:
       PYTHONUNBUFFERED: 1
     # command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
 
   survey-backend:
     build:
-      context: ./survey/survey
+      context: ./services/survey/survey
       dockerfile: Dockerfile
     ports:
       - "8004:8004"
     volumes:
-      - ./survey/survey:/app
+      - ./services/survey/survey:/app
     environment:
       PYTHONUNBUFFERED: 1
     # command: ["uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
 
   integrated-backend:
     build:
-      context: ./integrated/backend
+      context: ./services/integrated/backend
       dockerfile: Dockerfile
     ports:
       - "9000:9000"
     volumes:
-      - ./integrated/backend:/app
+      - ./services/integrated/backend:/app
     environment:
       PYTHONUNBUFFERED: 1
     # command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000", "--reload"] 

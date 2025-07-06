@@ -264,3 +264,83 @@ MIT
 ## Support
 
 For issues and feature requests, please create an issue in the repository. 
+
+This monorepo contains a frontend application (`apps/frontend`) and several backend Python services (`services/*`).
+
+## Running the Project
+
+### 1. Setup
+
+First, run the setup script to create a virtual environment for each backend service and install its dependencies:
+
+```bash
+bash setup.sh
+```
+
+### 2. Start all backends
+
+To start all backend services simultaneously, run the Python script:
+
+```bash
+python start_all_backends.py
+```
+
+### 3. Run the frontend
+Navigate to the frontend directory and start the development server:
+```bash
+cd apps/frontend
+npm install
+npm start
+```
+## Service Details
+
+<details>
+<summary>Expand to see service details</summary>
+
+### Services Overview
+
+*   **Video Service**: Analyzes video streams for facial expressions.
+    *   Path: `services/video/emp_face`
+    *   Endpoint: `http://localhost:8001`
+*   **STT Service**: Performs speech-to-text transcription.
+    *   Path: `services/stt/api`
+    *   Endpoint: `http://localhost:8002`
+*   **Chat Service**: Analyzes text for mental state.
+    *   Path: `services/chat/chat/mental_state_analyzer`
+    *   Endpoint: `http://localhost:8003`
+*   **Survey Service**: Predicts burnout from survey data.
+    *   Path: `services/survey/survey`
+    *   Endpoint: `http://localhost:8004`
+*   **EmoBuddy Service**: An AI agent for emotional support.
+    *   Path: `services/emo_buddy`
+    *   Endpoint: `http://localhost:8005`
+*   **Integrated Backend**: A FastAPI server that orchestrates calls to the other services.
+    *   Path: `services/integrated/backend`
+    *   Endpoint: `http://localhost:9000`
+
+</details>
+
+## Manual Service Installation
+
+If you prefer to install services manually, navigate to each service's directory and run the following commands.
+
+Example for the `chat` service:
+
+```bash
+cd services/chat/chat/mental_state_analyzer
+python -m venv venv
+source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+pip install -r requirements.txt
+```
+
+Repeat this for all directories listed in the `start_all_backends.py` script.
+
+## Docker
+
+A `docker-compose.yml` file is provided for running the entire application stack in containers.
+
+```bash
+docker-compose up --build
+```
+
+This will build images for the frontend and all backend services and run them together. 
