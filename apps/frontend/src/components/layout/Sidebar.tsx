@@ -163,12 +163,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
 
   const drawerContent = (
     <Box sx={{
+      minHeight: '100vh',
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
       bgcolor: colors.bg,
       color: colors.textPrimary,
       p: 2,
+      overflowY: 'auto',
     }}>
       {/* User Profile */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
@@ -213,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
       </Box>
 
       {/* Navigation */}
-      <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+      <Box sx={{ flexGrow: 1 }}>
         {navSections.map((section, index) => (
           <List key={index} subheader={section.title ? (
             <Typography variant="caption" sx={{
@@ -328,7 +330,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width 
           boxSizing: 'border-box',
           borderRight: 'none',
           bgcolor: 'transparent',
-          overflow: 'hidden',
         },
       }}
       ModalProps={{ keepMounted: true }}
