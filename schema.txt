@@ -1,0 +1,184 @@
+-- ============================================
+-- Mental Health Analytics Database Schema
+-- ============================================
+
+-- 1. Create departments table
+CREATE TABLE departments (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 2. Create users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    dept_id INTEGER REFERENCES departments(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 3. Create roles table
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL
+);
+
+-- 4. Create user_roles junction table
+CREATE TABLE user_roles (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, role_id)
+);
+
+-- 5. Create chat_analysis table
+CREATE TABLE chat_analysis (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    raw_messages JSONB,
+    summary JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 6. Create stt_analysis table
+CREATE TABLE stt_analysis (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    overall_sentiment VARCHAR(50),
+    confidence FLOAT,
+    prominent_emotion VARCHAR(50),
+    emotion_score FLOAT,
+    raw_json JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 7. Create video_analysis table
+CREATE TABLE video_analysis (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    dominant_emotion VARCHAR(50),
+    average_confidence FLOAT,
+    analysis_details JSONB,
+    frame_emotions JSONB,
+    timestamp BIGINT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 8. Create emo_buddy_sessions table
+CREATE TABLE emo_buddy_sessions (
+    session_id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    duration INTERVAL,
+    interactions INTEGER,
+    emotions JSONB,
+    techniques JSONB,
+    recommendations TEXT,
+    next_steps TEXT,
+    summary_content TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 9. Create emo_buddy_phrases table
+CREATE TABLE emo_buddy_phrases (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER REFERENCES emo_buddy_sessions(session_id) ON DELETE CASCADE,
+    phrase TEXT,
+    timestamp TIMESTAMP,
+    phrase_index INTEGER
+);
+
+-- 10. Create survey_results table
+CREATE TABLE survey_results (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    burnout_score FLOAT,
+    burnout_percentage VARCHAR(20),
+    raw_json JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 11. Create audit_logs table
+CREATE TABLE audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100),
+    metadata JSONB,
+    timestamp TIMESTAMP DEFAULT NOW()
+);
+
+-- 12. Create report_snapshots table
+CREATE TABLE report_snapshots (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    month DATE NOT NULL,
+    summary_json JSONB,
+    snapshot_title VARCHAR(255),
+    pdf_url TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 13. Create aggregated_metrics table
+CREATE TABLE aggregated_metrics (
+    id SERIAL PRIMARY KEY,
+    dept_id INTEGER REFERENCES departments(id) ON DELETE CASCADE,
+    metric_type VARCHAR(50) NOT NULL,
+    time_window DATERANGE NOT NULL,
+    value FLOAT NOT NULL,
+    details JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================
+-- Insert Default Data
+-- ============================================
+
+-- Insert default roles
+INSERT INTO roles (name) VALUES 
+    ('admin'),
+    ('analyst'),
+    ('user'),
+    ('viewer');
+
+-- Insert sample department
+INSERT INTO departments (name) VALUES 
+    ('IT Department'),
+    ('HR Department'),
+    ('Finance Department');
+
+-- ============================================
+-- Create Indexes for Performance
+-- ============================================
+
+-- User-related indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_dept_id ON users(dept_id);
+CREATE INDEX idx_users_created_at ON users(created_at);
+
+-- Analysis tables indexes
+CREATE INDEX idx_chat_analysis_user_id ON chat_analysis(user_id);
+CREATE INDEX idx_chat_analysis_created_at ON chat_analysis(created_at);
+
+CREATE INDEX idx_stt_analysis_user_id ON stt_analysis(user_id);
+CREATE INDEX idx_stt_analysis_created_at ON stt_analysis(created_at);
+
+CREATE INDEX idx_video_analysis_user_id ON video_analysis(user_id);
+CREATE INDEX idx_video_analysis_created_at ON video_analysis(created_at);
+
+CREATE INDEX idx_emo_buddy_sessions_user_id ON emo_buddy_sessions(user_id);
+CREATE INDEX idx_emo_buddy_sessions_created_at ON emo_buddy_sessions(created_at);
+
+CREATE INDEX idx_emo_buddy_phrases_session_id ON emo_buddy_phrases(session_id);
+
+CREATE INDEX idx_survey_results_user_id ON survey_results(user_id);
+CREATE INDEX idx_survey_results_created_at ON survey_results(created_at);
+
+CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
+
+CREATE INDEX idx_report_snapshots_user_id ON report_snapshots(user_id);
+CREATE INDEX idx_report_snapshots_month ON report_snapshots(month);
+
+CREATE INDEX idx_aggregated_metrics_dept_id ON aggregated_metrics(dept_id);
+CREATE INDEX idx_aggregated_metrics_time_window ON aggregated_metrics USING GIST(time_window);
+CREATE INDEX idx_aggregated_metrics_metric_type ON aggregated_metrics(metric_type);
+

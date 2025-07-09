@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 import cv2
@@ -9,12 +9,23 @@ import logging
 import time
 import psutil
 import os
+import sys
 from prometheus_client import Counter as PrometheusCounter, Histogram, Gauge, generate_latest
 from collections import Counter as CollectionsCounter
 from typing import List, Dict, Any
 import asyncio
 import threading
 import queue
+
+# Add database service path to sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'db_service'))
+try:
+    from db_client import get_db_client, get_user_id_from_request
+    DB_INTEGRATION_AVAILABLE = True
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning("Database integration not available")
+    DB_INTEGRATION_AVAILABLE = False
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -255,7 +266,11 @@ async def metrics():
     return Response(content=generate_latest(), media_type="text/plain")
 
 @app.post("/analyze-video-continuous")
-async def analyze_video_continuous(duration: int = 10):
+async def analyze_video_continuous(
+    duration: int = 10,
+    user_email: str = Query(None, description="User email for database storage"),
+    user_name: str = Query(None, description="User name for database storage")
+):
     """
     Perform continuous webcam analysis exactly like facex.py
     
@@ -280,6 +295,30 @@ async def analyze_video_continuous(duration: int = 10):
             )
         
         logger.info("Facex-style continuous analysis completed successfully")
+        
+        # Store in centralized database
+        if DB_INTEGRATION_AVAILABLE and "error" not in result:
+            try:
+                db_client = get_db_client()
+                email = user_email or "video_continuous_user@example.com"
+                name = user_name or "Video Continuous Analysis User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    success = db_client.store_video_analysis(user_id, result)
+                    if success:
+                        db_client.log_audit_event(user_id, "video_continuous_analysis", {
+                            "service": "video_continuous",
+                            "duration": duration,
+                            "dominant_emotion": result.get("dominantEmotion"),
+                            "confidence": result.get("averageConfidence"),
+                            "total_detections": result.get("metadata", {}).get("total_detections"),
+                            "emotions_detected": len(result.get("emotions", []))
+                        })
+                        logger.info(f"Stored video continuous analysis in database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error storing video continuous analysis: {str(e)}")
+        
         update_system_metrics()
         
         return result
@@ -295,7 +334,11 @@ async def analyze_video_continuous(duration: int = 10):
         PROCESSING_TIME.labels(endpoint='analyze-video-continuous').observe(time.time() - start_time)
 
 @app.post("/analyze-video")
-async def analyze_video(file: UploadFile = File(...)):
+async def analyze_video(
+    file: UploadFile = File(...),
+    user_email: str = Query(None, description="User email for database storage"),
+    user_name: str = Query(None, description="User name for database storage")
+):
     """
     Analyze emotion from an uploaded image file (frontend compatible endpoint)
     
@@ -369,6 +412,27 @@ async def analyze_video(file: UploadFile = File(...)):
         }
         
         logger.info(f"Detected dominant emotion: {dominant_emotion} with {avg_confidence:.2f} confidence")
+        
+        # Store in centralized database
+        if DB_INTEGRATION_AVAILABLE:
+            try:
+                db_client = get_db_client()
+                email = user_email or "video_user@example.com"
+                name = user_name or "Video Analysis User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    success = db_client.store_video_analysis(user_id, response)
+                    if success:
+                        db_client.log_audit_event(user_id, "video_analysis", {
+                            "service": "video",
+                            "dominant_emotion": dominant_emotion,
+                            "confidence": avg_confidence,
+                            "emotions_detected": len(emotions)
+                        })
+                        logger.info(f"Stored video analysis in database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error storing video analysis: {str(e)}")
         
         # Update metrics
         update_system_metrics()

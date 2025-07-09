@@ -31,6 +31,7 @@ npm install
 cd ../..
 
 # Setup individual backends
+setup_venv "db_service"  # Database service - setup first
 setup_venv "video/emp_face"
 setup_venv "stt/api"
 setup_venv "chat/chat/mental_state_analyzer"

@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 import json
 import os
+import sys
 import tempfile
 import base64
 import time
@@ -14,6 +15,15 @@ from src.visualizer import Visualizer
 from starlette.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from starlette.responses import Response
+
+# Add database service path to sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'db_service'))
+try:
+    from db_client import get_db_client, get_user_id_from_request
+    DB_INTEGRATION_AVAILABLE = True
+except ImportError:
+    print("Warning: Database integration not available")
+    DB_INTEGRATION_AVAILABLE = False
 
 # Prometheus metrics
 REQUESTS = Counter('chat_requests_total', 'Total chat analysis requests', ['endpoint'])
@@ -78,6 +88,52 @@ def update_system_metrics():
     MEMORY_USAGE.set(psutil.Process(os.getpid()).memory_info().rss)
     CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent())
 
+# Database storage helper
+def store_chat_analysis_in_db(raw_data: dict, analyzed_messages: List[dict], user_email: str = None, user_name: str = None):
+    """Store chat analysis results in the centralized database"""
+    if not DB_INTEGRATION_AVAILABLE:
+        return
+    
+    try:
+        db_client = get_db_client()
+        
+        # Get or create user
+        email = user_email or f"chat_user_{raw_data.get('person_id', 'anonymous')}@example.com"
+        name = user_name or "Chat Analysis User"
+        user_id = db_client.get_or_create_user(email, name)
+        
+        if not user_id:
+            print("Warning: Could not create/get user for chat analysis")
+            return
+        
+        # Store each analyzed message
+        for message in analyzed_messages:
+            analysis_data = {
+                "transcription": message.get("text", ""),
+                "sentiment_score": message.get("sentiment_score", 0.0),
+                "mental_state": message.get("mental_state", "neutral"),
+                "emotions": [{"emotion": message.get("primary_emotion", "neutral"), "confidence": message.get("emotion_score", 0.0)}],
+                "message_metadata": {
+                    "timestamp": str(message.get("timestamp", "")),
+                    "person_id": message.get("person_id", "")
+                }
+            }
+            
+            success = db_client.store_chat_analysis(user_id, analysis_data)
+            if success:
+                # Log audit event
+                db_client.log_audit_event(user_id, "chat_analysis", {
+                    "service": "chat",
+                    "message_length": len(message.get("text", "")),
+                    "emotion": message.get("primary_emotion", ""),
+                    "sentiment_score": message.get("sentiment_score", 0.0)
+                })
+        
+        print(f"Stored {len(analyzed_messages)} chat messages in database for user {user_id}")
+        
+    except Exception as e:
+        print(f"Error storing chat analysis in database: {str(e)}")
+
 class CompleteAnalysisResponse(BaseModel):
     # Overall summary (from visualizer.generate_summary)
     summary: dict
@@ -92,6 +148,8 @@ class CompleteAnalysisResponse(BaseModel):
 class SingleMessageRequest(BaseModel):
     text: str
     person_id: str = "user_api"
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
 
 class SingleMessageResponse(BaseModel):
     primary_emotion: str
@@ -174,6 +232,9 @@ async def analyze_complete(file: UploadFile = File(...)):
                 json.dump(results, f, indent=2, default=str)
             print(f"[API] Saved results to outputs/api_results.json")
             
+            # 6. Store in centralized database
+            store_chat_analysis_in_db(raw_data, analyzed_messages)
+            
             # Format timestamps for JSON serialization
             for msg in analyzed_messages:
                 if isinstance(msg.get('timestamp'), datetime):
@@ -228,6 +289,38 @@ async def analyze_single_message(request: SingleMessageRequest):
         analysis = emotion_detector.get_mental_state(request.text)
         
         print(f"[API] Single message analysis complete: {analysis}")
+        
+        # Store in centralized database
+        if DB_INTEGRATION_AVAILABLE:
+            try:
+                db_client = get_db_client()
+                email = request.user_email or f"chat_user_{request.person_id}@example.com"
+                name = request.user_name or "Single Message User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    analysis_data = {
+                        "transcription": request.text,
+                        "sentiment_score": analysis.get('sentiment_score', 0.0),
+                        "mental_state": analysis.get('mental_state', 'neutral'),
+                        "emotions": [{"emotion": analysis.get('primary_emotion', 'neutral'), "confidence": analysis.get('emotion_score', 0.0)}],
+                        "message_metadata": {
+                            "person_id": request.person_id,
+                            "analysis_type": "single_message"
+                        }
+                    }
+                    
+                    success = db_client.store_chat_analysis(user_id, analysis_data)
+                    if success:
+                        db_client.log_audit_event(user_id, "single_chat_analysis", {
+                            "service": "chat",
+                            "message_length": len(request.text),
+                            "emotion": analysis.get('primary_emotion', ''),
+                            "sentiment_score": analysis.get('sentiment_score', 0.0)
+                        })
+                        print(f"Stored single message analysis in database for user {user_id}")
+            except Exception as e:
+                print(f"Error storing single message analysis: {str(e)}")
         
         # Update metrics
         update_system_metrics()

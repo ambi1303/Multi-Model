@@ -77,7 +77,7 @@ def cleanup(processes):
             p.wait(timeout=5)
         except Exception:
             pass
-    for port in [8001, 8002, 8003, 8004, 8005, 9000]:
+    for port in [8000, 8001, 8002, 8003, 8004, 8005, 9000]:
         kill_process_on_port(port)
     print("Cleanup complete.")
 
@@ -95,6 +95,7 @@ signal.signal(signal.SIGINT, handle_interrupt)
 print("Starting model backends...")
 
 models = [
+    ("services/db_service", "venv", "main", "app", 8000),  # Database service - must start first
     ("services/video/emp_face", "venv", "api", "app", 8001),
     ("services/stt/api", "venv", "main", "app", 8002),
     ("services/chat/chat/mental_state_analyzer", "venv", "api", "app", 8003),

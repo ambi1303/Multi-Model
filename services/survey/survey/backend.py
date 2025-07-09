@@ -1,4 +1,5 @@
 import os
+import sys
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -16,6 +17,16 @@ import logging
 import httpx
 from dotenv import load_dotenv
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
+
+# Add database service path to sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'db_service'))
+try:
+    from db_client import get_db_client, get_user_id_from_request
+    DB_INTEGRATION_AVAILABLE = True
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning("Database integration not available")
+    DB_INTEGRATION_AVAILABLE = False
 
 # Load environment variables from .env file
 load_dotenv()
@@ -81,6 +92,8 @@ class EmployeeData(BaseModel):
     company_type: Literal["Service", "Product"] = Field(..., description="Type of company")
     wfh_setup_available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
     gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
 
 class PredictionResponse(BaseModel):
     burn_rate: float
@@ -269,6 +282,35 @@ async def predict(employee: EmployeeData):
 
         # Save prediction to history
         save_prediction(input_data, prediction, stress_level)
+        
+        # Store in centralized database
+        if DB_INTEGRATION_AVAILABLE:
+            try:
+                db_client = get_db_client()
+                email = employee.user_email or "survey_user@example.com"
+                name = employee.user_name or "Survey Analysis User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    survey_data = {
+                        "employee_data": input_data,
+                        "burn_rate": prediction,
+                        "stress_level": stress_level,
+                        "model_used": "Linear Regression",
+                        "recommendations": []  # Basic prediction doesn't include recommendations
+                    }
+                    
+                    success = db_client.store_survey_results(user_id, survey_data)
+                    if success:
+                        db_client.log_audit_event(user_id, "survey_prediction", {
+                            "service": "survey",
+                            "burn_rate": prediction,
+                            "stress_level": stress_level,
+                            "mental_fatigue_score": employee.mental_fatigue_score
+                        })
+                        logger.info(f"Stored survey prediction in database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error storing survey prediction: {str(e)}")
         
         # Update metrics
         update_system_metrics()
@@ -788,6 +830,69 @@ async def analyze_combined(request: CombinedAnalysisRequest):
                     "Continue regular self-assessment and stress monitoring",
                     "Build resilience through continuous learning and skill development"
                 ]
+
+        # Store comprehensive survey data in centralized database
+        if DB_INTEGRATION_AVAILABLE:
+            try:
+                db_client = get_db_client()
+                email = request.employee.user_email or "survey_combined_user@example.com"
+                name = request.employee.user_name or "Survey Combined Analysis User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    # Prepare comprehensive survey data including both ML model and survey questions
+                    comprehensive_survey_data = {
+                        # ML Model Results (first 5 questions)
+                        "employee_data": {
+                            "designation": request.employee.designation,
+                            "resource_allocation": request.employee.resource_allocation,
+                            "mental_fatigue_score": request.employee.mental_fatigue_score,
+                            "company_type": request.employee.company_type,
+                            "wfh_setup_available": request.employee.wfh_setup_available,
+                            "gender": request.employee.gender
+                        },
+                        "burn_rate": ml_burn_rate,
+                        "stress_level": ml_stress_label,
+                        "model_used": burn_result["model_used"],
+                        
+                        # Survey Questions (last 10 questions)
+                        "survey_responses": {
+                            "q1": request.survey.q1,  # Feel happy and relaxed
+                            "q2": request.survey.q2,  # Feel anxious/stressed
+                            "q3": request.survey.q3,  # Emotionally exhausted
+                            "q4": request.survey.q4,  # Feel motivated
+                            "q5": request.survey.q5,  # Sense of accomplishment
+                            "q6": request.survey.q6,  # Feel detached
+                            "q7": request.survey.q7,  # Manageable workload
+                            "q8": request.survey.q8,  # Control over tasks
+                            "q9": request.survey.q9,  # Team support
+                            "q10": request.survey.q10  # Work-life balance
+                        },
+                        "survey_total_score": survey_total_score,
+                        "survey_max_score": 50,
+                        "survey_risk_level": survey_risk_label,
+                        
+                        # Combined Analysis Results
+                        "recommendations": personalized_recommendations,
+                        "mental_health_summary": personalized_summary,
+                        "analysis_source": analysis_source,
+                        "analysis_type": "comprehensive_survey"
+                    }
+                    
+                    success = db_client.store_survey_results(user_id, comprehensive_survey_data)
+                    if success:
+                        db_client.log_audit_event(user_id, "comprehensive_survey_analysis", {
+                            "service": "survey_comprehensive",
+                            "ml_burnout_percentage": ml_burn_percentage,
+                            "ml_stress_level": ml_stress_label,
+                            "survey_total_score": survey_total_score,
+                            "survey_risk_level": survey_risk_label,
+                            "survey_questions_count": 10,
+                            "analysis_type": "comprehensive"
+                        })
+                        logger.info(f"Stored comprehensive survey analysis in database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error storing comprehensive survey analysis: {str(e)}")
 
         # Update metrics
         update_system_metrics()

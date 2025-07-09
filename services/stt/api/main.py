@@ -25,6 +25,16 @@ import numpy as np
 import ffmpeg
 from emotion_analyzer import analyze_text, get_gen_ai_insights, transcribe_audio, load_models
 
+# Add database service path to sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'db_service'))
+try:
+    from db_client import get_db_client, get_user_id_from_request
+    DB_INTEGRATION_AVAILABLE = True
+except ImportError:
+    logger = logging.getLogger("main")
+    logger.warning("Database integration not available")
+    DB_INTEGRATION_AVAILABLE = False
+
 # Import EmoBuddyAgent with error handling
 try:
     from emo_buddy.emo_buddy_agent import EmoBuddyAgent
@@ -44,6 +54,8 @@ logger = logging.getLogger("main")
 # Pydantic models for request/response bodies
 class EmoBuddySessionRequest(BaseModel):
     analysis_report: Dict[str, Any]
+    user_email: str = None
+    user_name: str = None
 
 class EmoBuddyConversationRequest(BaseModel):
     session_id: str
@@ -51,6 +63,10 @@ class EmoBuddyConversationRequest(BaseModel):
 
 class EmoBuddyEndSessionRequest(BaseModel):
     session_id: str
+
+class SpeechAnalysisRequest(BaseModel):
+    user_email: str = None
+    user_name: str = None
 
 # Store active Emo Buddy sessions
 active_sessions: Dict[str, EmoBuddyAgent] = {}
@@ -146,7 +162,12 @@ async def check_emo_buddy_availability():
     }
 
 @app.post("/analyze-speech")
-async def analyze_speech(audio_file: UploadFile = File(...), profile: bool = Query(False, description="Enable profiling for this request")):
+async def analyze_speech(
+    audio_file: UploadFile = File(...), 
+    profile: bool = Query(False, description="Enable profiling for this request"),
+    user_email: str = Query(None, description="User email for database storage"),
+    user_name: str = Query(None, description="User name for database storage")
+):
     REQUESTS.labels(endpoint='analyze-speech').inc()
     start_time = time.time()
     
@@ -216,6 +237,27 @@ async def analyze_speech(audio_file: UploadFile = File(...), profile: bool = Que
             f"------------------------------------\n"
             + "\n".join([f"  - {emo['emotion'].capitalize()}: {emo['confidence']:.2f}" for emo in e])
         )
+        
+        # Store in centralized database
+        if DB_INTEGRATION_AVAILABLE:
+            try:
+                db_client = get_db_client()
+                email = user_email or "stt_user@example.com"
+                name = user_name or "STT Analysis User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    success = db_client.store_stt_analysis(user_id, analysis_report)
+                    if success:
+                        db_client.log_audit_event(user_id, "stt_analysis", {
+                            "service": "stt",
+                            "transcription_length": len(analysis_report["transcription"]),
+                            "sentiment_label": analysis_report["sentiment"]["label"],
+                            "top_emotion": analysis_report["emotions"][0]["emotion"] if analysis_report["emotions"] else "none"
+                        })
+                        logger.info(f"Stored STT analysis in database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error storing STT analysis: {str(e)}")
         
         # Update metrics
         update_system_metrics()
@@ -320,6 +362,11 @@ async def start_emo_buddy_session(request: EmoBuddySessionRequest):
         # Store session
         active_sessions[session_id] = emo_buddy
         
+        # Store user information for later database storage
+        if DB_INTEGRATION_AVAILABLE and (request.user_email or request.user_name):
+            emo_buddy.db_user_email = request.user_email
+            emo_buddy.db_user_name = request.user_name
+        
         # Update metrics
         update_system_metrics()
         
@@ -402,6 +449,37 @@ async def end_emo_buddy_session(request: EmoBuddyEndSessionRequest):
         
         # End session and get summary
         session_summary = emo_buddy.end_session()
+        
+        # Store in centralized database
+        if DB_INTEGRATION_AVAILABLE:
+            try:
+                db_client = get_db_client()
+                email = getattr(emo_buddy, 'db_user_email', None) or "emo_buddy_user@example.com"
+                name = getattr(emo_buddy, 'db_user_name', None) or "EmoBuddy User"
+                user_id = db_client.get_or_create_user(email, name)
+                
+                if user_id:
+                    # Prepare session data for storage
+                    session_data = {
+                        "summary": session_summary,
+                        "emotions_tracked": emo_buddy.current_session.get("emotions_tracked", []),
+                        "techniques_used": emo_buddy.current_session.get("techniques_used", []),
+                        "crisis_flags": emo_buddy.current_session.get("crisis_flags", []),
+                        "duration": str(datetime.now() - emo_buddy.current_session.get("start_time", datetime.now())),
+                        "session_id": request.session_id
+                    }
+                    
+                    success = db_client.store_emo_buddy_session(user_id, session_data)
+                    if success:
+                        db_client.log_audit_event(user_id, "emo_buddy_session", {
+                            "service": "emo_buddy",
+                            "session_id": request.session_id,
+                            "emotions_count": len(session_data.get("emotions_tracked", [])),
+                            "techniques_count": len(session_data.get("techniques_used", []))
+                        })
+                        logger.info(f"Stored EmoBuddy session in database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error storing EmoBuddy session: {str(e)}")
         
         # Remove session from active sessions
         del active_sessions[request.session_id]
