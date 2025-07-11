@@ -11,7 +11,7 @@ interface TipsTabProps {
   mode: 'light' | 'dark';
 }
 
-export const TipsTab: React.FC<TipsTabProps> = ({ colors, mode }) => {
+const TipsTab: React.FC<TipsTabProps> = ({ colors, mode }) => {
   const wellnessTips = [
     {
       id: 'breathing-technique',

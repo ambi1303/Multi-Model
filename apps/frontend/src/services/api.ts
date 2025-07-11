@@ -1,36 +1,20 @@
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
+import { useAppStore } from '../store/useAppStore';
 
-// Base URLs from environment variables with fallbacks
-const INTEGRATED_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
-const CHAT_API_URL = import.meta.env.VITE_CHAT_API_URL || 'http://localhost:8003';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
 
 const api = axios.create({
-  baseURL: INTEGRATED_API_URL,
-  timeout: 30000,
+  baseURL: API_URL,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor
+// Add a request interceptor to attach the token
 api.interceptors.request.use(
   (config) => {
-    // Try to get token from cookies first, fallback to localStorage for migration
-    let token = null;
-    
-    // Import cookie manager dynamically to avoid SSR issues
-    try {
-      const { EmotiAnalyzeCookies } = require('../utils/cookies');
-      token = EmotiAnalyzeCookies.getAuth()?.token;
-    } catch (error) {
-      console.warn('Cookie manager not available, falling back to localStorage');
-    }
-    
-    // Fallback to localStorage if no cookie token found
-    if (!token) {
-      token = localStorage.getItem('auth-token');
-    }
-    
+    const token = useAppStore.getState().token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -39,41 +23,43 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor with enhanced error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Authentication errors
-    if (error.response?.status === 401) {
-      // Clear both cookies and localStorage for migration compatibility
-      try {
-        const { EmotiAnalyzeCookies } = require('../utils/cookies');
-        EmotiAnalyzeCookies.clearAuth();
-      } catch (error) {
-        console.warn('Cookie manager not available during auth clear');
+    // Don't trigger logout on logout endpoint or login endpoint errors
+    const endpoint = error.config?.url;
+    const isAuthEndpoint = endpoint && (
+      endpoint.includes('/auth/logout') || 
+      endpoint.includes('/auth/login') ||
+      endpoint.includes('/auth/register')
+    );
+    
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      // Use the store action to handle unauthorized state
+      const store = useAppStore.getState();
+      // Only trigger logout if user is currently authenticated
+      if (store.isAuthenticated) {
+        console.warn('Unauthorized access detected, logging out user');
+        store.actions.logout();
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
-      localStorage.removeItem('auth-token');
-      window.location.href = '/login';
     }
-    
-    // Service unavailable - could show a service status indicator
-    if (error.response?.status === 503) {
-      console.error('Service unavailable:', error.config?.url);
-    }
-    
-    // Transform error messages
-    const message = error.response?.data?.message || error.message || 'An unexpected error occurred';
+
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.detail ||
+      error.message ||
+      'An unexpected error occurred';
     const errorWithDetails = new Error(message) as Error & {
       statusCode?: number;
       endpoint?: string;
-      timestamp?: string;
     };
-    
-    // Add additional context to the error
+
     errorWithDetails.statusCode = error.response?.status;
     errorWithDetails.endpoint = error.config?.url;
-    errorWithDetails.timestamp = new Date().toISOString();
-    
+
     return Promise.reject(errorWithDetails);
   }
 );
@@ -146,7 +132,7 @@ export interface HealthCheckResponse {
 
 // Generic API function with better error handling
 export const apiCall = async <T>(
-  request: () => Promise<AxiosResponse<ApiResponse<T>>>
+  request: () => Promise<any> // Changed AxiosResponse to any as AxiosResponse is no longer imported
 ): Promise<T> => {
   try {
     const response = await request();
@@ -193,7 +179,8 @@ export const analyzeSingleChatMessage = async (message: { text: string; person_i
 
 // Mental state analyzer - single message
 export const analyzeSingleMessageAdvanced = async (message: { text: string; person_id?: string }) => {
-  const response = await axios.post('http://localhost:8000/analyze/single', {
+  // Use integrated backend which forwards to the appropriate service
+  const response = await api.post('/analyze-chat', {
     text: message.text,
     person_id: message.person_id || 'user_api'
   });
@@ -209,7 +196,7 @@ export const analyzeChatFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     
-    const url = `${CHAT_API_URL}/analyze-complete`;
+    const url = `${API_URL}/analyze-complete`; // Changed CHAT_API_URL to API_URL
     console.log(`[DEBUG] API: Sending request to ${url}`);
     
     const response = await axios.post(url, formData, {
@@ -263,9 +250,9 @@ export const analyzeChatFile = async (file: File) => {
 export const getBatchChatVisualizations = async () => {
   try {
     const [mentalStates, sentimentTrend, summary] = await Promise.all([
-      axios.get(`${CHAT_API_URL}/visualizations/mental-states`, { responseType: 'blob' }),
-      axios.get(`${CHAT_API_URL}/visualizations/sentiment-trend`, { responseType: 'blob' }),
-      axios.get(`${CHAT_API_URL}/results/latest`),
+      axios.get(`${API_URL}/visualizations/mental-states`, { responseType: 'blob' }),
+      axios.get(`${API_URL}/visualizations/sentiment-trend`, { responseType: 'blob' }),
+      axios.get(`${API_URL}/results/latest`),
     ]);
     
     return {
@@ -288,7 +275,7 @@ export const analyzeBatchChatMessages = async (messages: Array<{ text: string; p
       person_id: msg.person_id || 'user_api'
     }));
     
-    const response = await axios.post(`${CHAT_API_URL}/analyze/multiple`, processedMessages);
+    const response = await axios.post(`${API_URL}/analyze/multiple`, processedMessages);
     return response.data;
   } catch (error) {
     console.error('Batch chat analysis failed:', error);

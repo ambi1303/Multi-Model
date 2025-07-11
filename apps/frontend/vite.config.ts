@@ -2,26 +2,20 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import viteCompression from 'vite-plugin-compression';
-import sitemap from 'vite-plugin-sitemap';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    sitemap({
-      hostname: 'https://your-domain.com', // TODO: Replace with your actual domain
-      dynamicRoutes: [
-        '/',
-        '/analytics',
-        '/chat-analysis',
-        '/dashboard',
-        '/emobuddy',
-        '/enhanced-burnout-survey',
-        '/faq',
-        '/speech-analysis',
-        '/video-analysis',
-      ],
-    }) as any,
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'public/robots.txt',
+          dest: '.'
+        }
+      ]
+    }),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
@@ -53,7 +47,7 @@ export default defineConfig({
   build: {
     minify: 'terser',
     chunkSizeWarningLimit: 1000,
-    outDir: 'build',
+    outDir: 'dist', // Changed from 'build' to 'dist' for consistency
   },
 
   resolve: {

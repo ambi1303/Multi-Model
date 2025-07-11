@@ -1,0 +1,65 @@
+# Database Configuration
+# For local development (no SSL)
+DATABASE_URL=postgresql://username:password@localhost:5432/mental_health_db
+
+# For production with SSL (asyncpg will handle SSL automatically)
+# DATABASE_URL=postgresql://username:password@host:5432/database_name
+
+# Note: Don't include sslmode, sslcert, sslkey, or sslrootcert in the URL
+# These parameters are not compatible with asyncpg driver
+# SSL will be handled automatically by the application configuration
+
+DATABASE_POOL_SIZE=10
+DATABASE_MAX_OVERFLOW=20
+DATABASE_POOL_PRE_PING=true
+DATABASE_ECHO=false
+
+# Authentication Configuration
+AUTH_SECRET_KEY=your-super-secret-jwt-key-change-this-in-production
+AUTH_ALGORITHM=HS256
+AUTH_ACCESS_TOKEN_EXPIRE_MINUTES=30
+AUTH_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+REDIS_MAX_CONNECTIONS=10
+REDIS_RETRY_ON_TIMEOUT=true
+REDIS_DECODE_RESPONSES=true
+
+# External API Keys
+API_GROQ_API_KEY=your-groq-api-key
+API_GEMINI_API_KEY=your-gemini-api-key
+API_OPENAI_API_KEY=your-openai-api-key
+
+# Service Configuration
+SERVICE_NAME=mental-health-analytics
+SERVICE_VERSION=2.0.0
+SERVICE_DEBUG=false
+SERVICE_HOST=0.0.0.0
+SERVICE_PORT=8000
+SERVICE_WORKERS=4
+
+# CORS Settings
+SERVICE_CORS_ORIGINS=["http://localhost:3000", "http://localhost:5173", "https://your-frontend-domain.com"]
+SERVICE_CORS_METHODS=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+SERVICE_CORS_HEADERS=["*"]
+
+# Rate Limiting
+SERVICE_RATE_LIMIT_REQUESTS=100
+SERVICE_RATE_LIMIT_WINDOW=60
+
+# Monitoring
+SERVICE_ENABLE_METRICS=true
+SERVICE_LOG_LEVEL=INFO
+SERVICE_LOG_FORMAT=json
+
+# Global Configuration
+ENVIRONMENT=development
+
+# Service URLs (for microservices communication)
+DATABASE_SERVICE_URL=http://localhost:8000
+VIDEO_SERVICE_URL=http://localhost:8001
+STT_SERVICE_URL=http://localhost:8002
+CHAT_SERVICE_URL=http://localhost:8003
+SURVEY_SERVICE_URL=http://localhost:8004
+EMO_BUDDY_SERVICE_URL=http://localhost:8005 

@@ -4,10 +4,11 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import google.generativeai as genai
-from .memory_manager import ConversationMemory
-from .therapeutic_techniques import TherapeuticTechniques
-from .crisis_detector import CrisisDetector
-from .corporate_context import CorporateContextAnalyzer
+from memory_manager import get_memory_manager, ConversationMemory
+import uuid
+from crisis_detector import CrisisDetector
+from therapeutic_techniques import get_technique
+from corporate_context import get_corporate_context
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -24,10 +25,10 @@ class EmoBuddyAgent:
     
     def __init__(self):
         self.setup_gemini()
-        self.memory = ConversationMemory()
-        self.therapeutic_techniques = TherapeuticTechniques()
+        self.memory = get_memory_manager()
+        self.therapeutic_techniques = get_technique()
         self.crisis_detector = CrisisDetector()
-        self.corporate_analyzer = CorporateContextAnalyzer()
+        self.corporate_analyzer = get_corporate_context()
         self.current_session = {
             "start_time": datetime.now(),
             "messages": [],
@@ -37,7 +38,8 @@ class EmoBuddyAgent:
             "crisis_flags": [],
             "workplace_context": {},
             "quick_remedies_given": [],
-            "solution_oriented": True  # Focus on solutions rather than exploration
+            "solution_oriented": True,
+            "user_id": None # Add user_id to session
         }
         
     def setup_gemini(self):
@@ -56,6 +58,16 @@ class EmoBuddyAgent:
         """
         logger.info("Starting Emo Buddy session...")
         
+        # --- Store user_id in the session ---
+        user_id = analysis_report.get("user_id")
+        if user_id:
+            self.current_session["user_id"] = user_id
+            # Also add it to the initial analysis for the memory manager
+            analysis_report["user_id"] = user_id
+        else:
+            logger.warning("No user_id provided in analysis_report for Emo Buddy session.")
+        # --- End change ---
+
         # Extract key information from the technical analysis
         transcript = analysis_report["transcription"]
         sentiment = analysis_report["sentiment"]
@@ -103,17 +115,13 @@ class EmoBuddyAgent:
         emotion_patterns = self.memory.get_emotion_patterns()
         
         # Check if user needs immediate solutions vs deeper exploration
-        # Prioritize solutions for workplace stress scenarios
         if (workplace_context.get('requires_immediate_action', False) or 
             workplace_context.get('detected_contexts', [])):
-            # Provide quick remedies first, then offer deeper support
             response = self._provide_quick_workplace_solutions(transcript, workplace_context, sentiment, emotions)
         else:
-            # Generate initial response with rich context
             initial_prompt = self._create_initial_prompt(transcript, sentiment, emotions, past_context, crisis_level, emotion_patterns)
             response = self._generate_response(initial_prompt)
         
-        # Log the interaction with context
         self._log_interaction("assistant", "session_start", response)
         
         return response
@@ -123,21 +131,15 @@ class EmoBuddyAgent:
         Continue the therapeutic conversation
         Returns: (response, should_continue)
         """
-        # Log user input
         self._log_interaction("user", user_input, "")
-        
-        # Update user context based on new input
         self._update_user_context(user_input)
         
-        # Update workplace context if new workplace indicators detected
         new_workplace_context = self.corporate_analyzer.analyze_workplace_context(user_input)
         if new_workplace_context.get('detected_contexts'):
-            # Merge with existing workplace context, prioritizing new detection
             existing_context = self.current_session.get("workplace_context", {})
             existing_context.update(new_workplace_context)
             self.current_session["workplace_context"] = existing_context
         
-        # Check for crisis indicators in real-time
         crisis_level = self.crisis_detector.assess_text_for_crisis(user_input)
         if crisis_level > 3:
             self.current_session["crisis_flags"].append({
@@ -147,11 +149,9 @@ class EmoBuddyAgent:
                 "text": user_input
             })
         
-        # Get enhanced conversation context
         conversation_history = self._get_conversation_history()
         past_context = self.memory.get_relevant_context(user_input + " " + self._get_current_emotional_context())
         
-        # Determine appropriate therapeutic technique with better context
         technique = self.therapeutic_techniques.select_technique(
             user_input, 
             conversation_history, 
@@ -161,16 +161,14 @@ class EmoBuddyAgent:
         self.current_session["techniques_used"].append({
             "timestamp": datetime.now().isoformat(),
             "technique": technique,
-            "context": user_input[:100],  # First 100 chars for context
+            "context": user_input[:100],
             "rationale": self._get_technique_rationale(technique, user_input)
         })
         
-        # Check if user is asking for quick solutions/motivation
         if self._is_solution_request(user_input):
             response = self._provide_targeted_solutions(user_input)
             should_continue = self._should_continue_conversation(user_input, response)
         else:
-            # Generate therapeutic response with full context
             therapeutic_prompt = self._create_therapeutic_prompt(
                 user_input, 
                 conversation_history, 
@@ -178,13 +176,9 @@ class EmoBuddyAgent:
                 technique, 
                 crisis_level
             )
-            
             response = self._generate_response(therapeutic_prompt)
-            
-            # Check if conversation should continue
             should_continue = self._should_continue_conversation(user_input, response)
         
-        # Log the interaction
         self._log_interaction("assistant", "therapeutic_response", response)
         
         return response, should_continue
@@ -194,14 +188,9 @@ class EmoBuddyAgent:
         End the current session and provide summary
         """
         logger.info("Ending Emo Buddy session...")
-        
-        # Generate enhanced session summary with corporate context
         summary = self._generate_enhanced_session_summary()
-        
-        # Store session in memory
         self.memory.store_session(self.current_session, summary)
         
-        # Reset current session
         self.current_session = {
             "start_time": datetime.now(),
             "messages": [],
@@ -335,7 +324,7 @@ Rationale: {self.current_session.get('techniques_used', [{}])[-1].get('rationale
 - **DBT**: Focus on emotional regulation, distress tolerance, interpersonal skills
 - **ACT**: Encourage acceptance, mindfulness, values-based action
 - **Validation**: Acknowledge their experience as understandable and meaningful
-- **Reflection**: Mirror back deeper meanings and emotions you're hearing
+- **Reflection**: Mirroring back to ensure understanding and build rapport"
 
 **RESPONSE GUIDELINES:**
 - Build on the conversation flow naturally
@@ -393,7 +382,6 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
     
     def _should_continue_conversation(self, user_input: str, response: str) -> bool:
         """Determine if conversation should continue"""
-        # Check for ending indicators
         ending_phrases = [
             "thank you", "thanks", "goodbye", "bye", "that's all", 
             "i'm done", "end session", "stop", "quit"
@@ -404,8 +392,7 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
             if phrase in user_lower:
                 return False
         
-        # Continue if user is engaged and session isn't too long
-        return len(self.current_session["messages"]) < 30  # Max 30 exchanges
+        return len(self.current_session["messages"]) < 30
     
     def _generate_session_summary(self) -> str:
         """Generate comprehensive session summary"""
@@ -479,7 +466,6 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
     
     def _extract_key_insights(self) -> str:
         """Extract key insights from the conversation"""
-        # This could be enhanced with more sophisticated analysis
         return "Insights generated based on conversation patterns and emotional responses"
     
     def _summarize_crisis_flags(self) -> str:
@@ -497,36 +483,24 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
     def _infer_session_goals(self, transcript: str, sentiment: Dict, emotions: List) -> List[str]:
         """Infer likely session goals based on initial analysis"""
         goals = ["understand current emotional state"]
-        
-        # Analyze transcript for goal indicators
         transcript_lower = transcript.lower()
-        
         if any(word in transcript_lower for word in ["help", "support", "don't know"]):
             goals.append("provide emotional support and guidance")
-        
         if any(word in transcript_lower for word in ["anxious", "worried", "stress", "panic"]):
             goals.append("address anxiety and stress management")
-        
         if any(word in transcript_lower for word in ["sad", "depressed", "down", "low"]):
             goals.append("explore and process sadness/depression")
-        
         if any(word in transcript_lower for word in ["work", "job", "office", "deadline"]):
             goals.append("discuss work-related stress and coping")
-        
         if any(word in transcript_lower for word in ["relationship", "family", "friend"]):
             goals.append("explore interpersonal relationships")
-        
         if sentiment["label"] == "NEGATIVE" and sentiment["confidence"] > 0.8:
             goals.append("process strong negative emotions")
-        
-        return goals[:4]  # Limit to 4 goals max
+        return goals[:4]
 
     def _assess_therapeutic_needs(self, transcript: str, sentiment: Dict, emotions: List) -> str:
         """Assess primary therapeutic needs based on analysis"""
-        
-        # Get top emotion
         top_emotion = emotions[0]["emotion"] if emotions else "neutral"
-        
         needs_mapping = {
             "sadness": "emotional processing and mood support",
             "anger": "anger management and emotional regulation",
@@ -537,8 +511,6 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
             "joy": "maintaining positive mental health",
             "neutral": "general emotional wellness support"
         }
-        
-        # Check for specific needs based on transcript
         transcript_lower = transcript.lower()
         if any(word in transcript_lower for word in ["crisis", "emergency", "help me", "can't cope"]):
             return "crisis intervention and immediate support"
@@ -546,34 +518,24 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
             return "work-life balance and stress management"
         elif any(word in transcript_lower for word in ["relationship", "partner", "family"]):
             return "relationship counseling and communication skills"
-        
         return needs_mapping.get(top_emotion, "general emotional support")
 
     def _update_user_context(self, user_input: str):
         """Update user context based on new input"""
         if "user_context" not in self.current_session:
             self.current_session["user_context"] = {}
-        
         context = self.current_session["user_context"]
-        
-        # Update emotional trajectory
         if "emotional_trajectory" not in context:
             context["emotional_trajectory"] = []
-        
-        # Simple sentiment analysis for trajectory
         positive_words = ["better", "good", "okay", "fine", "improving", "helped"]
         negative_words = ["worse", "bad", "terrible", "awful", "struggling", "difficult"]
-        
         user_lower = user_input.lower()
         if any(word in user_lower for word in positive_words):
             context["emotional_trajectory"].append({"direction": "positive", "timestamp": datetime.now().isoformat()})
         elif any(word in user_lower for word in negative_words):
             context["emotional_trajectory"].append({"direction": "negative", "timestamp": datetime.now().isoformat()})
-        
-        # Track recurring themes
         if "recurring_themes" not in context:
             context["recurring_themes"] = {}
-        
         themes = ["work", "family", "health", "relationship", "anxiety", "depression", "stress"]
         for theme in themes:
             if theme in user_lower:
@@ -583,7 +545,6 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
         """Get current emotional context for memory search"""
         context = self.current_session.get("user_context", {})
         emotional_state = context.get("emotional_state", {})
-        
         context_parts = []
         if emotional_state.get("sentiment"):
             context_parts.append(emotional_state["sentiment"])
@@ -591,7 +552,6 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
             context_parts.extend(emotional_state["top_emotions"])
         if context.get("therapeutic_needs"):
             context_parts.append(context["therapeutic_needs"])
-        
         return " ".join(context_parts)
 
     def _get_technique_rationale(self, technique: str, user_input: str) -> str:
@@ -609,42 +569,34 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
         """Format past context with better structure and relevance"""
         if not past_context:
             return "No previous sessions found - this appears to be our first meaningful conversation."
-        
         formatted = "RELEVANT MEMORIES FROM PAST SESSIONS:\n"
-        for i, ctx in enumerate(past_context[:3], 1):  # Limit to top 3 most relevant
+        for i, ctx in enumerate(past_context[:3], 1):
             formatted += f"  {i}. {ctx}\n"
-        
         if len(past_context) > 3:
             formatted += f"  ... and {len(past_context) - 3} other relevant memories"
-        
         return formatted
 
     def _format_emotion_patterns(self, emotion_patterns: Dict) -> str:
         """Format emotion patterns from memory"""
         if not emotion_patterns or not emotion_patterns.get("common_emotions"):
             return ""
-        
         common_emotions = emotion_patterns.get("common_emotions", {})
         if not common_emotions:
             return ""
-        
         formatted = "EMOTIONAL PATTERNS FROM HISTORY:\n"
         for emotion, count in list(common_emotions.items())[:3]:
             formatted += f"  • {emotion}: appeared in {count} previous sessions\n"
-        
         return formatted
 
     def _format_conversation_history(self, conversation_history: List) -> str:
         """Format conversation history with better context"""
         if not conversation_history:
             return "This is the start of our conversation."
-        
         formatted = ""
-        for msg in conversation_history[-4:]:  # Last 4 exchanges
+        for msg in conversation_history[-4:]:
             role = "You" if msg["role"] == "user" else "Emo Buddy"
             content = msg["content"][:150] + "..." if len(msg["content"]) > 150 else msg["content"]
             formatted += f"{role}: {content}\n"
-        
         return formatted
 
     def _track_emotional_journey(self) -> str:
@@ -652,22 +604,18 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
         context = self.current_session.get("user_context", {})
         initial_state = context.get("emotional_state", {})
         trajectory = context.get("emotional_trajectory", [])
-        
         if not trajectory:
             return f"Started session feeling {initial_state.get('sentiment', 'unknown')}"
-        
         journey = f"Started {initial_state.get('sentiment', 'unknown')}"
         if trajectory:
             recent_direction = trajectory[-1]["direction"] if trajectory else "stable"
             journey += f" → Currently trending {recent_direction}"
-        
         return journey
 
     def _assess_session_progress(self) -> str:
         """Assess progress within current session"""
         message_count = len(self.current_session.get("messages", []))
         techniques_used = len(self.current_session.get("techniques_used", []))
-        
         if message_count < 3:
             return "Early in session - building rapport and understanding"
         elif message_count < 8:
@@ -677,18 +625,10 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
 
     def _provide_quick_workplace_solutions(self, transcript: str, workplace_context: Dict, sentiment: Dict, emotions: List) -> str:
         """Provide immediate workplace-specific solutions and remedies"""
-        
-        # Get quick remedies from corporate analyzer
         quick_remedies = self.corporate_analyzer.get_quick_remedies(workplace_context, sentiment['label'])
-        therapeutic_options = self.corporate_analyzer.get_therapeutic_options(workplace_context)
-        
-        # Track remedies given
         self.current_session["quick_remedies_given"].extend(quick_remedies)
-        
-        # Extract main emotions for context
         emotion_str = ", ".join([e["emotion"] for e in emotions[:2]])
         primary_stressor = workplace_context.get('primary_stressor', 'work_stress')
-        
         response = f"""I can see you're dealing with {emotion_str} related to {primary_stressor.replace('_', ' ')}. Let me give you some immediate help:
 
 **🚀 QUICK SOLUTIONS:**
@@ -704,7 +644,6 @@ Would you like:
 3. **Corporate resources** and long-term strategies
 
 What feels most helpful right now?"""
-        
         return response
 
     def _is_solution_request(self, user_input: str) -> bool:
@@ -714,15 +653,12 @@ What feels most helpful right now?"""
             'quick', 'fast', 'immediate', 'motivation', 'remedy', 'fix',
             'advice', 'solutions', 'strategies', 'techniques'
         ]
-        
         user_lower = user_input.lower()
         return any(keyword in user_lower for keyword in solution_keywords)
 
     def _provide_targeted_solutions(self, user_input: str) -> str:
         """Provide targeted solutions based on current workplace context"""
         workplace_context = self.current_session.get("workplace_context", {})
-        
-        # Determine what type of solution they need
         if 'motivation' in user_input.lower():
             remedies = self.corporate_analyzer.quick_remedies.get('work_motivation', [])
         elif 'stress' in user_input.lower():
@@ -730,15 +666,10 @@ What feels most helpful right now?"""
         elif 'extended hours' in user_input.lower() or 'long' in user_input.lower():
             remedies = self.corporate_analyzer.quick_remedies.get('extended_hours', [])
         else:
-            # General workplace solutions
             remedies = self.corporate_analyzer.get_quick_remedies(workplace_context, 'mixed')
-        
-        # Ensure we have at least some remedies
         if not remedies:
             remedies = self.corporate_analyzer.quick_remedies.get('immediate_stress', [])
-        
         self.current_session["quick_remedies_given"].extend(remedies[:3])
-        
         response = f"""Here are targeted solutions for your situation:
 
 **🎯 IMMEDIATE ACTIONS:**
@@ -751,54 +682,38 @@ Try one of these now, then let me know:
 - Want more specific strategies?
 
 Remember: Small actions can create big changes in how you feel."""
-        
         return response
 
     def _explain_workplace_emotions(self, workplace_context: Dict, emotions: List) -> str:
         """Explain why user is feeling specific emotions based on workplace context"""
         primary_stressor = workplace_context.get('primary_stressor', 'work_stress')
         work_type = workplace_context.get('work_type', 'general_office')
-        
         explanations = {
             'manager_stress': "receiving critical feedback while being assigned additional work creates emotional overload",
             'workload_pressure': "your brain is processing both the immediate stress and the anticipation of extended effort",
             'burnout_signs': "your energy reserves are depleted from sustained workplace pressure",
             'extended_hours': "the prospect of prolonged focus and physical discomfort (sitting) triggers stress response"
         }
-        
         base_explanation = explanations.get(primary_stressor, "workplace stress is affecting your emotional regulation")
-        
-        # Add work-type specific context
         if work_type == 'software_dev' or work_type == 'data_analysis':
             base_explanation += " - coding/analysis work requires sustained mental energy which compounds emotional fatigue"
-        
         return base_explanation
 
     def _generate_enhanced_session_summary(self) -> str:
         """Generate enhanced session summary with corporate context and actionable insights"""
-        
-        # Get basic session data
         session_duration = datetime.now() - self.current_session["start_time"]
         total_interactions = len(self.current_session.get("messages", []))
-        
-        # Get workplace context analysis
         workplace_context = self.current_session.get("workplace_context", {})
-        
-        # Use corporate analyzer for enhanced summary if workplace context exists
         if workplace_context:
-            # Prepare conversation data in the format expected by corporate analyzer
             conversation_data = {
                 "messages": self.current_session.get("conversation_messages", []),
                 "initial_analysis": self.current_session.get("initial_analysis", {}),
                 "emotions_tracked": self.current_session.get("emotions_tracked", [])
             }
-            
             enhanced_summary = self.corporate_analyzer.generate_enhanced_summary(
                 conversation_data,
                 workplace_context
             )
-            
-            # Build comprehensive summary
             summary = f"""
 ==================================================
 🔄 Session Complete
@@ -843,7 +758,5 @@ Remember: Small actions can create big changes in how you feel."""
 🌟 Remember: You have practical tools and strategies to manage workplace stress effectively. 🌟
 """
         else:
-            # Fall back to original summary if no workplace context
             summary = self._generate_session_summary()
-        
         return summary 

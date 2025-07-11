@@ -96,6 +96,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
+                        disableTypography
                         primary={
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>

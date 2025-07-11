@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 import cv2
@@ -9,23 +9,26 @@ import logging
 import time
 import psutil
 import os
-import sys
 from prometheus_client import Counter as PrometheusCounter, Histogram, Gauge, generate_latest
 from collections import Counter as CollectionsCounter
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import asyncio
 import threading
 import queue
+from uuid import UUID
+import httpx
 
-# Add database service path to sys.path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'db_service'))
-try:
-    from db_client import get_db_client, get_user_id_from_request
-    DB_INTEGRATION_AVAILABLE = True
-except ImportError:
-    logger = logging.getLogger(__name__)
-    logger.warning("Database integration not available")
-    DB_INTEGRATION_AVAILABLE = False
+
+def validate_user_uuid(user_id: str) -> UUID:
+    """Validate user UUID and handle potential errors"""
+    try:
+        return UUID(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid user ID format: '{user_id}' is not a valid UUID"
+        )
+
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -65,7 +68,55 @@ is_analyzing = False
 def update_system_metrics():
     """Update Prometheus metrics for system resource usage"""
     MEMORY_USAGE.set(psutil.Process(os.getpid()).memory_info().rss)
-    CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent())
+    CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent(interval=None))
+
+async def store_video_analysis_in_core_service(user_id: UUID, analysis_data: Dict[str, Any], token: Optional[str]):
+    """Store video analysis results in the Core service via API calls"""
+    try:
+        CORE_SERVICE_URL = "http://localhost:8000"
+        
+        if not token:
+            logger.warning("No authentication token provided, skipping storage")
+            return
+            
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        dominant_emotion = analysis_data.get("dominantEmotion", "neutral")
+        avg_confidence = analysis_data.get("averageConfidence", 0.0)
+        
+        payload = {
+            "user_id": str(user_id),
+            "session_id": f"video_session_{int(time.time())}",
+            "dominant_emotion": dominant_emotion,
+            "average_confidence": float(avg_confidence),
+            "emotion_timeline": analysis_data.get("emotions", []),
+            "analysis_metadata": analysis_data.get("analysis_details", {})
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(
+                    f"{CORE_SERVICE_URL}/analyses/video",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"✅ Stored video analysis for user {user_id}")
+                else:
+                    logger.error(f"❌ Failed to store video analysis: {response.status_code} - {response.text}")
+                    
+            except httpx.RequestError as e:
+                logger.error(f"❌ Network error storing video analysis: {e}")
+            except Exception as e:
+                logger.error(f"❌ Error storing video analysis: {e}")
+
+    except Exception as e:
+        logger.error(f"❌ Error in store_video_analysis_in_core_service: {str(e)}")
+
 
 def facex_analysis(duration: int = 10):
     """
@@ -268,196 +319,130 @@ async def metrics():
 @app.post("/analyze-video-continuous")
 async def analyze_video_continuous(
     duration: int = 10,
-    user_email: str = Query(None, description="User email for database storage"),
-    user_name: str = Query(None, description="User name for database storage")
+    user_id: str = Form(..., description="User UUID for database storage"),
+    user_email: str = Form(None, description="User email for database storage"),
+    user_name: str = Form(None, description="User name for database storage"),
+    token: Optional[str] = Form(None, description="Auth token")
 ):
-    """
-    Perform continuous webcam analysis exactly like facex.py
-    
-    Duration: Analysis duration in seconds (default: 10)
-    Returns comprehensive emotion analysis results with target emotion focus
-    """
+    """Perform continuous webcam analysis and store results"""
     REQUESTS.labels(endpoint='analyze-video-continuous').inc()
     start_time = time.time()
     
     try:
-        logger.info(f"Starting facex-style continuous video analysis for {duration} seconds")
+        logger.info(f"Starting continuous video analysis for user {user_id}...")
         
-        # Run the facex analysis in a thread to avoid blocking
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, facex_analysis, duration)
+        # Validate user_id
+        user_uuid = validate_user_uuid(user_id)
         
-        if "error" in result:
-            ERROR_COUNT.labels(endpoint='analyze-video-continuous', error_type='analysis_error').inc()
-            return JSONResponse(
-                status_code=500,
-                content=result
-            )
+        result = facex_analysis(duration=duration)
         
-        logger.info("Facex-style continuous analysis completed successfully")
-        
-        # Store in centralized database
-        if DB_INTEGRATION_AVAILABLE and "error" not in result:
-            try:
-                db_client = get_db_client()
-                email = user_email or "video_continuous_user@example.com"
-                name = user_name or "Video Continuous Analysis User"
-                user_id = db_client.get_or_create_user(email, name)
-                
-                if user_id:
-                    success = db_client.store_video_analysis(user_id, result)
-                    if success:
-                        db_client.log_audit_event(user_id, "video_continuous_analysis", {
-                            "service": "video_continuous",
-                            "duration": duration,
-                            "dominant_emotion": result.get("dominantEmotion"),
-                            "confidence": result.get("averageConfidence"),
-                            "total_detections": result.get("metadata", {}).get("total_detections"),
-                            "emotions_detected": len(result.get("emotions", []))
-                        })
-                        logger.info(f"Stored video continuous analysis in database for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error storing video continuous analysis: {str(e)}")
-        
+        if "error" not in result:
+            # Asynchronously store the result in the database
+            await store_video_analysis_in_core_service(user_uuid, result, token)
+        else:
+            logger.warning(f"Analysis for user {user_id} resulted in an error: {result['error']}")
+            # Decide if you want to raise HTTPException for analysis errors
+            # For now, we return the error in the JSON response
+            
         update_system_metrics()
         
-        return result
+        return JSONResponse(content=result)
         
+    except HTTPException as e:
+        # Re-raise HTTP exceptions from validation
+        raise e
     except Exception as e:
-        logger.error(f"Error during continuous video analysis: {str(e)}", exc_info=True)
+        logger.error(f"Unhandled error in analyze_video_continuous: {e}")
         ERROR_COUNT.labels(endpoint='analyze-video-continuous', error_type='general').inc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Error during continuous analysis: {str(e)}"}
-        )
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         PROCESSING_TIME.labels(endpoint='analyze-video-continuous').observe(time.time() - start_time)
+
 
 @app.post("/analyze-video")
 async def analyze_video(
     file: UploadFile = File(...),
-    user_email: str = Query(None, description="User email for database storage"),
-    user_name: str = Query(None, description="User name for database storage")
+    user_id: str = Form(..., description="User UUID for database storage"),
+    user_email: str = Form(None, description="User email for database storage"),
+    user_name: str = Form(None, description="User name for database storage"),
+    token: Optional[str] = Form(None, description="Auth token")
 ):
-    """
-    Analyze emotion from an uploaded image file (frontend compatible endpoint)
-    
-    Returns the result in VideoAnalysisResult format expected by frontend
-    """
+    """Analyze a single video file and store results"""
     REQUESTS.labels(endpoint='analyze-video').inc()
     start_time = time.time()
     
     try:
-        logger.info(f"Received image for video-style emotion analysis: {file.filename}")
+        logger.info(f"Received video file for user {user_id}: {file.filename}")
         
-        # Read and decode image
+        # Validate user_id
+        user_uuid = validate_user_uuid(user_id)
+
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if img is None:
-            logger.error("Failed to decode image")
-            ERROR_COUNT.labels(endpoint='analyze-video', error_type='decode_error').inc()
-            raise HTTPException(status_code=400, detail="Invalid image format or corrupted file")
+            ERROR_COUNT.labels(endpoint='analyze-video', error_type='invalid_image').inc()
+            raise HTTPException(status_code=400, detail="Invalid image format")
+
+        emotion_counter = CollectionsCounter()
         
-        # Check if image is empty
-        if img.size == 0:
-            logger.error("Empty image received")
-            ERROR_COUNT.labels(endpoint='analyze-video', error_type='empty_image').inc()
-            raise HTTPException(status_code=400, detail="Empty image received")
-        
-        # Log image dimensions for debugging
-        height, width = img.shape[:2]
-        logger.info(f"Image dimensions: {width}x{height}")
-        
-        # Analyze emotion
-        logger.info("Analyzing emotion using DeepFace")
-        analysis = DeepFace.analyze(img, actions=['emotion'], enforce_detection=False)
-        
-        if not analysis:
-            logger.warning("No analysis results returned")
-            ERROR_COUNT.labels(endpoint='analyze-video', error_type='no_results').inc()
+        # Perform emotion analysis
+        try:
+            analysis = DeepFace.analyze(img, actions=['emotion'], enforce_detection=False)
+            dominant_emotion = analysis[0]['dominant_emotion']
+            emotion_counter[dominant_emotion] += 1
+            
+            # Create a more detailed result object
+            emotions = []
+            for emotion, score in analysis[0]['emotion'].items():
+                emotions.append({"emotion": emotion, "confidence": score})
+            
+            emotions.sort(key=lambda x: x['confidence'], reverse=True)
+            
+            result = {
+                "emotions": emotions,
+                "dominantEmotion": dominant_emotion,
+                "averageConfidence": analysis[0]['emotion'][dominant_emotion],
+                "timestamp": int(time.time() * 1000),
+                "analysis_details": {
+                    "source": "single_video_frame",
+                    "filename": file.filename
+                }
+            }
+            
+            logger.info(f"Analysis complete for {file.filename}. Dominant emotion: {dominant_emotion}")
+            
+            # Asynchronously store the result
+            await store_video_analysis_in_core_service(user_uuid, result, token)
+            
+        except Exception as e:
+            logger.error(f"Error during DeepFace analysis for {file.filename}: {e}")
+            ERROR_COUNT.labels(endpoint='analyze-video', error_type='deepface_error').inc()
+            # Still return a response, but with an error message
             return JSONResponse(
-                status_code=404,
-                content={"error": "No faces or emotions detected in the image"}
+                status_code=500,
+                content={
+                    "error": f"Failed to analyze video: {str(e)}",
+                    "dominantEmotion": "neutral",
+                    "emotions": [],
+                    "averageConfidence": 0.0
+                }
             )
             
-        dominant_emotion = analysis[0]['dominant_emotion']
-        emotion_scores = analysis[0]['emotion']
-        
-        # Format response to match VideoAnalysisResult interface
-        current_timestamp = int(time.time() * 1000)
-        
-        # Convert emotion scores to EmotionResult format
-        emotions = []
-        for emotion, confidence in emotion_scores.items():
-            emotions.append({
-                "emotion": emotion,
-                "confidence": confidence / 100.0,  # Convert percentage to decimal
-                "timestamp": current_timestamp
-            })
-        
-        # Sort by confidence (descending)
-        emotions.sort(key=lambda x: x['confidence'], reverse=True)
-        
-        # Calculate average confidence (use dominant emotion confidence)
-        avg_confidence = emotion_scores[dominant_emotion] / 100.0
-        
-        response = {
-            "emotions": emotions,
-            "dominantEmotion": dominant_emotion,
-            "averageConfidence": avg_confidence,
-            "timestamp": current_timestamp,
-            "analysis_time": f"{time.time() - start_time:.2f} seconds"
-        }
-        
-        logger.info(f"Detected dominant emotion: {dominant_emotion} with {avg_confidence:.2f} confidence")
-        
-        # Store in centralized database
-        if DB_INTEGRATION_AVAILABLE:
-            try:
-                db_client = get_db_client()
-                email = user_email or "video_user@example.com"
-                name = user_name or "Video Analysis User"
-                user_id = db_client.get_or_create_user(email, name)
-                
-                if user_id:
-                    success = db_client.store_video_analysis(user_id, response)
-                    if success:
-                        db_client.log_audit_event(user_id, "video_analysis", {
-                            "service": "video",
-                            "dominant_emotion": dominant_emotion,
-                            "confidence": avg_confidence,
-                            "emotions_detected": len(emotions)
-                        })
-                        logger.info(f"Stored video analysis in database for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error storing video analysis: {str(e)}")
-        
-        # Update metrics
         update_system_metrics()
-        
-        return response
-        
-    except HTTPException as he:
-        # Re-raise HTTP exceptions
-        raise he
-    except ValueError as ve:
-        logger.error(f"Value error during emotion analysis: {str(ve)}")
-        ERROR_COUNT.labels(endpoint='analyze-video', error_type='value_error').inc()
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"Invalid input: {str(ve)}"}
-        )
+        return JSONResponse(content=result)
+
+    except HTTPException as e:
+        # Re-raise HTTP exceptions from validation
+        raise e
     except Exception as e:
-        logger.error(f"Error during emotion analysis: {str(e)}", exc_info=True)
+        logger.error(f"Unhandled error in analyze_video: {e}")
         ERROR_COUNT.labels(endpoint='analyze-video', error_type='general').inc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Error analyzing emotion: {str(e)}"}
-        )
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         PROCESSING_TIME.labels(endpoint='analyze-video').observe(time.time() - start_time)
+
 
 @app.post("/analyze-emotion")
 async def analyze_emotion(file: UploadFile = File(...)):
@@ -496,48 +481,34 @@ async def analyze_emotion(file: UploadFile = File(...)):
         logger.info("Analyzing emotion using DeepFace")
         analysis = DeepFace.analyze(img, actions=['emotion'], enforce_detection=False)
         
-        if not analysis:
-            logger.warning("No analysis results returned")
-            ERROR_COUNT.labels(endpoint='analyze-emotion', error_type='no_results').inc()
-            return JSONResponse(
-                status_code=404,
-                content={"error": "No faces or emotions detected in the image"}
-            )
+        # Log the full analysis for debugging
+        logger.debug(f"DeepFace analysis result: {analysis}")
+
+        # The result of DeepFace.analyze is a list of dictionaries
+        if isinstance(analysis, list) and len(analysis) > 0:
+            # Extract relevant information
+            dominant_emotion = analysis[0]['dominant_emotion']
+            emotions = analysis[0]['emotion']
+            confidence = emotions.get(dominant_emotion, 0)
+
+            # Create the response payload
+            response_data = {
+                "dominant_emotion": dominant_emotion,
+                "confidence": confidence,
+                "emotions": emotions
+            }
             
-        emotion = analysis[0]['dominant_emotion']
-        emotions = analysis[0]['emotion']
-        
-        # Create detailed response
-        response = {
-            "dominant_emotion": emotion,
-            "emotion_scores": emotions,
-            "analysis_time": f"{time.time() - start_time:.2f} seconds"
-        }
-        
-        logger.info(f"Detected emotion: {emotion}")
-        
-        # Update metrics
-        update_system_metrics()
-        
-        return response
-        
-    except HTTPException as he:
-        # Re-raise HTTP exceptions
-        raise he
-    except ValueError as ve:
-        logger.error(f"Value error during emotion analysis: {str(ve)}")
-        ERROR_COUNT.labels(endpoint='analyze-emotion', error_type='value_error').inc()
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"Invalid input: {str(ve)}"}
-        )
+            update_system_metrics()
+            
+            return JSONResponse(content=response_data)
+        else:
+            ERROR_COUNT.labels(endpoint='analyze-emotion', error_type='no_face_detected').inc()
+            return JSONResponse(content={"error": "No face detected or analysis failed"}, status_code=404)
+
     except Exception as e:
-        logger.error(f"Error during emotion analysis: {str(e)}", exc_info=True)
-        ERROR_COUNT.labels(endpoint='analyze-emotion', error_type='general').inc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Error analyzing emotion: {str(e)}"}
-        )
+        logger.error(f"Error during emotion analysis: {e}")
+        ERROR_COUNT.labels(endpoint='analyze-emotion', error_type='analysis_failed').inc()
+        return JSONResponse(content={"error": f"An error occurred: {e}"}, status_code=500)
     finally:
         PROCESSING_TIME.labels(endpoint='analyze-emotion').observe(time.time() - start_time)
 

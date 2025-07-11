@@ -20,7 +20,7 @@ from typing import Dict, List
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from emo_buddy import EmoBuddyAgent
+from emo_buddy_agent import EmoBuddyAgent
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -248,88 +248,58 @@ class StandaloneEmoBuddy:
         print("\n⚠️  WARNING: This will permanently delete ALL conversation memory!")
         print("   • All past conversations will be lost")
         print("   • Emotional patterns will be reset")
-        print("   • You'll start fresh with no previous context")
         
-        confirmation = input("\n🤔 Are you sure? Type 'YES' to confirm: ")
-        if confirmation == "YES":
-            try:
-                # Get stats before clearing
-                total_sessions = len(self.agent.memory.sessions)
-                total_memories = len(self.agent.memory.metadata)
-                
-                # Clear memory
-                self.agent.memory.clear_memory()
-                
-                print("✅ Memory cleared successfully!")
-                print(f"   • Deleted {total_sessions} sessions")
-                print(f"   • Deleted {total_memories} memory entries")
-                print("\n🆕 I'll start fresh with no previous conversations.")
-                
-                # End current session if active
-                if self.session_active:
-                    self.session_active = False
-                    print("   • Current session ended")
-                
-            except Exception as e:
-                print(f"❌ Error clearing memory: {e}")
-        else:
-            print("❌ Memory clearing cancelled.")
-    
+        try:
+            confirm = input("   Type 'yes' to confirm: ").lower()
+            if confirm == 'yes':
+                memory = self.agent.memory
+                memory.clear_memory()
+                print("\n✅ Memory cleared successfully.")
+            else:
+                print("\n❌ Memory clear cancelled.")
+        except Exception as e:
+            logger.error(f"Error clearing memory: {e}")
+            print("\n❌ Failed to clear memory.")
+            
     def display_memory_stats(self):
-        """Display current memory statistics"""
+        """Display memory statistics"""
+        print("\n" + "=" * 50)
+        print("🧠 Memory Statistics")
+        print("=" * 50)
+        
         try:
             memory = self.agent.memory
+            stats = memory.get_emotion_patterns()
             
-            print("\n📊 EMO BUDDY MEMORY STATISTICS")
-            print("=" * 40)
-            print(f"🗂️  Total Sessions: {len(memory.sessions)}")
-            print(f"🧠 Memory Entries: {len(memory.metadata)}")
+            print(f"   • Total sessions: {stats.get('total_sessions', 0)}")
             
-            # Get emotion patterns
-            emotion_patterns = memory.get_emotion_patterns()
-            
-            if emotion_patterns.get('emotions_frequency'):
-                print(f"\n💭 Most Common Emotions:")
-                emotions = emotion_patterns['emotions_frequency']
-                for emotion, count in sorted(emotions.items(), key=lambda x: x[1], reverse=True)[:3]:
-                    print(f"   • {emotion}: {count} times")
-            
-            if emotion_patterns.get('techniques_frequency'):
-                print(f"\n🔧 Most Used Techniques:")
-                techniques = emotion_patterns['techniques_frequency']
-                for technique, count in sorted(techniques.items(), key=lambda x: x[1], reverse=True)[:3]:
-                    print(f"   • {technique.upper()}: {count} times")
-            
-            # Crisis history
-            crisis_history = memory.get_crisis_history()
-            crisis_count = len(crisis_history)
-            
-            if crisis_count > 0:
-                print(f"\n⚠️  Crisis Indicators: {crisis_count} detected")
+            print("\n   • Emotion Frequency:")
+            emotions = stats.get('emotions_frequency', {})
+            if emotions:
+                for emotion, count in emotions.items():
+                    print(f"     - {emotion}: {count}")
             else:
-                print(f"\n✅ Crisis Indicators: None detected")
-            
-            print("=" * 40)
-            
+                print("     - No emotions tracked yet")
+                
+            print("\n   • Techniques Frequency:")
+            techniques = stats.get('techniques_frequency', {})
+            if techniques:
+                for technique, count in techniques.items():
+                    print(f"     - {technique}: {count}")
+            else:
+                print("     - No techniques used yet")
+                
         except Exception as e:
-            print(f"❌ Error getting memory stats: {e}")
+            logger.error(f"Error getting memory stats: {e}")
+            print("   ❌ Could not retrieve memory statistics.")
 
 def main():
-    """Main function to run standalone Emo Buddy"""
+    """Main function to run the standalone chat"""
     try:
-        # Check for required API keys
-        if not os.environ.get("GEMINI_API_KEY"):
-            print("❌ Error: GEMINI_API_KEY environment variable not set")
-            print("Please set your Gemini API key in the .env file")
-            sys.exit(1)
-        
         chat = StandaloneEmoBuddy()
         chat.start_chat()
-        
     except Exception as e:
-        logger.error(f"Failed to start Emo Buddy: {e}")
-        print(f"❌ Error starting Emo Buddy: {e}")
-        sys.exit(1)
+        logger.error(f"Failed to start Emo Buddy chat: {e}")
 
 if __name__ == "__main__":
     main() 

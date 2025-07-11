@@ -7,6 +7,8 @@ from typing import List, Dict, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
+import httpx # Import httpx for API calls
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +37,9 @@ class ConversationMemory:
         # Load existing metadata and sessions
         self.metadata = self._load_metadata()
         self.sessions = self._load_sessions()
+        
+        # Add a reference to the core service URL
+        self.core_service_url = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
         
         logger.info("ConversationMemory initialized successfully")
     
@@ -106,8 +111,74 @@ class ConversationMemory:
         self._save_metadata()
         self._save_index()
         
+        # --- New DB Storage Logic ---
+        try:
+            user_id = session_data.get("initial_analysis", {}).get("user_id")
+            if user_id:
+                self._store_session_in_db(session_data, summary, user_id)
+            else:
+                logger.warning("No user_id found in session, cannot store in database.")
+        except Exception as e:
+            logger.error(f"Failed to store session in database: {e}", exc_info=True)
+        # --- End New DB Storage Logic ---
+
         logger.info(f"Session stored with ID: {session_record['session_id']}")
     
+    def _store_session_in_db(self, session_data: Dict, summary: str, user_id: str):
+        """
+        Stores the session and its messages in the core service database.
+        """
+        logger.info(f"Storing Emo Buddy session for user {user_id} in core database...")
+        
+        # 1. Create the EmoBuddySession record
+        session_payload = {
+            "user_id": user_id,
+            "session_start": session_data.get("start_time", datetime.now()).isoformat(),
+            "session_end": datetime.now().isoformat(),
+            "session_summary": summary,
+            "therapeutic_goals": session_data.get("user_context", {}).get("session_goals", [])
+        }
+        
+        session_uuid = None
+        try:
+            with httpx.Client() as client:
+                response = client.post(
+                    f"{self.core_service_url}/emo-buddy/sessions",
+                    json=session_payload,
+                    timeout=10.0
+                )
+                response.raise_for_status()
+                created_session = response.json()
+                session_uuid = created_session.get("session_uuid")
+                logger.info(f"Successfully created Emo Buddy session in DB with UUID: {session_uuid}")
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            logger.error(f"Error creating Emo Buddy session in DB: {e}")
+            # If session creation fails, we can't store messages
+            return
+
+        if not session_uuid:
+            logger.error("Failed to get session_uuid from core service, cannot store messages.")
+            return
+
+        # 2. Store each message associated with the session
+        messages = session_data.get("conversation_messages", [])
+        for message in messages:
+            message_payload = {
+                "message_text": message.get("content", ""),
+                "is_user_message": message.get("role") == "user"
+            }
+            try:
+                with httpx.Client() as client:
+                    msg_response = client.post(
+                        f"{self.core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
+                        json=message_payload,
+                        timeout=5.0
+                    )
+                    msg_response.raise_for_status()
+                    logger.info(f"Stored message for session {session_uuid}")
+            except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                logger.error(f"Error storing message for session {session_uuid}: {e}")
+
     def _extract_key_phrases(self, session_data: Dict) -> List[str]:
         """Extract key phrases from the session"""
         key_phrases = []
@@ -297,3 +368,16 @@ class ConversationMemory:
                 os.remove(file_path)
         
         logger.info("Memory cleared successfully") 
+
+# --- Singleton instance for the memory manager ---
+_memory_manager_instance: Optional[ConversationMemory] = None
+
+def get_memory_manager(memory_dir: str = "emo_buddy_memory") -> ConversationMemory:
+    """
+    Returns a singleton instance of the ConversationMemory manager.
+    """
+    global _memory_manager_instance
+    if _memory_manager_instance is None:
+        logger.info("Initializing new ConversationMemory instance...")
+        _memory_manager_instance = ConversationMemory(memory_dir=memory_dir)
+    return _memory_manager_instance 

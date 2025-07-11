@@ -26,7 +26,7 @@ interface MusicTabProps {
   resumeMusicTrack: () => void;
 }
 
-export const MusicTab: React.FC<MusicTabProps> = ({
+const MusicTab: React.FC<MusicTabProps> = ({
   colors,
   mode,
   musicTracks,
@@ -40,7 +40,7 @@ export const MusicTab: React.FC<MusicTabProps> = ({
   const currentTrack = musicTracks.find(t => t.id === activeMusicTrack);
 
   return (
-    <Box>
+    <Box sx={{ p: 3, backgroundColor: colors.background, borderRadius: '8px' }}>
       <Typography variant="h5" sx={{ color: colors.primaryText, mb: 4, fontWeight: 600 }}>
         Relaxing Music
       </Typography>

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -16,8 +16,9 @@ import {
   Alert,
 } from '@mui/material';
 import {  SendIcon, EmojiEmotionsIcon, CheckCircleIcon, InfoIcon, WarningIcon } from '../utils/icons';
+import api from '../services/api'; // Use the centralized, secure api service
 
-const EMO_BUDDY_API = 'http://localhost:9000/emo-buddy';
+const EMO_BUDDY_API_PREFIX = '/emo-buddy';
 
 interface Message {
   id: string;
@@ -71,7 +72,7 @@ export const EmoBuddy: React.FC = () => {
   const lastEndSessionCall = useRef<number>(0);
 
   // Scroll to bottom on new message
-  React.useEffect(() => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -90,13 +91,10 @@ export const EmoBuddy: React.FC = () => {
     try {
       if (!firstMessageSent) {
         // First message: start session
-        const res = await fetch(`${EMO_BUDDY_API}/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_message: userMessage.content }),
+        const res = await api.post(`${EMO_BUDDY_API_PREFIX}/start`, {
+          user_message: userMessage.content,
         });
-        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to start session');
-        const data = await res.json();
+        const data = res.data;
         setSessionId(data.session_id);
         setMessages((prev) => [
           ...prev,
@@ -109,19 +107,12 @@ export const EmoBuddy: React.FC = () => {
         ]);
         setFirstMessageSent(true);
       } else if (sessionId) {
-        if (!sessionId || !userMessage.content) {
-          setError("Session or message missing.");
-          setIsLoading(false);
-          return;
-        }
         // Continue session
-        const res = await fetch(`${EMO_BUDDY_API}/continue`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId, user_message: userMessage.content }),
+        const res = await api.post(`${EMO_BUDDY_API_PREFIX}/continue`, {
+          session_id: sessionId,
+          user_message: userMessage.content,
         });
-        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to continue session');
-        const data = await res.json();
+        const data = res.data;
         setMessages((prev) => [
           ...prev,
           {
@@ -152,10 +143,8 @@ export const EmoBuddy: React.FC = () => {
     if (now - lastEndSessionCall.current < 2000) return; // throttle: 2 seconds
     lastEndSessionCall.current = now;
     try {
-      await fetch(`${EMO_BUDDY_API}/end-session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId }),
+      await api.post(`${EMO_BUDDY_API_PREFIX}/end-session`, {
+        session_id: sessionId,
       });
     } catch (e) {
       // Optionally handle error

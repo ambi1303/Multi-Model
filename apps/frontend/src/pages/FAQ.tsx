@@ -16,6 +16,7 @@ const FAQ: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = React.useState<string | false>(false);
 
   const faqItems: FAQItem[] = [
     {

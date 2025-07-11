@@ -1,10 +1,9 @@
 import os
-import sys
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
-from typing import Literal, Optional, List, Dict
+from typing import Literal, Optional, List, Dict, Any
 import pandas as pd
 import pickle
 import os
@@ -17,16 +16,64 @@ import logging
 import httpx
 from dotenv import load_dotenv
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
+from uuid import UUID
 
-# Add database service path to sys.path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'db_service'))
-try:
-    from db_client import get_db_client, get_user_id_from_request
-    DB_INTEGRATION_AVAILABLE = True
-except ImportError:
-    logger = logging.getLogger(__name__)
-    logger.warning("Database integration not available")
-    DB_INTEGRATION_AVAILABLE = False
+# --- NEW: Core Service Integration ---
+CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+
+async def store_survey_in_core_service(survey_data: dict, user_id: str, token: Optional[str]):
+    """Asynchronously stores survey analysis results in the core service."""
+    try:
+        if not token:
+            logger.warning("No auth token provided; skipping survey storage in core service.")
+            return
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # The survey service now sends data to the specific survey analysis endpoint
+        survey_analysis_endpoint = f"{CORE_SERVICE_URL}/surveys/responses"
+        
+        logger.info(f"Sending survey data to core service for user {user_id}: {survey_data}")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(survey_analysis_endpoint, json=survey_data, headers=headers, timeout=30.0)
+            
+            if 400 <= response.status_code < 500:
+                logger.error(f"Client error storing survey for user {user_id}: {response.status_code} - {response.text}")
+            
+            response.raise_for_status()
+            logger.info(f"Successfully stored survey analysis for user {user_id} in core service.")
+
+    except httpx.RequestError as e:
+        logger.error(f"Network error sending survey analysis to core service for user {user_id}: {e}")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error storing survey analysis for user {user_id}: {e.response.status_code} - {e.response.text}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while storing survey analysis for user {user_id}: {e}")
+
+# Mock user validation and DB client for now
+def validate_user_uuid(user_id: str) -> UUID:
+    """Mock user UUID validation"""
+    try:
+        return UUID(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+class MockDBClient:
+    def store_survey_result(self, user_id: UUID, data: Dict[str, Any]):
+        logger.info(f"Mock storing survey result for user {user_id}: {data}")
+        return True
+    
+    def log_audit_event(self, user_id: UUID, event: str, metadata: Dict[str, Any]):
+        logger.info(f"Mock audit log for user {user_id}: {event} - {metadata}")
+
+def get_db_client(auth_token: Optional[str] = None):
+    """Mock DB client getter"""
+    return MockDBClient()
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -92,8 +139,10 @@ class EmployeeData(BaseModel):
     company_type: Literal["Service", "Product"] = Field(..., description="Type of company")
     wfh_setup_available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
     gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
+    user_id: str = Field(..., description="User UUID for database storage")
     user_email: Optional[str] = None
     user_name: Optional[str] = None
+    token: Optional[str] = None
 
 class PredictionResponse(BaseModel):
     burn_rate: float
@@ -132,7 +181,9 @@ class SurveyLikertData(BaseModel):
 class AnalyzeSurveyRequest(BaseModel):
     employee: EmployeeData
     survey: SurveyLikertData
+    user_id: str = Field(..., description="User UUID for database storage")
     employee_id: Optional[str] = None
+    token: Optional[str] = None
 
 # Add new data models for separate endpoints
 class EmployeeAnalysisResponse(BaseModel):
@@ -152,7 +203,9 @@ class SurveyAnalysisResponse(BaseModel):
 class CombinedAnalysisRequest(BaseModel):
     employee: EmployeeData
     survey: SurveyLikertData
+    user_id: str = Field(..., description="User UUID for database storage")
     employee_id: Optional[str] = None
+    token: Optional[str] = None
 
 class CombinedAnalysisResponse(BaseModel):
     mental_health_summary: str = Field(..., description="AI-generated mental health summary")
@@ -160,23 +213,6 @@ class CombinedAnalysisResponse(BaseModel):
     source: str = Field(..., description="Source of analysis (AI or fallback)")
     employee_id: Optional[str] = None
     analysis_timestamp: str = Field(..., description="Timestamp of analysis")
-
-# Store predictions history
-predictions_history = []
-
-def save_prediction(employee_data: dict, prediction: float, stress_level: str):
-    """Save prediction to history"""
-    prediction_record = {
-        "timestamp": datetime.now().isoformat(),
-        "employee_data": employee_data,
-        "prediction": prediction,
-        "stress_level": stress_level
-    }
-    predictions_history.append(prediction_record)
-    
-    # Save to file
-    with open('prediction_history.json', 'w') as f:
-        json.dump(predictions_history, f, indent=2)
 
 @app.get("/")
 async def root():
@@ -280,37 +316,40 @@ async def predict(employee: EmployeeData):
             "prediction_time": datetime.now().isoformat()
         }
 
-        # Save prediction to history
-        save_prediction(input_data, prediction, stress_level)
+        # Validate user_id
+        try:
+            user_uuid = validate_user_uuid(employee.user_id)
+        except HTTPException as e:
+            ERROR_COUNT.labels(endpoint='predict', error_type='invalid_user_id').inc()
+            raise e
+        except ValueError:
+            ERROR_COUNT.labels(endpoint='predict', error_type='invalid_user_id').inc()
+            raise HTTPException(status_code=400, detail="Invalid user_id format")
         
         # Store in centralized database
-        if DB_INTEGRATION_AVAILABLE:
-            try:
-                db_client = get_db_client()
-                email = employee.user_email or "survey_user@example.com"
-                name = employee.user_name or "Survey Analysis User"
-                user_id = db_client.get_or_create_user(email, name)
-                
-                if user_id:
-                    survey_data = {
-                        "employee_data": input_data,
-                        "burn_rate": prediction,
-                        "stress_level": stress_level,
-                        "model_used": "Linear Regression",
-                        "recommendations": []  # Basic prediction doesn't include recommendations
-                    }
-                    
-                    success = db_client.store_survey_results(user_id, survey_data)
-                    if success:
-                        db_client.log_audit_event(user_id, "survey_prediction", {
-                            "service": "survey",
-                            "burn_rate": prediction,
-                            "stress_level": stress_level,
-                            "mental_fatigue_score": employee.mental_fatigue_score
-                        })
-                        logger.info(f"Stored survey prediction in database for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error storing survey prediction: {str(e)}")
+        try:
+            db_client = get_db_client(auth_token=employee.token)
+            
+            # Use the validated user_uuid directly
+            survey_data = {
+                "employee_data": input_data,
+                "burn_rate": prediction,
+                "stress_level": stress_level,
+                "model_used": "Linear Regression",
+                "recommendations": []  # Basic prediction doesn't include recommendations
+            }
+            
+            success = db_client.store_survey_result(user_uuid, survey_data)
+            if success:
+                db_client.log_audit_event(user_uuid, "survey_prediction", {
+                    "service": "survey",
+                    "burn_rate": prediction,
+                    "stress_level": stress_level,
+                    "mental_fatigue_score": employee.mental_fatigue_score
+                })
+                logger.info(f"Stored survey prediction in database for user {user_uuid}")
+        except Exception as e:
+            logger.error(f"Error storing survey prediction: {str(e)}")
         
         # Update metrics
         update_system_metrics()
@@ -347,10 +386,11 @@ async def predict_batch(batch_request: BatchPredictionRequest):
 async def get_prediction_history():
     """
     Get the history of all predictions made.
+    NOTE: This is deprecated and will be removed. Fetch data from the core service instead.
     """
     REQUESTS.labels(endpoint='predictions_history').inc()
     update_system_metrics()
-    return {"predictions": predictions_history}
+    return {"message": "This endpoint is deprecated. Please fetch from the core service.", "predictions": []}
 
 @app.get("/models/metrics", response_model=List[ModelMetrics], tags=["Model Information"])
 async def get_model_metrics():
@@ -406,6 +446,16 @@ async def analyze_survey(request: AnalyzeSurveyRequest):
     start_time = time.time()
     
     try:
+        # Validate user_id
+        try:
+            user_uuid = validate_user_uuid(request.user_id)
+        except HTTPException as e:
+            ERROR_COUNT.labels(endpoint='analyze_survey', error_type='invalid_user_id').inc()
+            raise e
+        except ValueError:
+            ERROR_COUNT.labels(endpoint='analyze_survey', error_type='invalid_user_id').inc()
+            raise HTTPException(status_code=400, detail="Invalid user_id format")
+        
         # 1. ML MODEL PREDICTION - Burnout Risk from AI Model
         burn_result = await predict(request.employee)
         ml_burn_rate = burn_result["burn_rate"]  # 0.0 to 1.0
@@ -607,6 +657,24 @@ async def analyze_employee(employee: EmployeeData, employee_id: Optional[str] = 
         # Use the stress level directly from /predict endpoint (the source of truth)
         ml_stress_label = burn_result["stress_level"]
 
+        # --- NEW: Store in Core Service ---
+        try:
+            survey_payload = {
+                "user_id": employee.user_id,
+                "survey_type": "employee_ml_burnout",
+                "responses": employee.dict(exclude={'user_id', 'token'}),
+                "burnout_score": ml_burn_rate,
+                "stress_level": ml_stress_label,
+                "prediction_model_version": burn_result["model_used"],
+                "prediction_confidence": 0.9 if ml_burn_rate > 0.2 else 0.75,
+            }
+            if employee.user_id and employee.token:
+                await store_survey_in_core_service(survey_payload, employee.user_id, employee.token)
+            else:
+                logger.warning("Cannot store survey in core service: missing user_id or token.")
+        except Exception as e:
+            logger.error(f"Failed to store employee analysis in core service: {e}")
+
         # Update metrics
         update_system_metrics()
         
@@ -627,7 +695,7 @@ async def analyze_employee(employee: EmployeeData, employee_id: Optional[str] = 
         PROCESSING_TIME.labels(endpoint='analyze_employee').observe(time.time() - start_time)
 
 @app.post("/analyze-survey-questions", response_model=SurveyAnalysisResponse, tags=["Separate Analysis"])
-async def analyze_survey_questions(survey: SurveyLikertData):
+async def analyze_survey_questions(survey: SurveyLikertData, user_id: Optional[str] = None, token: Optional[str] = None):
     """
     Analyze Likert scale survey questions only - returns risk level label (no score exposed).
     """
@@ -653,6 +721,21 @@ async def analyze_survey_questions(survey: SurveyLikertData):
             survey_risk_label = "Medium"
         else:  # 35-50
             survey_risk_label = "High"
+
+        # --- NEW: Store in Core Service ---
+        try:
+            if user_id and token:
+                survey_payload = {
+                    "user_id": user_id,
+                    "survey_type": "likert_10_question",
+                    "responses": survey.dict(),
+                    "stress_level": survey_risk_label,
+                }
+                await store_survey_in_core_service(survey_payload, user_id, token)
+            else:
+                logger.warning("Cannot store survey questions analysis in core service: missing user_id or token.")
+        except Exception as e:
+            logger.error(f"Failed to store survey questions analysis in core service: {e}")
 
         # Update metrics
         update_system_metrics()
@@ -680,6 +763,16 @@ async def analyze_combined(request: CombinedAnalysisRequest):
     start_time = time.time()
     
     try:
+        # Validate user_id
+        try:
+            user_uuid = validate_user_uuid(request.user_id)
+        except HTTPException as e:
+            ERROR_COUNT.labels(endpoint='analyze_combined', error_type='invalid_user_id').inc()
+            raise e
+        except ValueError:
+            ERROR_COUNT.labels(endpoint='analyze_combined', error_type='invalid_user_id').inc()
+            raise HTTPException(status_code=400, detail="Invalid user_id format")
+        
         # Get ML prediction for context directly from /predict endpoint
         burn_result = await predict(request.employee)
         ml_burn_rate = burn_result["burn_rate"]
@@ -763,7 +856,7 @@ async def analyze_combined(request: CombinedAnalysisRequest):
                 }}
                 """
                 
-                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_api_key
+                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + gemini_api_key
                 gemini_payload = {
                     "contents": [{"parts": [{"text": prompt}]}]
                 }
@@ -805,7 +898,7 @@ async def analyze_combined(request: CombinedAnalysisRequest):
                         
             except Exception as gemini_error:
                 logger.warning(f"Gemini API failed: {str(gemini_error)}, using enhanced fallback")
-                # Continue to fallback logic below
+                analysis_source = "Rule-based Fallback"
         
         # Enhanced fallback if Gemini fails or no API key
         if not personalized_summary:
@@ -830,73 +923,39 @@ async def analyze_combined(request: CombinedAnalysisRequest):
                     "Continue regular self-assessment and stress monitoring",
                     "Build resilience through continuous learning and skill development"
                 ]
-
-        # Store comprehensive survey data in centralized database
-        if DB_INTEGRATION_AVAILABLE:
-            try:
-                db_client = get_db_client()
-                email = request.employee.user_email or "survey_combined_user@example.com"
-                name = request.employee.user_name or "Survey Combined Analysis User"
-                user_id = db_client.get_or_create_user(email, name)
-                
-                if user_id:
-                    # Prepare comprehensive survey data including both ML model and survey questions
-                    comprehensive_survey_data = {
-                        # ML Model Results (first 5 questions)
-                        "employee_data": {
-                            "designation": request.employee.designation,
-                            "resource_allocation": request.employee.resource_allocation,
-                            "mental_fatigue_score": request.employee.mental_fatigue_score,
-                            "company_type": request.employee.company_type,
-                            "wfh_setup_available": request.employee.wfh_setup_available,
-                            "gender": request.employee.gender
-                        },
-                        "burn_rate": ml_burn_rate,
-                        "stress_level": ml_stress_label,
-                        "model_used": burn_result["model_used"],
-                        
-                        # Survey Questions (last 10 questions)
-                        "survey_responses": {
-                            "q1": request.survey.q1,  # Feel happy and relaxed
-                            "q2": request.survey.q2,  # Feel anxious/stressed
-                            "q3": request.survey.q3,  # Emotionally exhausted
-                            "q4": request.survey.q4,  # Feel motivated
-                            "q5": request.survey.q5,  # Sense of accomplishment
-                            "q6": request.survey.q6,  # Feel detached
-                            "q7": request.survey.q7,  # Manageable workload
-                            "q8": request.survey.q8,  # Control over tasks
-                            "q9": request.survey.q9,  # Team support
-                            "q10": request.survey.q10  # Work-life balance
-                        },
-                        "survey_total_score": survey_total_score,
-                        "survey_max_score": 50,
-                        "survey_risk_level": survey_risk_label,
-                        
-                        # Combined Analysis Results
-                        "recommendations": personalized_recommendations,
-                        "mental_health_summary": personalized_summary,
-                        "analysis_source": analysis_source,
-                        "analysis_type": "comprehensive_survey"
-                    }
-                    
-                    success = db_client.store_survey_results(user_id, comprehensive_survey_data)
-                    if success:
-                        db_client.log_audit_event(user_id, "comprehensive_survey_analysis", {
-                            "service": "survey_comprehensive",
-                            "ml_burnout_percentage": ml_burn_percentage,
-                            "ml_stress_level": ml_stress_label,
-                            "survey_total_score": survey_total_score,
-                            "survey_risk_level": survey_risk_label,
-                            "survey_questions_count": 10,
-                            "analysis_type": "comprehensive"
-                        })
-                        logger.info(f"Stored comprehensive survey analysis in database for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error storing comprehensive survey analysis: {str(e)}")
-
-        # Update metrics
-        update_system_metrics()
         
+        # --- NEW: Store Combined Analysis in Core Service ---
+        try:
+            combined_payload = {
+                "user_id": request.user_id,
+                "survey_type": "combined_burnout_assessment",
+                "responses": {
+                    "employee_data": request.employee.dict(exclude={'user_id', 'token'}),
+                    "survey_questions": request.survey.dict()
+                },
+                "burnout_score": ml_burn_rate,
+                "stress_level": f"{ml_stress_label} (ML) / {survey_risk_label} (Survey)",
+                "risk_categories": {
+                    "ml_prediction": ml_stress_label,
+                    "survey_assessment": survey_risk_label
+                },
+                "prediction_model_version": burn_result["model_used"],
+                "prediction_confidence": burn_result.get("prediction_confidence_score", 0.85),
+                "ai_recommendations": {
+                    "source": analysis_source,
+                    "summary": personalized_summary,
+                    "recommendations": personalized_recommendations
+                },
+                "follow_up_suggested": survey_risk_label in ["High", "Medium"]
+            }
+            if request.user_id and request.token:
+                await store_survey_in_core_service(combined_payload, request.user_id, request.token)
+            else:
+                logger.warning("Cannot store combined analysis in core service: missing user_id or token.")
+        except Exception as e:
+            logger.error(f"Failed to store combined analysis in core service: {e}")
+
+        # Final response
         return CombinedAnalysisResponse(
             mental_health_summary=personalized_summary,
             recommendations=personalized_recommendations,
@@ -904,7 +963,6 @@ async def analyze_combined(request: CombinedAnalysisRequest):
             employee_id=request.employee_id,
             analysis_timestamp=datetime.now().isoformat()
         )
-        
     except Exception as e:
         ERROR_COUNT.labels(endpoint='analyze_combined', error_type='general').inc()
         logger.error(f"Error in analyze-combined: {str(e)}")

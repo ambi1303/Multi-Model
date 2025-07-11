@@ -1,11 +1,10 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
 import { useAppStore } from '../../store/useAppStore';
-import { useLocation } from 'react-router-dom';
 
 const DRAWER_WIDTH = 250; // Fixed width as suggested
 const CONTENT_GAP = 3; // MUI spacing unit (3*8=24px)

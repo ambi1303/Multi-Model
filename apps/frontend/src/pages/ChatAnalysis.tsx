@@ -115,7 +115,7 @@ const useTextAnalysis = () => {
   };
 };
 
-export const ChatAnalysis: React.FC = () => {
+const ChatAnalysis: React.FC = () => {
   const theme = useTheme();
   const [tab, setTab] = useState<'simple' | 'batch'>('simple');
   const [showTemplates, setShowTemplates] = useState(false);
@@ -955,3 +955,5 @@ export const ChatAnalysis: React.FC = () => {
     </Box>
   );
 };
+
+export default ChatAnalysis;

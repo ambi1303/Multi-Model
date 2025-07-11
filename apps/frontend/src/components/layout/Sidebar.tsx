@@ -37,7 +37,7 @@ const lazyLoadMap: { [key: string]: () => Promise<any> } = {
   '/video': () => import('../../pages/VideoAnalysis'),
   '/speech': () => import('../../pages/SpeechAnalysis'),
   '/chat': () => import('../../pages/ChatAnalysis'),
-  '/enhanced-survey': () => import('../../pages/EnhancedBurnoutSurvey'),
+  '/survey': () => import('../../pages/EnhancedBurnoutSurvey'),
   '/emo-buddy': () => import('../../pages/EmoBuddy'),
   '/wellness': () => import('../../pages/Wellness'),
   '/faq': () => import('../../pages/FAQ'),
@@ -55,8 +55,10 @@ const prefetchComponent = (path: string) => {
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
-  variant: 'temporary' | 'persistent';
-  width: number;
+  isMobile?: boolean;      // Make isMobile optional
+  drawerWidth?: number;    // Make drawerWidth optional
+  variant?: 'permanent' | 'persistent' | 'temporary'; // Add variant
+  width?: number | string; // Add width
 }
 
 interface NavItem {
@@ -87,7 +89,7 @@ const navSections: NavSection[] = [
       { text: 'Video Analysis', icon: VideocamIcon, path: '/video', description: 'Facial expression analysis' },
       { text: 'Audio Analysis', icon: MicIcon, path: '/speech', description: 'Voice sentiment analysis' },
       { text: 'Chat Analysis', icon: ChatIcon, path: '/chat', description: 'Conversation sentiment' },
-      { text: 'Burnout Survey', icon: AssignmentIcon, path: '/enhanced-survey', description: 'Assess and track burnout levels' },
+      { text: 'Burnout Survey', icon: AssignmentIcon, path: '/survey', description: 'Assess and track burnout levels' },
     ],
   },
   {
@@ -139,14 +141,14 @@ const SpecialIndicator = ({ type }: { type: string }) => {
   return null;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant, width }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, isMobile, variant = 'permanent', width }) => {
   const { mode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
   const handleNavigation = (path: string) => {
     navigate(path);
-    if (variant === 'temporary') {
+    if (isMobile) {
       onClose();
     }
   };

@@ -14,7 +14,9 @@ const pulseAnimation = keyframes`
   100% { transform: scale(1); }
 `;
 
-const EmotionAvatar = styled(Avatar)<{ emotion: string }>(({ theme, emotion }) => {
+const EmotionAvatar = styled(Avatar, {
+  shouldForwardProp: (prop) => prop !== 'emotion',
+})<{ emotion: string }>(({ theme, emotion }) => {
   const getEmotionColor = (emotion: string) => {
     const emotionColors: { [key: string]: string } = {
       happy: '#4CAF50',

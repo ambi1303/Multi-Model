@@ -72,7 +72,9 @@ const AudioVisualizer = styled(Box)(({ theme }) => ({
   border: `1px solid ${theme.palette.divider}`,
 }));
 
-const WaveBar = styled(Box)<{ isActive: boolean; height: number }>(({ theme, isActive, height }) => ({
+const WaveBar = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'isActive',
+})<{ isActive: boolean; height: number }>(({ theme, isActive, height }) => ({
   width: 4,
   height: `${height}px`,
   backgroundColor: isActive ? theme.palette.primary.main : theme.palette.grey[400],
@@ -85,7 +87,9 @@ const WaveBar = styled(Box)<{ isActive: boolean; height: number }>(({ theme, isA
   },
 }));
 
-const RecordingButton = styled(Button)<{ isRecording: boolean }>(({ theme, isRecording }) => ({
+const RecordingButton = styled(Button, {
+  shouldForwardProp: (prop) => prop !== 'isRecording',
+})<{ isRecording: boolean }>(({ theme, isRecording }) => ({
   width: 120,
   height: 120,
   borderRadius: '50%',
@@ -138,7 +142,7 @@ const useAnalysisHistory = () => {
   return { history, addAnalysis, clearHistory };
 };
 
-export const SpeechAnalysis: React.FC = () => {
+const SpeechAnalysis: React.FC = () => {
   const theme = useTheme();
   const [tab, setTab] = useState<'record' | 'history'>('record');
   const [analysis, setAnalysis] = useState<SpeechAnalysisResult | null>(null);
@@ -1077,3 +1081,5 @@ export const SpeechAnalysis: React.FC = () => {
     </Box>
   );
 };
+
+export default SpeechAnalysis;

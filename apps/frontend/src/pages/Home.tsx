@@ -12,15 +12,22 @@ const FeaturesSection = React.lazy(() => import('../components/landing/FeaturesS
 const StatsSection = React.lazy(() => import('../components/landing/StatsSection').then(m => ({ default: m.StatsSection })));
 const CTASection = React.lazy(() => import('../components/landing/CTASection').then(m => ({ default: m.CTASection })));
 
-export const Home: React.FC = () => {
+const Home: React.FC = () => {
   const navigate = useNavigate();
-  const { setSidebarOpen } = useAppStore();
+  const { setSidebarOpen, isAuthenticated } = useAppStore(state => ({
+    setSidebarOpen: state.setSidebarOpen,
+    isAuthenticated: state.isAuthenticated,
+  }));
   const [shouldLoadBelowFold, setShouldLoadBelowFold] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
 
   const handleGetStarted = () => {
-    setSidebarOpen(true); // Show sidebar (and header)
-    navigate('/dashboard');
+    if (isAuthenticated) {
+      setSidebarOpen(true); // Show sidebar (and header)
+      navigate('/dashboard');
+    } else {
+      navigate('/login');
+    }
   };
 
   // Load below-the-fold content when user scrolls near the end of hero section
@@ -120,4 +127,6 @@ export const Home: React.FC = () => {
       </Box>
     </>
   );
-}; 
+};
+
+export default Home; 

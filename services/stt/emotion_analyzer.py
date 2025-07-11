@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 import os
 import sounddevice as sd
 import numpy as np
@@ -13,8 +14,9 @@ from collections import Counter
 import re
 import torch
 from groq import Groq
-from emo_buddy import EmoBuddyAgent
-from dotenv import load_dotenv
+import soundfile as sf
+import librosa
+import numpy as np
 
 # Load environment variables from .env file
 load_dotenv()

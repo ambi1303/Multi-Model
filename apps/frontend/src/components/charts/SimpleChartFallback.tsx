@@ -441,11 +441,11 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
 
           {/* Line path */}
           <path
-            d={`M ${validData.map((item, index) => {
+            d={validData.map((item, index) => {
               const x = padding.left + (index * pointSpacing);
               const y = chartHeight - padding.bottom - ((item.value / maxValue) * innerHeight);
               return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-            }).join(' ')}`}
+            }).join(' ')}
             fill="none"
             stroke={theme.palette.primary.main}
             strokeWidth="3"

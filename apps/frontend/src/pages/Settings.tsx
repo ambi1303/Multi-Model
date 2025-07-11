@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Paper } from '@mui/material';
 
-const Settings: React.FC = () => {
+const SettingsPage: React.FC = () => {
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h4" gutterBottom>
@@ -19,4 +19,4 @@ const Settings: React.FC = () => {
   );
 };
 
-export default Settings; 
+export default SettingsPage; 

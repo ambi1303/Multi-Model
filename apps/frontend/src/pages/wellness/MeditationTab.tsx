@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Card, CardContent, Grid, IconButton } from '@mui/material';
 import { PlayArrowIcon } from '../../utils/icons';
+import MeditationTimer from './MeditationTimer';
 
 interface MeditationTabProps {
   colors: {
@@ -23,7 +24,24 @@ interface MeditationTabProps {
   startTimer: (sessionId: string, durationMinutes: number) => void;
 }
 
-export const MeditationTab: React.FC<MeditationTabProps> = ({ colors, meditationSessions, startTimer }) => {
+const MeditationTab: React.FC<MeditationTabProps> = ({ colors, meditationSessions, startTimer }) => {
+  const [selectedSession, setSelectedSession] = useState(meditationSessions.length > 0 ? meditationSessions[0] : null);
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  
+  // Return early if no meditation sessions
+  if (!meditationSessions || meditationSessions.length === 0) {
+    return (
+      <Box>
+        <Typography variant="h5" sx={{ color: colors.primaryText, mb: 4, fontWeight: 600 }}>
+          Meditation Sessions
+        </Typography>
+        <Typography variant="body1" sx={{ color: colors.secondaryText }}>
+          No meditation sessions available.
+        </Typography>
+      </Box>
+    );
+  }
+  
   return (
     <Box>
       <Typography variant="h5" sx={{ color: colors.primaryText, mb: 4, fontWeight: 600 }}>

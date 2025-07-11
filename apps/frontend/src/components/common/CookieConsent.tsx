@@ -6,15 +6,26 @@ import {
   Paper,
   Stack,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
 } from '@mui/material';
-import { 
-  InfoIcon, 
-} from '../../utils/icons';
-import { 
-  EmotiAnalyzeCookies, 
-  CookieCategory, 
-} from '../../utils/cookies';
+import { InfoIcon } from '../../utils/icons';
+
+const COOKIE_NAME = 'emoti-analyze-consent';
+
+// Simple cookie helper functions
+const getCookie = (name: string): string | null => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+};
+
+const setCookie = (name: string, value: string, days: number) => {
+  const date = new Date();
+  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+  const expires = `expires=${date.toUTCString()}`;
+  document.cookie = `${name}=${value};${expires};path=/;SameSite=Lax`;
+};
 
 interface CookieConsentProps {
   onAcceptAll?: () => void;
@@ -27,39 +38,24 @@ const CookieConsent: React.FC<CookieConsentProps> = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const existingConsent = EmotiAnalyzeCookies.getConsent();
-    if (!existingConsent) {
+    const consent = getCookie(COOKIE_NAME);
+    if (!consent) {
       const timer = setTimeout(() => setIsVisible(true), 1000);
       return () => clearTimeout(timer);
     }
   }, []);
 
   const handleAcceptAll = () => {
-    const allConsents = {
-      [CookieCategory.NECESSARY]: true,
-      [CookieCategory.FUNCTIONAL]: true,
-      [CookieCategory.ANALYTICS]: true,
-      [CookieCategory.MARKETING]: true
-    };
-    
-    EmotiAnalyzeCookies.setConsent(allConsents);
+    setCookie(COOKIE_NAME, 'all', 365);
     setIsVisible(false);
     onAcceptAll?.();
   };
 
   const handleRejectAll = () => {
-    const necessaryOnly = {
-      [CookieCategory.NECESSARY]: true,
-      [CookieCategory.FUNCTIONAL]: false,
-      [CookieCategory.ANALYTICS]: false,
-      [CookieCategory.MARKETING]: false
-    };
-    
-    EmotiAnalyzeCookies.setConsent(necessaryOnly);
+    setCookie(COOKIE_NAME, 'necessary', 365);
     setIsVisible(false);
     onRejectAll?.();
   };
@@ -74,7 +70,7 @@ const CookieConsent: React.FC<CookieConsentProps> = ({
         left: 0,
         right: 0,
         zIndex: 9999,
-        p: 2
+        p: 2,
       }}
     >
       <Paper
@@ -84,9 +80,10 @@ const CookieConsent: React.FC<CookieConsentProps> = ({
           borderRadius: 2,
           maxWidth: 600,
           mx: 'auto',
-          background: theme.palette.mode === 'dark'
-            ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
-            : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          background:
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
+              : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -97,19 +94,24 @@ const CookieConsent: React.FC<CookieConsentProps> = ({
         </Box>
 
         <Typography variant="body2" sx={{ mb: 3 }}>
-          We use cookies to enhance your experience. Accept all or customize your preferences.
+          We use cookies to enhance your experience. Accept all or customize
+          your preferences.
         </Typography>
 
         <Stack direction={isMobile ? 'column' : 'row'} spacing={2}>
-          <Button variant="outlined" onClick={handleRejectAll} fullWidth={isMobile}>
+          <Button
+            variant="outlined"
+            onClick={handleRejectAll}
+            fullWidth={isMobile}
+          >
             Reject All
           </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleAcceptAll} 
+          <Button
+            variant="contained"
+            onClick={handleAcceptAll}
             fullWidth={isMobile}
-            sx={{ 
-              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)'
+            sx={{
+              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
             }}
           >
             Accept All

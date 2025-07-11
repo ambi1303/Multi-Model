@@ -144,3 +144,49 @@ export interface BurnoutResult {
     description: string;
   }[];
 }
+
+// Authentication Types
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  employeeId: string;
+  department: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserLogin {
+  email: string;
+  password: string;
+}
+
+export interface UserRegister {
+  email: string;
+  password: string;
+  confirmPassword?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  employeeId: string;
+  departmentId: number;
+  role: 'employee' | 'manager' | 'admin';
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in?: number;
+}
+
+export interface Notification {
+  id: number;
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  timestamp?: number;
+}

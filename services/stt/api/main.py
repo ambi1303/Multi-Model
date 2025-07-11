@@ -1,573 +1,429 @@
-import sys
 import os
-from contextlib import asynccontextmanager
+import sys
+from pathlib import Path
+import uuid
+import json
 from dotenv import load_dotenv
-import time
-import psutil
-import cProfile
-import pstats
-import io
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Query, Form
 from fastapi.responses import Response
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import BaseModel
+from datetime import datetime
+from uuid import UUID
+import httpx
+import logging
+import time
+
+# Add project root to path to allow cross-service imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Add STT service root to path
+stt_service_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if stt_service_root not in sys.path:
+    sys.path.insert(0, stt_service_root)
+
+# Now that the path is set, we can import from other services
+try:
+    from services.emo_buddy.emo_buddy_agent import EmoBuddyAgent
+except ImportError as e:
+    print(f"Warning: Could not import EmoBuddyAgent: {e}")
+    EmoBuddyAgent = None
 
 # Load environment variables from .env file
 load_dotenv()
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-import logging
-import numpy as np
-import ffmpeg
-from emotion_analyzer import analyze_text, get_gen_ai_insights, transcribe_audio, load_models
-
-# Add database service path to sys.path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'db_service'))
+# Fixed import path - now use absolute import from the STT service
 try:
-    from db_client import get_db_client, get_user_id_from_request
-    DB_INTEGRATION_AVAILABLE = True
-except ImportError:
-    logger = logging.getLogger("main")
-    logger.warning("Database integration not available")
-    DB_INTEGRATION_AVAILABLE = False
-
-# Import EmoBuddyAgent with error handling
-try:
-    from emo_buddy.emo_buddy_agent import EmoBuddyAgent
-    EMO_BUDDY_AVAILABLE = True
-    logger = logging.getLogger("main")
-    logger.info("EmoBuddyAgent imported successfully")
+    from emotion_analyzer import analyze_text, get_gen_ai_insights, transcribe_audio, load_models
 except ImportError as e:
-    logger = logging.getLogger("main")
-    logger.error(f"Failed to import EmoBuddyAgent: {e}")
-    logger.error("Emo Buddy functionality will be disabled")
-    EMO_BUDDY_AVAILABLE = False
-    EmoBuddyAgent = None
+    print(f"Warning: Could not import emotion analyzer functions: {e}")
+    # Define fallback functions
+    def analyze_text(text):
+        return {"label": "neutral", "confidence": 0.5}, [{"emotion": "neutral", "confidence": 0.5}]
+    def get_gen_ai_insights(text):
+        return None
+    def transcribe_audio(file_path):
+        return "Audio transcription not available"
+    def load_models():
+        pass
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
-# Pydantic models for request/response bodies
-class EmoBuddySessionRequest(BaseModel):
-    analysis_report: Dict[str, Any]
-    user_email: str = None
-    user_name: str = None
+def validate_user_uuid(user_id: str) -> UUID:
+    """Validate user UUID and handle potential errors"""
+    try:
+        return UUID(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid user_id format. Must be a valid UUID.")
 
-class EmoBuddyConversationRequest(BaseModel):
+# Load models on startup
+try:
+    load_models()
+    logger.info("Speech and emotion models loaded successfully.")
+except Exception as e:
+    logger.error(f"FATAL: Could not load models on startup: {e}", exc_info=True)
+
+app = FastAPI(
+    title="Speech-to-Text & Emotion Analysis API",
+    description="Analyzes speech for emotion and sentiment with EmoBuddy integration",
+    version="1.0.0"
+)
+
+class AnalysisResponse(BaseModel):
     session_id: str
-    user_input: str
+    user_id: str
+    timestamp: datetime
+    transcription: str
+    sentiment: Dict[str, Any]
+    emotions: Dict[str, Any]
+    gen_ai_insights: Optional[Dict[str, Any]] = None
+    emo_buddy_response: Optional[str] = None
 
-class EmoBuddyEndSessionRequest(BaseModel):
-    session_id: str
-
-class SpeechAnalysisRequest(BaseModel):
+class UserInfo(BaseModel):
+    user_id: str
     user_email: str = None
     user_name: str = None
 
 # Store active Emo Buddy sessions
 active_sessions: Dict[str, EmoBuddyAgent] = {}
+# Store active core service sessions
+active_core_sessions: Dict[str, UUID] = {}
 
-# Prometheus metrics
-REQUESTS = Counter('stt_requests_total', 'Total speech analysis requests', ['endpoint'])
-PROCESSING_TIME = Histogram('stt_processing_seconds', 'Time spent processing speech requests', ['endpoint'])
-ERROR_COUNT = Counter('stt_errors_total', 'Total errors in speech analysis', ['endpoint', 'error_type'])
-MEMORY_USAGE = Gauge('stt_memory_usage_bytes', 'Memory usage of the speech service')
-CPU_USAGE = Gauge('stt_cpu_usage_percent', 'CPU usage of the speech service')
+# --- Helper Functions ---
 
-# Update system metrics
-def update_system_metrics():
-    """Update Prometheus metrics for system resource usage"""
-    MEMORY_USAGE.set(psutil.Process(os.getpid()).memory_info().rss)
-    CPU_USAGE.set(psutil.Process(os.getpid()).cpu_percent())
+def get_core_service_url():
+    """Get the core service URL from environment variables, with a fallback."""
+    url = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+    if not url:
+        logger.warning("CORE_SERVICE_URL is not set, defaulting to http://localhost:8000")
+        return "http://localhost:8000"
+    return url
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Load the ML models
-    logger.info("Application startup: Loading models...")
-    load_models()
-    logger.info("Application startup: Models loaded successfully.")
-    yield
-    # Clean up the models and release the resources
-    logger.info("Application shutdown: Cleaning up...")
+def get_service_token():
+    """Get service account token for internal API calls"""
+    # For now, we'll use a configurable service token
+    # In production, this should be a proper service account JWT
+    service_token = os.getenv("SERVICE_AUTH_TOKEN")
+    if not service_token:
+        logger.warning("SERVICE_AUTH_TOKEN not set, inter-service authentication may fail")
+    return service_token
 
+async def create_emo_buddy_session_in_core(user_id: str) -> Optional[UUID]:
+    """Create an EmoBuddy session in the core service database"""
+    core_service_url = get_core_service_url()
+    service_token = get_service_token()
+    
+    if not service_token:
+        logger.error("No service token available for creating EmoBuddy session")
+        return None
+    
+    headers = {
+        "Authorization": f"Bearer {service_token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{core_service_url}/emo-buddy/sessions",
+                headers=headers,
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                session_data = response.json()
+                session_uuid = UUID(session_data["session_uuid"])
+                logger.info(f"Created EmoBuddy session {session_uuid} for user {user_id}")
+                return session_uuid
+            else:
+                logger.error(f"Failed to create EmoBuddy session: {response.status_code} - {response.text}")
+                return None
+                
+    except Exception as e:
+        logger.error(f"Error creating EmoBuddy session: {e}")
+        return None
 
-app = FastAPI(lifespan=lifespan)
+async def add_message_to_emo_buddy_session(session_uuid: UUID, user_message: str, bot_response: str, user_id: str):
+    """Add messages to the EmoBuddy session in core database"""
+    core_service_url = get_core_service_url()
+    service_token = get_service_token()
+    
+    if not service_token:
+        logger.error("No service token available for adding EmoBuddy messages")
+        return
+    
+    headers = {
+        "Authorization": f"Bearer {service_token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Add user message
+            user_message_data = {
+                "message_text": user_message,
+                "is_user_message": True
+            }
+            
+            response = await client.post(
+                f"{core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
+                headers=headers,
+                json=user_message_data,
+                timeout=10.0
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to add user message: {response.status_code} - {response.text}")
+            
+            # Add bot response
+            bot_message_data = {
+                "message_text": bot_response,
+                "is_user_message": False
+            }
+            
+            response = await client.post(
+                f"{core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
+                headers=headers,
+                json=bot_message_data,
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                logger.info(f"Added messages to EmoBuddy session {session_uuid}")
+            else:
+                logger.error(f"Failed to add bot message: {response.status_code} - {response.text}")
+                
+    except Exception as e:
+        logger.error(f"Error adding messages to EmoBuddy session: {e}")
 
-# CORS Middleware
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:3002",
-    "http://localhost:5173",  # Vite frontend
-    "http://localhost:8000",  # Default FastAPI port
-    "http://localhost:8001",  # Video model
-    "http://localhost:8002",  # STT model
-    "http://localhost:8003",  # Chat model
-    "http://localhost:8004",  # Survey model
-    "http://localhost:9000",  # Integrated backend
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:8001",
-    "http://127.0.0.1:8002",
-    "http://127.0.0.1:8003",
-    "http://127.0.0.1:8004",
-    "http://127.0.0.1:9000",
-]
+async def store_analysis_in_db(analysis_data: Dict, user_id: str):
+    """Asynchronously stores analysis data in the core service database."""
+    core_service_url = get_core_service_url()
+    service_token = get_service_token()
+    
+    if not service_token:
+        logger.error("No service token available for storing analysis data")
+        return
+    
+    # The STT service should now send data to the specific speech analysis endpoint
+    speech_analysis_endpoint = f"{core_service_url}/analyses/speech"
+    
+    headers = {
+        "Authorization": f"Bearer {service_token}",
+        "Content-Type": "application/json"
+    }
+    
+    # --- Payload Transformation ---
+    # We need to convert the stt service's `analysis_data` dictionary
+    # into the `SpeechAnalysisCreate` schema expected by the core service.
+    
+    sentiment_data = analysis_data.get("sentiment", {})
+    emotions_data = analysis_data.get("emotions", {})
+    
+    # Extract top emotion and scores
+    top_emotion_label = "NEUTRAL"
+    emotion_scores = []
+    
+    if emotions_data and isinstance(emotions_data, dict):
+        if emotions_data.get('emotion_scores'):
+            # Find the emotion with the highest score
+            top_emotion = max(emotions_data['emotion_scores'], key=lambda x: x.get('confidence', 0), default=None)
+            if top_emotion:
+                top_emotion_label = top_emotion['emotion'].upper()
+            # Format for schema - ensure proper structure
+            emotion_scores = [
+                {"emotion": e['emotion'].upper(), "score": float(e.get('confidence', 0))} 
+                for e in emotions_data['emotion_scores']
+                if 'emotion' in e and 'confidence' in e
+            ]
+        elif isinstance(emotions_data, list):
+            # Handle case where emotions is a list directly
+            if emotions_data:
+                top_emotion_label = emotions_data[0].get('emotion', 'neutral').upper()
+                emotion_scores = [
+                    {"emotion": e.get('emotion', 'neutral').upper(), "score": float(e.get('confidence', 0))} 
+                    for e in emotions_data
+                    if isinstance(e, dict) and 'emotion' in e
+                ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # Get audio duration from file metadata or estimate
+    audio_duration = analysis_data.get("audio_duration_seconds", 5.0)  # Default estimate
+    
+    payload = {
+        "user_id": user_id,
+        "session_id": analysis_data.get("session_id", str(uuid.uuid4())),
+        "transcribed_text": analysis_data.get("transcription", ""),
+        "audio_duration_seconds": float(audio_duration),
+        "sentiment": sentiment_data.get("label", "neutral").upper(),
+        "sentiment_score": float(sentiment_data.get("confidence", 0.0)),
+        "dominant_emotion": top_emotion_label,
+        "emotion_scores": emotion_scores,
+        "raw_analysis_data": analysis_data  # Store original data for reference
+    }
 
-@app.get("/")
-def read_root():
-    return {"message": "STT Analysis Backend is running"}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(speech_analysis_endpoint, json=payload, headers=headers, timeout=10.0)
+            
+            # Check for both success and specific client errors
+            if 400 <= response.status_code < 500:
+                logger.error(f"Client error storing speech analysis for user {user_id}: {response.status_code} - {response.text}")
+            
+            response.raise_for_status()
+            logger.info(f"Successfully stored speech analysis for user {user_id} in core service.")
+    except httpx.RequestError as e:
+        logger.error(f"Network error sending speech analysis to core service for user {user_id}: {e}")
+    except httpx.HTTPStatusError as e:
+        # This will catch 4xx and 5xx responses after raise_for_status
+        logger.error(f"HTTP error storing speech analysis for user {user_id}: {e.response.status_code} - {e.response.text}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while storing speech analysis for user {user_id}: {e}")
+
+def process_audio_file(audio_file: UploadFile):
+    """Processes the uploaded audio file and returns transcription and analysis."""
+    try:
+        # Save temporary file
+        temp_audio_path = f"temp_{uuid.uuid4()}.wav"
+        audio_content = audio_file.file.read()
+        
+        with open(temp_audio_path, "wb") as f:
+            f.write(audio_content)
+
+        # Calculate audio duration (rough estimate based on file size)
+        # This is a rough estimate - for better accuracy, use librosa or similar
+        file_size_bytes = len(audio_content)
+        estimated_duration = max(1.0, file_size_bytes / 32000)  # Rough estimate for 16kHz 16-bit audio
+
+        # Transcribe audio
+        transcription = transcribe_audio(temp_audio_path)
+        if not transcription:
+            raise HTTPException(status_code=400, detail="Could not transcribe audio.")
+
+        # Analyze text for emotions
+        sentiment, emotions = analyze_text(transcription)
+
+        return transcription, sentiment, emotions, estimated_duration
+
+    except Exception as e:
+        logger.error(f"Error processing audio file: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error processing audio file.")
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+
+# --- API Endpoints ---
+
+@app.post("/analyze-speech/", response_model=AnalysisResponse)
+async def analyze_speech(
+    user_id: str = Form(...),
+    session_id: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+    gen_ai_enabled: bool = Form(False)
+):
+    """
+    Analyzes speech from an audio file, returns transcription and emotion analysis,
+    and interacts with Emo Buddy with proper database integration.
+    """
+    validated_user_id = validate_user_uuid(user_id)
+    
+    transcription, sentiment, emotions, audio_duration = process_audio_file(file)
+    gen_ai_insights = get_gen_ai_insights(transcription) if gen_ai_enabled else None
+
+    # Handle EmoBuddy session management
+    emo_buddy_response = ""
+    current_session_id = session_id
+    
+    if EmoBuddyAgent:
+        if not session_id or session_id not in active_sessions:
+            # Start new session
+            current_session_id = str(uuid.uuid4())
+            logger.info(f"Starting new EmoBuddy session: {current_session_id}")
+            
+            # Create session in core database
+            core_session_uuid = await create_emo_buddy_session_in_core(str(validated_user_id))
+            if core_session_uuid:
+                active_core_sessions[current_session_id] = core_session_uuid
+            
+            agent = EmoBuddyAgent()
+            analysis_report = {
+                "user_id": str(validated_user_id),
+                "transcription": transcription,
+                "sentiment": sentiment,
+                "emotions": {"emotion_scores": emotions} if isinstance(emotions, list) else emotions,
+                "gen_ai_insights": gen_ai_insights
+            }
+            emo_buddy_response = agent.start_session(analysis_report)
+            active_sessions[current_session_id] = agent
+            
+            # Store initial interaction in database
+            if core_session_uuid:
+                await add_message_to_emo_buddy_session(
+                    core_session_uuid, 
+                    transcription, 
+                    emo_buddy_response, 
+                    str(validated_user_id)
+                )
+        else:
+            # Continue existing session
+            logger.info(f"Continuing EmoBuddy session: {session_id}")
+            agent = active_sessions.get(session_id)
+            if not agent:
+                raise HTTPException(status_code=404, detail="EmoBuddy session not found.")
+            
+            emo_buddy_response, should_continue = agent.continue_conversation(transcription)
+            
+            # Store interaction in database
+            core_session_uuid = active_core_sessions.get(session_id)
+            if core_session_uuid:
+                await add_message_to_emo_buddy_session(
+                    core_session_uuid, 
+                    transcription, 
+                    emo_buddy_response, 
+                    str(validated_user_id)
+                )
+            
+            if not should_continue:
+                logger.info(f"EmoBuddy session {session_id} ended by agent.")
+                # Clean up session
+                if session_id in active_sessions:
+                    del active_sessions[session_id]
+                if session_id in active_core_sessions:
+                    del active_core_sessions[session_id]
+    else:
+        emo_buddy_response = "EmoBuddy service temporarily unavailable."
+        current_session_id = session_id or str(uuid.uuid4())
+
+    # Prepare response and store in DB
+    response_data = {
+        "session_id": current_session_id,
+        "user_id": str(validated_user_id),
+        "timestamp": datetime.now(),
+        "transcription": transcription,
+        "sentiment": sentiment,
+        "emotions": {"emotion_scores": emotions} if isinstance(emotions, list) else emotions,
+        "gen_ai_insights": gen_ai_insights,
+        "emo_buddy_response": emo_buddy_response,
+        "audio_duration_seconds": audio_duration
+    }
+    
+    await store_analysis_in_db(response_data, str(validated_user_id))
+    
+    return AnalysisResponse(**response_data)
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    update_system_metrics()
     return {
-        "status": "healthy", 
-        "message": "STT Analysis API is running",
-        "emo_buddy_available": EMO_BUDDY_AVAILABLE
+        "status": "ok", 
+        "service": "STT_Enhanced",
+        "models_loaded": True,
+        "core_service_url": get_core_service_url(),
+        "has_service_token": bool(get_service_token())
     }
-
-@app.get("/metrics")
-async def metrics():
-    """Expose Prometheus metrics"""
-    update_system_metrics()
-    return Response(content=generate_latest(), media_type="text/plain")
-
-@app.get("/emo-buddy-availability")
-async def check_emo_buddy_availability():
-    """Check if Emo Buddy service is available"""
-    return {
-        "available": EMO_BUDDY_AVAILABLE,
-        "message": "Emo Buddy service is available" if EMO_BUDDY_AVAILABLE else "Emo Buddy service is not available",
-        "features": {
-            "therapeutic_sessions": EMO_BUDDY_AVAILABLE,
-            "crisis_detection": EMO_BUDDY_AVAILABLE,
-            "memory_system": EMO_BUDDY_AVAILABLE,
-            "corporate_context": EMO_BUDDY_AVAILABLE
-        }
-    }
-
-@app.post("/analyze-speech")
-async def analyze_speech(
-    audio_file: UploadFile = File(...), 
-    profile: bool = Query(False, description="Enable profiling for this request"),
-    user_email: str = Query(None, description="User email for database storage"),
-    user_name: str = Query(None, description="User name for database storage")
-):
-    REQUESTS.labels(endpoint='analyze-speech').inc()
-    start_time = time.time()
-    
-    # Initialize profiler if requested
-    pr = None
-    if profile:
-        pr = cProfile.Profile()
-        pr.enable()
-    
-    import tempfile
-    import shutil
-    logger.info(f"Received audio file: {audio_file.filename}")
-    
-    temp_webm_path = None
-    temp_wav_path = None
-    try:
-        # 1. Save the uploaded WebM file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_webm:
-            shutil.copyfileobj(audio_file.file, temp_webm)
-            temp_webm_path = temp_webm.name
-        
-        # 2. Convert WebM to WAV using ffmpeg
-        temp_wav_path = temp_webm_path + ".wav"
-        logger.info(f"Converting {temp_webm_path} to {temp_wav_path}...")
-        try:
-            (
-                ffmpeg
-                .input(temp_webm_path)
-                .output(temp_wav_path, acodec='pcm_s16le', ac=1, ar='16000')
-                .run(capture_stdout=True, capture_stderr=True, overwrite_output=True)
-            )
-        except ffmpeg.Error as e:
-            logger.error(f"FFmpeg conversion error: {e.stderr.decode()}")
-            ERROR_COUNT.labels(endpoint='analyze-speech', error_type='ffmpeg_conversion').inc()
-            raise HTTPException(status_code=500, detail="Failed to convert audio file.")
-
-        logger.info(f"Audio file converted and saved to {temp_wav_path}")
-
-        # 3. Transcribe the converted WAV file
-        transcription = transcribe_audio(temp_wav_path)
-
-        if not transcription:
-            ERROR_COUNT.labels(endpoint='analyze-speech', error_type='transcription_failed').inc()
-            raise HTTPException(status_code=400, detail="Could not transcribe audio. Speech may be unclear or silent.")
-
-        analysis_report = analyze_text(transcription)
-        
-        logger.info("Generating AI insights...")
-        gen_ai_insights = get_gen_ai_insights(analysis_report)
-        
-        # Build a more detailed and formatted technical report string
-        s = analysis_report['sentiment']
-        e = analysis_report['emotions']
-
-        technical_report_str = (
-            f"TRANSCRIPTION\n"
-            f"------------------------------------\n"
-            f"{analysis_report['transcription']}\n\n"
-            f"SENTIMENT\n"
-            f"------------------------------------\n"
-            f"  - Label: {s['label'].capitalize()}\n"
-            f"  - Confidence: {s['confidence']:.2f}\n"
-            f"  - Polarity: {s['polarity']:.2f} (Negative < 0 < Positive)\n"
-            f"  - Subjectivity: {s['subjectivity']:.2f} (Objective < 0.5 < Subjective)\n"
-            f"  - Intensity: {s['intensity']}\n\n"
-            f"TOP EMOTIONS\n"
-            f"------------------------------------\n"
-            + "\n".join([f"  - {emo['emotion'].capitalize()}: {emo['confidence']:.2f}" for emo in e])
-        )
-        
-        # Store in centralized database
-        if DB_INTEGRATION_AVAILABLE:
-            try:
-                db_client = get_db_client()
-                email = user_email or "stt_user@example.com"
-                name = user_name or "STT Analysis User"
-                user_id = db_client.get_or_create_user(email, name)
-                
-                if user_id:
-                    success = db_client.store_stt_analysis(user_id, analysis_report)
-                    if success:
-                        db_client.log_audit_event(user_id, "stt_analysis", {
-                            "service": "stt",
-                            "transcription_length": len(analysis_report["transcription"]),
-                            "sentiment_label": analysis_report["sentiment"]["label"],
-                            "top_emotion": analysis_report["emotions"][0]["emotion"] if analysis_report["emotions"] else "none"
-                        })
-                        logger.info(f"Stored STT analysis in database for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error storing STT analysis: {str(e)}")
-        
-        # Update metrics
-        update_system_metrics()
-        
-        result = {
-            "transcription": analysis_report["transcription"],
-            "sentiment": analysis_report["sentiment"],
-            "emotions": analysis_report["emotions"],
-            "genAIInsights": gen_ai_insights,
-            "technicalReport": technical_report_str
-        }
-        
-        # Add profiling results if profiling was enabled
-        if profile and pr:
-            pr.disable()
-            s = io.StringIO()
-            ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-            ps.print_stats(30)  # Print top 30 functions by cumulative time
-            result["profiling"] = s.getvalue()
-            
-        return result
-
-    except Exception as e:
-        logger.error(f"Error during speech analysis: {e}", exc_info=True)
-        ERROR_COUNT.labels(endpoint='analyze-speech', error_type='general').inc()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        # 4. Clean up both temporary files
-        if temp_webm_path and os.path.exists(temp_webm_path):
-            os.remove(temp_webm_path)
-            logger.info(f"Cleaned up temporary file: {temp_webm_path}")
-        if temp_wav_path and os.path.exists(temp_wav_path):
-            os.remove(temp_wav_path)
-            logger.info(f"Cleaned up temporary file: {temp_wav_path}")
-        PROCESSING_TIME.labels(endpoint='analyze-speech').observe(time.time() - start_time)
-        
-        # Clean up profiler if it was enabled
-        if profile and pr:
-            pr.disable()
-
-@app.get("/profile-report")
-async def get_profile_report():
-    """
-    Get a detailed profile report of the application.
-    This endpoint will profile the application for 5 seconds and return the results.
-    """
-    REQUESTS.labels(endpoint='profile-report').inc()
-    start_time = time.time()
-    
-    try:
-        # Create a profiler
-        pr = cProfile.Profile()
-        pr.enable()
-        
-        # Profile for 5 seconds
-        time.sleep(5)
-        
-        # Disable profiler and get results
-        pr.disable()
-        s = io.StringIO()
-        ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-        ps.print_stats(50)  # Print top 50 functions by cumulative time
-        
-        # Update metrics
-        update_system_metrics()
-        
-        return {
-            "profile_duration": 5,
-            "profile_report": s.getvalue(),
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-        }
-    except Exception as e:
-        ERROR_COUNT.labels(endpoint='profile-report', error_type='general').inc()
-        logger.error(f"Error generating profile report: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to generate profile report: {str(e)}")
-    finally:
-        PROCESSING_TIME.labels(endpoint='profile-report').observe(time.time() - start_time)
-
-@app.post("/start-emo-buddy")
-async def start_emo_buddy_session(request: EmoBuddySessionRequest):
-    """Start a new Emo Buddy therapeutic session"""
-    REQUESTS.labels(endpoint='start-emo-buddy').inc()
-    start_time = time.time()
-    
-    try:
-        # Check if Emo Buddy is available
-        if not EMO_BUDDY_AVAILABLE:
-            raise HTTPException(
-                status_code=503, 
-                detail="Emo Buddy service is not available. Please ensure the emo_buddy module is properly installed and configured."
-            )
-        
-        # Generate unique session ID
-        session_id = f"emo_buddy_{int(time.time() * 1000)}"
-        
-        # Initialize Emo Buddy agent
-        emo_buddy = EmoBuddyAgent()
-        
-        # Start session with analysis report
-        initial_response = emo_buddy.start_session(request.analysis_report)
-        
-        # Store session
-        active_sessions[session_id] = emo_buddy
-        
-        # Store user information for later database storage
-        if DB_INTEGRATION_AVAILABLE and (request.user_email or request.user_name):
-            emo_buddy.db_user_email = request.user_email
-            emo_buddy.db_user_name = request.user_name
-        
-        # Update metrics
-        update_system_metrics()
-        
-        return {
-            "session_id": session_id,
-            "response": initial_response,
-            "status": "session_started"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error starting Emo Buddy session: {e}", exc_info=True)
-        ERROR_COUNT.labels(endpoint='start-emo-buddy', error_type='session_start').inc()
-        raise HTTPException(status_code=500, detail=f"Failed to start Emo Buddy session: {str(e)}")
-    finally:
-        PROCESSING_TIME.labels(endpoint='start-emo-buddy').observe(time.time() - start_time)
-
-@app.post("/continue-emo-buddy")
-async def continue_emo_buddy_conversation(request: EmoBuddyConversationRequest):
-    """Continue an existing Emo Buddy conversation"""
-    REQUESTS.labels(endpoint='continue-emo-buddy').inc()
-    start_time = time.time()
-    
-    try:
-        # Check if Emo Buddy is available
-        if not EMO_BUDDY_AVAILABLE:
-            raise HTTPException(
-                status_code=503, 
-                detail="Emo Buddy service is not available."
-            )
-        
-        # Check if session exists
-        if request.session_id not in active_sessions:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        emo_buddy = active_sessions[request.session_id]
-        
-        # Continue conversation
-        response, should_continue = emo_buddy.continue_conversation(request.user_input)
-        
-        # Update metrics
-        update_system_metrics()
-        
-        return {
-            "session_id": request.session_id,
-            "response": response,
-            "should_continue": should_continue,
-            "status": "conversation_continued"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error continuing Emo Buddy conversation: {e}", exc_info=True)
-        ERROR_COUNT.labels(endpoint='continue-emo-buddy', error_type='conversation_error').inc()
-        raise HTTPException(status_code=500, detail=f"Failed to continue conversation: {str(e)}")
-    finally:
-        PROCESSING_TIME.labels(endpoint='continue-emo-buddy').observe(time.time() - start_time)
-
-@app.post("/end-emo-buddy")
-async def end_emo_buddy_session(request: EmoBuddyEndSessionRequest):
-    """End an Emo Buddy therapeutic session"""
-    REQUESTS.labels(endpoint='end-emo-buddy').inc()
-    start_time = time.time()
-    
-    try:
-        # Check if Emo Buddy is available
-        if not EMO_BUDDY_AVAILABLE:
-            raise HTTPException(
-                status_code=503, 
-                detail="Emo Buddy service is not available."
-            )
-        
-        # Check if session exists
-        if request.session_id not in active_sessions:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        emo_buddy = active_sessions[request.session_id]
-        
-        # End session and get summary
-        session_summary = emo_buddy.end_session()
-        
-        # Store in centralized database
-        if DB_INTEGRATION_AVAILABLE:
-            try:
-                db_client = get_db_client()
-                email = getattr(emo_buddy, 'db_user_email', None) or "emo_buddy_user@example.com"
-                name = getattr(emo_buddy, 'db_user_name', None) or "EmoBuddy User"
-                user_id = db_client.get_or_create_user(email, name)
-                
-                if user_id:
-                    # Prepare session data for storage
-                    session_data = {
-                        "summary": session_summary,
-                        "emotions_tracked": emo_buddy.current_session.get("emotions_tracked", []),
-                        "techniques_used": emo_buddy.current_session.get("techniques_used", []),
-                        "crisis_flags": emo_buddy.current_session.get("crisis_flags", []),
-                        "duration": str(datetime.now() - emo_buddy.current_session.get("start_time", datetime.now())),
-                        "session_id": request.session_id
-                    }
-                    
-                    success = db_client.store_emo_buddy_session(user_id, session_data)
-                    if success:
-                        db_client.log_audit_event(user_id, "emo_buddy_session", {
-                            "service": "emo_buddy",
-                            "session_id": request.session_id,
-                            "emotions_count": len(session_data.get("emotions_tracked", [])),
-                            "techniques_count": len(session_data.get("techniques_used", []))
-                        })
-                        logger.info(f"Stored EmoBuddy session in database for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error storing EmoBuddy session: {str(e)}")
-        
-        # Remove session from active sessions
-        del active_sessions[request.session_id]
-        
-        # Update metrics
-        update_system_metrics()
-        
-        return {
-            "session_id": request.session_id,
-            "summary": session_summary,
-            "status": "session_ended"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error ending Emo Buddy session: {e}", exc_info=True)
-        ERROR_COUNT.labels(endpoint='end-emo-buddy', error_type='session_end').inc()
-        raise HTTPException(status_code=500, detail=f"Failed to end session: {str(e)}")
-    finally:
-        PROCESSING_TIME.labels(endpoint='end-emo-buddy').observe(time.time() - start_time)
-
-@app.get("/emo-buddy-status/{session_id}")
-async def get_emo_buddy_status(session_id: str):
-    """Get the status of an Emo Buddy session"""
-    try:
-        # Check if Emo Buddy is available
-        if not EMO_BUDDY_AVAILABLE:
-            return {
-                "session_id": session_id, 
-                "status": "service_unavailable", 
-                "active": False,
-                "message": "Emo Buddy service is not available"
-            }
-        
-        if session_id not in active_sessions:
-            return {"session_id": session_id, "status": "not_found", "active": False}
-        
-        emo_buddy = active_sessions[session_id]
-        
-        return {
-            "session_id": session_id,
-            "status": "active",
-            "active": True,
-            "session_info": {
-                "start_time": emo_buddy.current_session.get("start_time").isoformat() if emo_buddy.current_session.get("start_time") else None,
-                "messages_count": len(emo_buddy.current_session.get("messages", [])),
-                "emotions_tracked": len(emo_buddy.current_session.get("emotions_tracked", [])),
-                "techniques_used": len(emo_buddy.current_session.get("techniques_used", []))
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting Emo Buddy status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get session status: {str(e)}")
-
-@app.get("/active-sessions")
-async def get_active_sessions():
-    """Get list of active Emo Buddy sessions"""
-    try:
-        # Check if Emo Buddy is available
-        if not EMO_BUDDY_AVAILABLE:
-            return {
-                "active_sessions_count": 0,
-                "sessions": [],
-                "message": "Emo Buddy service is not available"
-            }
-        
-        sessions_info = []
-        for session_id, emo_buddy in active_sessions.items():
-            session_info = {
-                "session_id": session_id,
-                "start_time": emo_buddy.current_session.get("start_time").isoformat() if emo_buddy.current_session.get("start_time") else None,
-                "messages_count": len(emo_buddy.current_session.get("messages", [])),
-                "emotions_tracked": len(emo_buddy.current_session.get("emotions_tracked", [])),
-                "techniques_used": len(emo_buddy.current_session.get("techniques_used", []))
-            }
-            sessions_info.append(session_info)
-        
-        return {
-            "active_sessions_count": len(active_sessions),
-            "sessions": sessions_info
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting active sessions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get active sessions: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002) 
+    uvicorn.run("main:app", host="0.0.0.0", port=8002, reload=True) 

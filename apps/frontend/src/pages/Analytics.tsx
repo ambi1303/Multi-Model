@@ -37,6 +37,8 @@ import {
   SpeechAnalyticsDashboard, 
   ChatAnalyticsDashboard 
 } from '../components/LazyComponents';
+import SentimentTrendChart from '../components/charts/SentimentTrendChart';
+import SimpleChartFallback from '../components/charts/SimpleChartFallback';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -61,7 +63,7 @@ const tabs = [
   { label: 'Chat Analysis', value: 'chat', icon: <AnalyticsIcon /> },
 ];
 
-export const Analytics: React.FC = () => {
+const Analytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [filters, setFilters] = useState<AnalyticsFilters>({
     dateRange: {
@@ -78,17 +80,24 @@ export const Analytics: React.FC = () => {
   const { data, error, isLoading, isSuccess, isError, refetch } = useQuery<AnalyticsData, Error>({
     queryKey: ['analytics', filters],
     queryFn: () => analyticsApi.getAnalytics(filters),
+    notifyOnChangeProps: ['data', 'error'],
   });
 
+  const notificationSent = React.useRef({ success: false, error: false });
+
   useEffect(() => {
-    if (isSuccess) {
+    if (isSuccess && !notificationSent.current.success) {
       showSuccess('Analytics data loaded successfully.');
+      notificationSent.current.success = true;
+      notificationSent.current.error = false;
     }
   }, [isSuccess, showSuccess]);
 
   useEffect(() => {
-    if (isError) {
+    if (isError && !notificationSent.current.error) {
       showError(error?.message || 'An unknown error occurred.');
+      notificationSent.current.error = true;
+      notificationSent.current.success = false;
     }
   }, [isError, error, showError]);
 
@@ -177,9 +186,11 @@ export const Analytics: React.FC = () => {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Refresh Data">
-                <IconButton onClick={() => refetch()} disabled={isLoading}>
-                  <RefreshIcon />
-                </IconButton>
+                <span>
+                  <IconButton onClick={() => refetch()} disabled={isLoading}>
+                    <RefreshIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
               <Tooltip title="Export Data">
                 <IconButton onClick={handleExportData}>
@@ -302,3 +313,5 @@ export const Analytics: React.FC = () => {
     </Box>
   );
 };
+
+export default Analytics;

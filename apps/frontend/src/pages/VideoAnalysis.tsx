@@ -27,6 +27,7 @@ import { VideoAnalysisResult } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
+import { useAnalysisProgress } from '../hooks/useAnalysisProgress';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -40,7 +41,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
   </div>
 );
 
-export const VideoAnalysis: React.FC = () => {
+const VideoAnalysis: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [analysis, setAnalysis] = useState<VideoAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -520,3 +521,5 @@ export const VideoAnalysis: React.FC = () => {
     </Box>
   );
 };
+
+export default VideoAnalysis;

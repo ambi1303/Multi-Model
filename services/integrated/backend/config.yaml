@@ -1,5 +1,6 @@
 # Backend URLs
 backend_urls:
+  core: http://localhost:8000
   video: http://localhost:8001/analyze-emotion
   stt: http://localhost:8002/analyze-speech
   chat: http://localhost:8003/analyze/single

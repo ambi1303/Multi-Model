@@ -17,6 +17,7 @@ import {
 } from '../services/api';
 import { EnhancedBurnoutSurveyForm } from '../components/burnout/EnhancedBurnoutSurveyForm';
 import EnhancedBurnoutSurveyResult from '../components/burnout/EnhancedBurnoutSurveyResult';
+import { useNavigate } from 'react-router-dom';
 
 interface FormData {
   designation: number;
@@ -60,12 +61,13 @@ const createSurveyData = (data: FormData): SurveyData => ({
   q10: Number(data.q10),
 });
 
-export const EnhancedBurnoutSurvey: React.FC = () => {
+const EnhancedBurnoutSurvey: React.FC = () => {
   const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const { showSuccess, showError } = useNotification();
   const { addAnalysisResult } = useAppStore();
   const theme = useTheme();
+  const navigate = useNavigate();
 
   const formMethods = useForm<FormData>({
     defaultValues: {
@@ -250,4 +252,6 @@ export const EnhancedBurnoutSurvey: React.FC = () => {
       </Box>
     </Container>
   );
-}; 
+};
+
+export default EnhancedBurnoutSurvey; 

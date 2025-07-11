@@ -23,6 +23,26 @@ from fastapi import APIRouter
 import time
 import psutil
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
+from uuid import UUID
+
+# Initialize logging first before any imports that might use it
+logger = logging.getLogger("integrated_backend")
+
+try:
+    from services.shared_auth import validate_user_uuid
+    SHARED_AUTH_AVAILABLE = True
+except ImportError:
+    logger.warning("Shared auth module not available")
+    SHARED_AUTH_AVAILABLE = False
+    def validate_user_uuid(user_id):
+        return UUID(user_id)
+
+try:
+    from services.db_service.db_client import get_db_client
+    DB_CLIENT_AVAILABLE = True
+except ImportError:
+    logger.warning("Database client not available")
+    DB_CLIENT_AVAILABLE = False
 
 # Load configuration from YAML file
 def load_config():
@@ -70,13 +90,13 @@ def load_config():
 # Load configuration
 config = load_config()
 
-# Set up logging
+# Set up logging configuration
 logging_config = config.get("logging", {})
 log_level = getattr(logging, logging_config.get("level", "INFO"))
 log_format = logging_config.get("format", '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 log_file = logging_config.get("file", "app.log")
 
-logger = logging.getLogger("integrated_backend")
+# Configure the logger that was already initialized
 logger.setLevel(log_level)
 
 # Add file handler
@@ -120,6 +140,7 @@ app.add_middleware(
 
 # Backend URLs from config
 backend_urls = config.get("backend_urls", {})
+CORE_SERVICE_URL = backend_urls.get("core", "http://localhost:8000")
 VIDEO_BACKEND_URL = backend_urls.get("video", "http://localhost:8001/analyze-emotion")
 STT_BACKEND_URL = backend_urls.get("stt", "http://localhost:8002/analyze-speech")
 CHAT_BACKEND_URL = backend_urls.get("chat", "http://localhost:8003/analyze/single")
@@ -128,6 +149,53 @@ EMO_BUDDY_BACKEND_URL = backend_urls.get("emo_buddy", "http://localhost:8005")
 
 # In-memory storage for video analytics (for demo; replace with DB for production)
 video_analysis_results = []
+
+# --- Database Integration Helper Functions ---
+
+async def store_analysis_in_core_db(analysis_type: str, analysis_data: dict, user_id: str, session_token: str = None):
+    """Store analysis results in core database via API calls"""
+    try:
+        headers = {"Content-Type": "application/json"}
+        if session_token:
+            headers["Authorization"] = f"Bearer {session_token}"
+        
+        endpoint_mapping = {
+            "video": "/analyses/video",
+            "speech": "/analyses/speech", 
+            "chat": "/analyses/chat"
+        }
+        
+        endpoint = endpoint_mapping.get(analysis_type)
+        if not endpoint:
+            logger.warning(f"No database endpoint defined for analysis type: {analysis_type}")
+            return None
+            
+        # Add user_id to analysis data
+        analysis_data["user_id"] = user_id
+        
+        async with session.post(f"{CORE_SERVICE_URL}{endpoint}", json=analysis_data, headers=headers) as resp:
+            if resp.status == 200:
+                result = await resp.json()
+                logger.info(f"Successfully stored {analysis_type} analysis in database for user {user_id}")
+                return result
+            else:
+                error_text = await resp.text()
+                logger.error(f"Failed to store {analysis_type} analysis in database: {resp.status} - {error_text}")
+                return None
+                
+    except Exception as e:
+        logger.error(f"Error storing {analysis_type} analysis in database: {e}")
+        return None
+
+async def get_service_auth_token():
+    """Get service authentication token for internal API calls"""
+    try:
+        # For now, use a simple service token approach
+        # In production, implement proper service-to-service authentication
+        return os.getenv("SERVICE_AUTH_TOKEN", "")
+    except Exception as e:
+        logger.error(f"Error getting service auth token: {e}")
+        return ""
 
 # Update system metrics
 def update_system_metrics():
@@ -189,6 +257,7 @@ class EmployeeData(BaseModel):
     company_type: Literal["Service", "Product"] = Field(..., description="Type of company")
     wfh_setup_available: Literal["Yes", "No"] = Field(..., description="Whether WFH setup is available")
     gender: Literal["Male", "Female"] = Field(..., description="Gender of the employee")
+    user_id: str = Field(..., description="User UUID for database storage")
 
 class HealthCheck(BaseModel):
     status: str
@@ -208,6 +277,10 @@ def root():
         "message": "Integrated Analysis API",
         "version": "1.0.0",
         "endpoints": {
+            "/auth/login": "POST - User login (proxy to core service)",
+            "/auth/register": "POST - User registration (proxy to core service)",
+            "/auth/me": "GET - Get current user profile (proxy to core service)",
+            "/auth/refresh": "POST - Refresh authentication token (proxy to core service)",
             "/analyze-video": "POST - Analyze emotion from video",
             "/analyze-speech": "POST - Analyze speech audio",
             "/analyze-chat": "POST - Analyze chat text",
@@ -239,6 +312,102 @@ async def health_check():
             "cpu_percent": psutil.Process(os.getpid()).cpu_percent()
         }
     )
+
+# Authentication Proxy Endpoints
+@app.post("/auth/login")
+async def proxy_login(request: Request):
+    """Proxy login requests to core service"""
+    try:
+        payload = await request.json()
+        logger.info("Proxying login request to core service")
+        
+        # Forward to core service
+        async with session.post(f"{CORE_SERVICE_URL}/auth/login", json=payload) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error proxying login request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.post("/auth/register")
+async def proxy_register(request: Request):
+    """Proxy register requests to core service"""
+    try:
+        payload = await request.json()
+        logger.info("Proxying register request to core service")
+        
+        # Forward to core service
+        async with session.post(f"{CORE_SERVICE_URL}/auth/register", json=payload) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error proxying register request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.get("/auth/me")
+async def proxy_user_profile(request: Request):
+    """Proxy user profile requests to core service"""
+    try:
+        # Extract token from header
+        authorization = request.headers.get("Authorization", "")
+        if not authorization:
+            return JSONResponse(content={"error": "Authorization header required"}, status_code=401)
+        
+        logger.info("Proxying user profile request to core service")
+        
+        # Forward to core service with the same headers
+        headers = {"Authorization": authorization}
+        async with session.get(f"{CORE_SERVICE_URL}/auth/me", headers=headers) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error proxying user profile request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.post("/auth/refresh")
+async def proxy_refresh_token(request: Request):
+    """Proxy token refresh requests to core service"""
+    try:
+        payload = await request.json()
+        authorization = request.headers.get("Authorization", "")
+        
+        logger.info("Proxying token refresh request to core service")
+        
+        # Forward to core service
+        headers = {"Authorization": authorization} if authorization else {}
+        async with session.post(f"{CORE_SERVICE_URL}/auth/refresh", json=payload, headers=headers) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error proxying token refresh request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.post("/auth/logout")
+async def proxy_logout(request: Request):
+    """Proxy logout requests to core service"""
+    try:
+        # Extract token from header
+        authorization = request.headers.get("Authorization", "")
+        if not authorization:
+            return JSONResponse(content={"error": "Authorization header required"}, status_code=401)
+        
+        logger.info("Proxying logout request to core service")
+        
+        # Forward to core service with the same headers
+        headers = {"Authorization": authorization}
+        async with session.post(f"{CORE_SERVICE_URL}/auth/logout", headers=headers) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error proxying logout request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 @app.get("/metrics")
 async def metrics():
@@ -428,12 +597,29 @@ async def load_test(request: Request):
         PROCESSING_TIME.labels(endpoint='load-test').observe(time.time() - start_time)
 
 @app.post("/analyze-video")
-async def analyze_video(file: UploadFile = File(...)):
+async def analyze_video(request: Request, file: UploadFile = File(...), user_id: str = Form(...)):
     """Analyze emotion from video"""
     REQUESTS.labels(endpoint='analyze-video').inc()
     start_time = time.time()
     
     try:
+        # Extract token from header
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+
+        # Validate user_id
+        if SHARED_AUTH_AVAILABLE:
+            try:
+                user_uuid = validate_user_uuid(user_id)
+            except HTTPException as e:
+                ERROR_COUNT.labels(endpoint='analyze-video', error_type='invalid_user_id').inc()
+                raise e
+        else:
+            try:
+                user_uuid = UUID(user_id)
+            except ValueError:
+                ERROR_COUNT.labels(endpoint='analyze-video', error_type='invalid_user_id').inc()
+                raise HTTPException(status_code=400, detail="Invalid user_id format")
+        
         file_bytes = await file.read()
         form = FormData()
         form.add_field(
@@ -442,9 +628,15 @@ async def analyze_video(file: UploadFile = File(...)):
             filename=file.filename,
             content_type=file.content_type or "application/octet-stream"
         )
+        form.add_field(name="user_id", value=str(user_uuid))
+        if token:
+            form.add_field(name="token", value=token)
+
+        # Forward to video analysis service
         async with session.post(VIDEO_BACKEND_URL, data=form) as resp:
             try:
                 data = await resp.json()
+                
                 # Store result for analytics (in-memory)
                 video_analysis_results.append({
                     "timestamp": datetime.now().isoformat(),
@@ -452,10 +644,37 @@ async def analyze_video(file: UploadFile = File(...)):
                     "emotion_scores": data.get("emotion_scores", {}),
                     "analysis_time": data.get("analysis_time")
                 })
+                
+                # --- NEW: Store in database via core service ---
+                if resp.status == 200 and "dominant_emotion" in data:
+                    # Transform video analysis data for database storage
+                    db_data = {
+                        "filename": file.filename,
+                        "dominant_emotion": data.get("dominant_emotion"),
+                        "emotion_scores": data.get("emotion_scores", {}),
+                        "confidence_score": data.get("confidence_score", 0.0),
+                        "processing_time": data.get("analysis_time", 0.0),
+                        "metadata": {
+                            "file_size": len(file_bytes),
+                            "content_type": file.content_type,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    }
+                    
+                    # Store in core database
+                    db_result = await store_analysis_in_core_db("video", db_data, str(user_uuid), token)
+                    if db_result:
+                        data["database_stored"] = True
+                        data["database_id"] = db_result.get("id")
+                    else:
+                        data["database_stored"] = False
+                        logger.warning(f"Failed to store video analysis in database for user {user_uuid}")
+                
             except Exception as e:
                 logger.error(f"Error decoding JSON from video backend: {e}")
                 ERROR_COUNT.labels(endpoint='analyze-video', error_type='json_decode').inc()
                 data = {"error": "Invalid JSON from video backend"}
+            
             logger.info(f"Video backend response: {data}")
             return JSONResponse(content=data, status_code=resp.status)
     except Exception as e:
@@ -466,12 +685,29 @@ async def analyze_video(file: UploadFile = File(...)):
         PROCESSING_TIME.labels(endpoint='analyze-video').observe(time.time() - start_time)
 
 @app.post("/analyze-speech")
-async def analyze_speech(audio_file: UploadFile = File(...)):
+async def analyze_speech(request: Request, audio_file: UploadFile = File(...), user_id: str = Form(...)):
     """Analyze speech audio"""
     REQUESTS.labels(endpoint='analyze-speech').inc()
     start_time = time.time()
     
     try:
+        # Extract token from header
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+
+        # Validate user_id
+        if SHARED_AUTH_AVAILABLE:
+            try:
+                user_uuid = validate_user_uuid(user_id)
+            except HTTPException as e:
+                ERROR_COUNT.labels(endpoint='analyze-speech', error_type='invalid_user_id').inc()
+                raise e
+        else:
+            try:
+                user_uuid = UUID(user_id)
+            except ValueError:
+                ERROR_COUNT.labels(endpoint='analyze-speech', error_type='invalid_user_id').inc()
+                raise HTTPException(status_code=400, detail="Invalid user_id format")
+        
         # Read the uploaded file
         file_bytes = await audio_file.read()
         form = FormData()
@@ -481,8 +717,41 @@ async def analyze_speech(audio_file: UploadFile = File(...)):
             filename=audio_file.filename,
             content_type=audio_file.content_type or "application/octet-stream"
         )
+        form.add_field(name="user_id", value=str(user_uuid))
+        if token:
+            form.add_field(name="token", value=token)
+
+        # Forward to speech analysis service
         async with session.post(STT_BACKEND_URL, data=form) as resp:
             data = await resp.json()
+            
+            # --- NEW: Store in database via core service ---
+            if resp.status == 200 and "transcription" in data:
+                # Transform speech analysis data for database storage
+                db_data = {
+                    "transcription": data.get("transcription", ""),
+                    "sentiment": data.get("sentiment", {}),
+                    "emotions": data.get("emotions", []),
+                    "confidence_score": data.get("confidence_score", 0.0),
+                    "processing_time": data.get("processing_time", 0.0),
+                    "audio_duration": data.get("audio_duration", 0.0),
+                    "metadata": {
+                        "filename": audio_file.filename,
+                        "file_size": len(file_bytes),
+                        "content_type": audio_file.content_type,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }
+                
+                # Store in core database
+                db_result = await store_analysis_in_core_db("speech", db_data, str(user_uuid), token)
+                if db_result:
+                    data["database_stored"] = True
+                    data["database_id"] = db_result.get("id")
+                else:
+                    data["database_stored"] = False
+                    logger.warning(f"Failed to store speech analysis in database for user {user_uuid}")
+            
             return JSONResponse(content=data, status_code=resp.status)
     except Exception as e:
         logger.error(f"Error proxying to STT backend: {str(e)}")
@@ -500,17 +769,47 @@ async def start_emo_buddy_session(request: Request):
     
     try:
         payload = await request.json()
+        
+        # Extract token from header and add to payload for forwarding
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if token:
+            payload["token"] = token
+
         logger.info("Starting Emo Buddy session")
+        
+        # Validate user_id
+        user_id = payload.get("user_id")
+        if not user_id:
+            ERROR_COUNT.labels(endpoint='emo-buddy-start', error_type='missing_user_id').inc()
+            return JSONResponse(content={"error": "user_id is required"}, status_code=400)
+        
+        if SHARED_AUTH_AVAILABLE:
+            try:
+                user_uuid = validate_user_uuid(user_id)
+            except HTTPException as e:
+                ERROR_COUNT.labels(endpoint='emo-buddy-start', error_type='invalid_user_id').inc()
+                return JSONResponse(content={"error": e.detail}, status_code=e.status_code)
+        else:
+            try:
+                user_uuid = UUID(user_id)
+            except ValueError:
+                ERROR_COUNT.labels(endpoint='emo-buddy-start', error_type='invalid_user_id').inc()
+                return JSONResponse(content={"error": "Invalid user_id format"}, status_code=400)
         
         # Transform payload for standalone Emo Buddy backend
         if "analysis_report" in payload:
             user_message = payload["analysis_report"].get("transcription", "")
-            payload = {"user_message": user_message}
+            transformed_payload = {"user_message": user_message, "user_id": str(user_uuid)}
+        else:
+            transformed_payload = {
+                "user_message": payload.get("user_message", ""),
+                "user_id": str(user_uuid)
+            }
         
         # Forward to standalone Emo Buddy service
         emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/start-session"
         
-        async with session.post(emo_buddy_url, json=payload) as resp:
+        async with session.post(emo_buddy_url, json=transformed_payload) as resp:
             data = await resp.json()
             logger.info("Emo Buddy session started successfully")
             return JSONResponse(content=data, status_code=resp.status)
@@ -530,12 +829,37 @@ async def continue_emo_buddy_conversation(request: Request):
     
     try:
         payload = await request.json()
+
+        # Extract token from header and add to payload for forwarding
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if token:
+            payload["token"] = token
+
         logger.info(f"Original payload: {payload}")
+
+        # Validate user_id
+        user_id = payload.get("user_id")
+        if not user_id:
+            ERROR_COUNT.labels(endpoint='emo-buddy-continue', error_type='missing_user_id').inc()
+            return JSONResponse(content={"error": "user_id is required"}, status_code=400)
+        
+        if SHARED_AUTH_AVAILABLE:
+            try:
+                user_uuid = validate_user_uuid(user_id)
+            except HTTPException as e:
+                ERROR_COUNT.labels(endpoint='emo-buddy-continue', error_type='invalid_user_id').inc()
+                return JSONResponse(content={"error": e.detail}, status_code=e.status_code)
+        else:
+            try:
+                user_uuid = UUID(user_id)
+            except ValueError:
+                ERROR_COUNT.labels(endpoint='emo-buddy-continue', error_type='invalid_user_id').inc()
+                return JSONResponse(content={"error": "Invalid user_id format"}, status_code=400)
 
         # Always transform to what standalone expects
         session_id = payload.get("session_id")
         user_message = payload.get("user_message") or payload.get("user_input") or ""
-        transformed_payload = {"session_id": session_id, "user_message": user_message}
+        transformed_payload = {"session_id": session_id, "user_message": user_message, "user_id": str(user_uuid)}
         logger.info(f"Transformed payload: {transformed_payload}")
 
         if not session_id or not user_message:
@@ -563,7 +887,35 @@ async def end_emo_buddy_session(request: Request):
     
     try:
         payload = await request.json()
+
+        # Extract token from header and add to payload for forwarding
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if token:
+            payload["token"] = token
+
         logger.info(f"Ending Emo Buddy session: {payload.get('session_id')}")
+        
+        # Validate user_id
+        user_id = payload.get("user_id")
+        if not user_id:
+            ERROR_COUNT.labels(endpoint='emo-buddy-end', error_type='missing_user_id').inc()
+            return JSONResponse(content={"error": "user_id is required"}, status_code=400)
+        
+        if SHARED_AUTH_AVAILABLE:
+            try:
+                user_uuid = validate_user_uuid(user_id)
+            except HTTPException as e:
+                ERROR_COUNT.labels(endpoint='emo-buddy-end', error_type='invalid_user_id').inc()
+                return JSONResponse(content={"error": e.detail}, status_code=e.status_code)
+        else:
+            try:
+                user_uuid = UUID(user_id)
+            except ValueError:
+                ERROR_COUNT.labels(endpoint='emo-buddy-end', error_type='invalid_user_id').inc()
+                return JSONResponse(content={"error": "Invalid user_id format"}, status_code=400)
+        
+        # Ensure user_id is included in the payload
+        payload["user_id"] = str(user_uuid)
         
         # Forward to standalone Emo Buddy service
         emo_buddy_url = f"{EMO_BUDDY_BACKEND_URL}/end-session"
@@ -610,29 +962,68 @@ async def analyze_chat(request: Request):
     start_time = time.time()
     
     try:
-        payload = await request.json()
-        logger.info(f"Parsed JSON payload: {payload}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON: {e}")
-        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='json_parse').inc()
-        return JSONResponse(content={"error": "Invalid JSON body"}, status_code=400)
-
-    text = payload.get("text")
-    if not text or not isinstance(text, str) or not text.strip():
-        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='validation').inc()
-        return JSONResponse(content={"error": "Field 'text' is required and must be a non-empty string."}, status_code=422)
-
-    chat_payload = {
-        "text": text,
-        "person_id": payload.get("person_id") or "user_api"
-    }
-    headers = {"Content-Type": "application/json"}
-    logger.info(f"Forwarding to {CHAT_BACKEND_URL} with payload: {chat_payload}")
-    
-    try:
-        async with session.post(CHAT_BACKEND_URL, json=chat_payload, headers=headers) as resp:
-            logger.info(f"Chat backend response: {resp.status} {await resp.text()}")
-            return JSONResponse(content=await resp.json(), status_code=resp.status)
+        data = await request.json()
+        
+        # Extract token from header
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        
+        # Validate user_id if provided
+        user_id = data.get("user_id")
+        if user_id:
+            if SHARED_AUTH_AVAILABLE:
+                try:
+                    user_uuid = validate_user_uuid(user_id)
+                except HTTPException as e:
+                    ERROR_COUNT.labels(endpoint='analyze-chat', error_type='invalid_user_id').inc()
+                    return JSONResponse(content={"error": e.detail}, status_code=e.status_code)
+            else:
+                try:
+                    user_uuid = UUID(user_id)
+                except ValueError:
+                    ERROR_COUNT.labels(endpoint='analyze-chat', error_type='invalid_user_id').inc()
+                    return JSONResponse(content={"error": "Invalid user_id format"}, status_code=400)
+        else:
+            # For backward compatibility, generate a temporary user ID
+            user_uuid = None
+        
+        # Forward to chat analysis service
+        async with session.post(CHAT_BACKEND_URL, json=data) as resp:
+            if resp.status == 200:
+                result = await resp.json()
+                
+                # --- NEW: Store in database via core service ---
+                if user_uuid and "sentiment" in result:
+                    # Transform chat analysis data for database storage
+                    db_data = {
+                        "message_text": data.get("text", ""),
+                        "sentiment_score": result.get("sentiment", 0.0),
+                        "mental_state": result.get("mental_state", "unknown"),
+                        "confidence_score": result.get("confidence", 0.0),
+                        "processing_time": result.get("processing_time", 0.0),
+                        "session_id": data.get("person_id", "api_session"),
+                        "metadata": {
+                            "analysis_method": result.get("model_used", "chat_analyzer"),
+                            "timestamp": datetime.now().isoformat(),
+                            "source": "integrated_backend"
+                        }
+                    }
+                    
+                    # Store in core database
+                    db_result = await store_analysis_in_core_db("chat", db_data, str(user_uuid), token)
+                    if db_result:
+                        result["database_stored"] = True
+                        result["database_id"] = db_result.get("id")
+                    else:
+                        result["database_stored"] = False
+                        logger.warning(f"Failed to store chat analysis in database for user {user_uuid}")
+                
+                return JSONResponse(content=result, status_code=resp.status)
+            else:
+                error_text = await resp.text()
+                logger.error(f"Chat analysis service error: {resp.status} - {error_text}")
+                ERROR_COUNT.labels(endpoint='analyze-chat', error_type='service_error').inc()
+                return JSONResponse(content={"error": error_text}, status_code=resp.status)
+                
     except Exception as e:
         logger.error(f"Error in analyze-chat: {str(e)}")
         ERROR_COUNT.labels(endpoint='analyze-chat', error_type='general').inc()
@@ -648,9 +1039,15 @@ async def analyze_survey(request: Request):
     
     try:
         raw_body = await request.body()
+        
+        # Extract token from header for forwarding
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+
         logger.info(f"Raw incoming request body: {raw_body}")
         try:
             data = await request.json()
+            if token:
+                data["token"] = token # Add token to the payload
         except Exception as e:
             logger.error(f"Failed to parse JSON: {e}")
             ERROR_COUNT.labels(endpoint='analyze-survey', error_type='json_parse').inc()
@@ -659,6 +1056,28 @@ async def analyze_survey(request: Request):
         
         # Check if this is the new format with employee and survey fields
         if "employee" in data and "survey" in data:
+            # Validate user_id for new format
+            user_id = data.get("user_id")
+            if not user_id:
+                ERROR_COUNT.labels(endpoint='analyze-survey', error_type='missing_user_id').inc()
+                return JSONResponse(content={"error": "user_id is required"}, status_code=400)
+            
+            if SHARED_AUTH_AVAILABLE:
+                try:
+                    user_uuid = validate_user_uuid(user_id)
+                except HTTPException as e:
+                    ERROR_COUNT.labels(endpoint='analyze-survey', error_type='invalid_user_id').inc()
+                    return JSONResponse(content={"error": e.detail}, status_code=e.status_code)
+            else:
+                try:
+                    user_uuid = UUID(user_id)
+                except ValueError:
+                    ERROR_COUNT.labels(endpoint='analyze-survey', error_type='invalid_user_id').inc()
+                    return JSONResponse(content={"error": "Invalid user_id format"}, status_code=400)
+            
+            # Ensure user_id is included in the payload
+            data["user_id"] = str(user_uuid)
+            
             # New format - forward directly to survey backend's analyze-survey endpoint
             survey_url = "http://localhost:8004/analyze-survey"
             logger.info(f"Forwarding new format to survey backend: {data}")
@@ -671,8 +1090,34 @@ async def analyze_survey(request: Request):
                     ERROR_COUNT.labels(endpoint='analyze-survey', error_type='backend_error').inc()
                     return JSONResponse(content={"error": response_text}, status_code=resp.status)
                 try:
-                    response_data = await resp.json()
+                    response_data = json.loads(response_text)
                     logger.info(f"Survey analysis completed successfully: {response_data}")
+                    
+                    # --- NEW: Store in database via core service ---
+                    if user_uuid and "burnout_percentage" in response_data:
+                        # Transform survey analysis data for database storage
+                        db_data = {
+                            "burnout_percentage": response_data.get("burnout_percentage", 0.0),
+                            "prediction": response_data.get("prediction", "unknown"),
+                            "confidence_score": response_data.get("confidence", 0.0),
+                            "survey_data": {
+                                "employee": data.get("employee", {}),
+                                "survey": data.get("survey", {}),
+                                "timestamp": datetime.now().isoformat(),
+                                "source": "integrated_backend"
+                            },
+                            "processing_time": response_data.get("processing_time", 0.0)
+                        }
+                        
+                        # Store in core database
+                        db_result = await store_analysis_in_core_db("survey", db_data, str(user_uuid), token)
+                        if db_result:
+                            response_data["database_stored"] = True
+                            response_data["database_id"] = db_result.get("id")
+                        else:
+                            response_data["database_stored"] = False
+                            logger.warning(f"Failed to store survey analysis in database for user {user_uuid}")
+                    
                     return JSONResponse(content=response_data, status_code=resp.status)
                 except Exception as e:
                     logger.error(f"Error parsing survey response: {str(e)}")

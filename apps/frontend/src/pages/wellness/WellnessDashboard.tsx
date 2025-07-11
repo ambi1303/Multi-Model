@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, Card, CardContent, Grid, Zoom } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 interface WellnessDashboardProps {
   colors: {
@@ -14,7 +15,19 @@ interface WellnessDashboardProps {
   mode: 'light' | 'dark';
 }
 
-export const WellnessDashboard: React.FC<WellnessDashboardProps> = ({ colors, setActiveTab, mode }) => {
+const WellnessDashboard: React.FC = () => {
+  const { mode } = useTheme();
+
+  // Theme-aware colors
+  const colors = {
+    background: mode === 'dark' ? '#1A2027' : '#FFFFFF',
+    primaryText: mode === 'dark' ? '#FFFFFF' : '#333333',
+    secondaryText: mode === 'dark' ? '#B0B0B0' : '#666666',
+    cardBg: mode === 'dark' ? '#2D3748' : '#F5F5F5',
+    border: mode === 'dark' ? '#4A5568' : '#E0E0E0',
+    gradient: mode === 'dark' ? 'linear-gradient(90deg, #4A5568, #718096)' : 'linear-gradient(90deg, #4299E1, #3498DB)',
+  };
+
   return (
     <Box>
       {/* Enhanced Stats Cards */}

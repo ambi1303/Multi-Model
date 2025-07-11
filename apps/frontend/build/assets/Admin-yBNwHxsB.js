@@ -1,0 +1,1 @@
+import{j as e,B as s,T as a,y as n}from"./index-ElRkoE7H.js";const r=()=>e.jsxs(s,{sx:{p:4},children:[e.jsx(a,{variant:"h4",gutterBottom:!0,children:"Admin Panel"}),e.jsxs(n,{sx:{p:2},children:[e.jsx(a,{variant:"h6",children:"User Management"}),e.jsx(a,{children:"This is where user management features will be."})]})]});export{r as default};

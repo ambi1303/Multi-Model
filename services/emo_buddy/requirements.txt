@@ -1,8 +1,9 @@
-fastapi
-uvicorn
-pydantic
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==2.7.1
 python-dotenv
 numpy
 sentence-transformers
 faiss-cpu
 google-generativeai
+httpx

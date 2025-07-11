@@ -8,6 +8,7 @@ import {
   useMediaQuery,
   useTheme as useMuiTheme,
   Popover,
+  Button,
 } from '@mui/material';
 import {
   MenuIcon,
@@ -18,6 +19,8 @@ import {
 } from '../../utils/icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ServiceStatus } from '../common/ServiceStatus';
+import { useAppStore } from '../../store/useAppStore';
+import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -29,6 +32,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const [statusAnchorEl, setStatusAnchorEl] = useState<HTMLElement | null>(null);
 
+  const { isAuthenticated, actions } = useAppStore((state) => ({
+    isAuthenticated: state.isAuthenticated,
+    actions: state.actions,
+  }));
+  const navigate = useNavigate();
+
   const handleStatusClick = (event: React.MouseEvent<HTMLElement>) => {
     setStatusAnchorEl(event.currentTarget);
   };
@@ -39,15 +48,21 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   const statusPopoverOpen = Boolean(statusAnchorEl);
 
+  const handleLogout = () => {
+    actions.logout();
+    navigate('/login');
+  };
+
   return (
     <AppBar
-      position="static"
+      position="fixed"
       sx={{
         backgroundColor: 'background.paper',
         color: 'text.primary',
         boxShadow: 1,
         borderBottom: 1,
         borderColor: 'divider',
+        zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
       <Toolbar>
@@ -132,6 +147,21 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <IconButton color="inherit">
             <AccountCircleIcon />
           </IconButton>
+
+          {isAuthenticated ? (
+            <Button color="inherit" onClick={handleLogout}>
+              Logout
+            </Button>
+          ) : (
+            <>
+              <Button color="inherit" onClick={() => navigate('/login')}>
+                Login
+              </Button>
+              <Button color="inherit" onClick={() => navigate('/register')}>
+                Register
+              </Button>
+            </>
+          )}
         </Box>
       </Toolbar>
     </AppBar>

@@ -326,3 +326,10 @@ class TherapeuticTechniques:
             effectiveness[technique]["score"] = base_score
         
         return effectiveness 
+
+# Add the missing get_technique function
+def get_technique() -> TherapeuticTechniques:
+    """
+    Factory function to create and return a TherapeuticTechniques instance
+    """
+    return TherapeuticTechniques() 

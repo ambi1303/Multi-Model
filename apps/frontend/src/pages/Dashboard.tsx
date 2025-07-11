@@ -31,6 +31,8 @@ import {
   EmojiEmotionsIcon,
   AutoAwesomeIcon,
 } from '../utils/icons';
+import { useAppStore } from '../store/useAppStore';
+
 
 // Real-time data simulation
 const useRealTimeData = () => {
@@ -225,10 +227,12 @@ const LiveActivityFeed = () => {
 };
 
 // Main Dashboard Component
-export const Dashboard = () => {
+const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { data, isLive, setIsLive } = useRealTimeData();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const user = useAppStore((state) => state.user);
+  const addNotification = useAppStore((state) => state.addNotification);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -480,3 +484,5 @@ export const Dashboard = () => {
     </Box>
   );
 };
+
+export default Dashboard;

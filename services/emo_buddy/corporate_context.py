@@ -293,3 +293,10 @@ class CorporateContextAnalyzer:
         ]
         
         return {'immediate': immediate, 'ongoing': ongoing} 
+
+# Add the missing get_corporate_context function
+def get_corporate_context() -> CorporateContextAnalyzer:
+    """
+    Factory function to create and return a CorporateContextAnalyzer instance
+    """
+    return CorporateContextAnalyzer() 
