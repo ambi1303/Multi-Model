@@ -163,12 +163,18 @@ export const checkApiHealth = async (): Promise<HealthCheckResponse> => {
 // Chat Analysis API Endpoints
 
 // Simple chat service (single message analysis) - uses integrated backend
-export const analyzeSingleChatMessage = async (message: { text: string; person_id?: string }) => {
+export const analyzeSingleChatMessage = async (message: { text: string; person_id?: string; user_id?: string }) => {
   try {
+    // Get user_id from the message parameter or use a fallback
+    const user_id = message.user_id || 'user_api';
+    
     // Use integrated backend which forwards to the simple service
     const response = await api.post('/analyze-chat', {
       text: message.text,
+      user_id: user_id,
       person_id: message.person_id || 'user_api'
+    }, {
+      timeout: 30000, // 30 seconds for chat analysis to handle model processing time
     });
     return response.data;
   } catch (error) {
@@ -178,17 +184,23 @@ export const analyzeSingleChatMessage = async (message: { text: string; person_i
 };
 
 // Mental state analyzer - single message
-export const analyzeSingleMessageAdvanced = async (message: { text: string; person_id?: string }) => {
+export const analyzeSingleMessageAdvanced = async (message: { text: string; person_id?: string; user_id?: string }) => {
+  // Get user_id from the message parameter or use a fallback
+  const user_id = message.user_id || 'user_api';
+  
   // Use integrated backend which forwards to the appropriate service
   const response = await api.post('/analyze-chat', {
     text: message.text,
+    user_id: user_id,
     person_id: message.person_id || 'user_api'
+  }, {
+    timeout: 30000, // 30 seconds for advanced chat analysis
   });
   return response.data;
 };
 
 // Mental state analyzer - complete analysis
-export const analyzeChatFile = async (file: File) => {
+export const analyzeChatFile = async (file: File, user_id?: string) => {
   const startTime = Date.now();
   try {
     console.log('API: Starting complete analysis for:', file.name, 'Size:', file.size);
@@ -196,10 +208,15 @@ export const analyzeChatFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     
+    // Add user_id as form data if provided
+    if (user_id) {
+      formData.append('user_id', user_id);
+    }
+    
     const url = `${API_URL}/analyze-complete`; // Changed CHAT_API_URL to API_URL
     console.log(`[DEBUG] API: Sending request to ${url}`);
     
-    const response = await axios.post(url, formData, {
+    const response = await api.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

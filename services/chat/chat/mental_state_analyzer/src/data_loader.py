@@ -9,7 +9,7 @@ class DataLoader:
     def load_data(self) -> Dict:
         """Load and parse the JSON file containing chat messages."""
         try:
-            with open(self.file_path, 'r') as f:
+            with open(self.file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             return data
         except FileNotFoundError:
@@ -23,9 +23,12 @@ class DataLoader:
         processed_messages = []
         
         for msg in messages:
+            # Safely handle text content with potential Unicode characters
+            text_content = msg.get('text', '').strip()
+            
             processed_msg = {
                 'timestamp': datetime.fromisoformat(msg['timestamp']),
-                'text': msg['text'].strip(),
+                'text': text_content,
                 'person_id': data.get('person_id')
             }
             processed_messages.append(processed_msg)

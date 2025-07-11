@@ -56,6 +56,7 @@ import { useAnalysisProgress } from '../hooks/useAnalysisProgress';
 import { MESSAGE_TEMPLATES, getRandomTemplate } from '../constants/messageTemplates';
 import { useChatFileAnalysis } from '../hooks/useChatAnalysis';
 import { useNotification } from '../contexts/NotificationContext';
+import { useAppStore } from '../store/useAppStore';
 
 // Styled Components
 const FloatingTextField = styled(TextField)(({ theme }) => ({
@@ -140,6 +141,7 @@ const ChatAnalysis: React.FC = () => {
   } = useChatFileAnalysis();
   const { progress, isLoading, startProgress, completeProgress } = useAnalysisProgress();
   const { showSuccess } = useNotification();
+  const { user } = useAppStore();
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -154,7 +156,10 @@ const ChatAnalysis: React.FC = () => {
     const progressInterval = startProgress();
 
     try {
-      const data = await analyzeSingleChatMessage({ text: text.trim() });
+      const data = await analyzeSingleChatMessage({ 
+        text: text.trim(), 
+        user_id: user?.id || 'user_api'
+      });
       setResult(data);
       setAnalysisHistory(prev => [...prev.slice(-4), data]); // Keep last 5 analyses
       showSuccess('Analysis successful!');
@@ -191,7 +196,7 @@ const ChatAnalysis: React.FC = () => {
 
   const handleBatchAnalysis = () => {
     if (selectedFile) {
-      analyzeFile(selectedFile);
+      analyzeFile(selectedFile, user?.id);
     }
   };
 

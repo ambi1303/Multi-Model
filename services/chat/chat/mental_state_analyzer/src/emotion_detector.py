@@ -2,14 +2,20 @@ from typing import Dict, List
 from textblob import TextBlob
 from transformers import pipeline
 import torch
+import os
 
 class EmotionDetector:
     def __init__(self):
-        # Initialize the emotion classifier
+        # Set environment variables for better performance
+        os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Avoid tokenizer warnings
+        
+        # Initialize the emotion classifier with optimizations
         self.emotion_classifier = pipeline(
             "text-classification",
             model="j-hartmann/emotion-english-distilroberta-base",
-            return_all_scores=True
+            return_all_scores=True,
+            device=-1,  # Use CPU explicitly (-1) for consistency
+            model_kwargs={"torch_dtype": torch.float32}  # Explicit dtype
         )
         
         # Define emotion to mental state mapping
@@ -25,16 +31,38 @@ class EmotionDetector:
         
     def analyze_sentiment(self, text: str) -> float:
         """Analyze sentiment using TextBlob."""
-        analysis = TextBlob(text)
-        return analysis.sentiment.polarity
+        try:
+            analysis = TextBlob(text)
+            return analysis.sentiment.polarity
+        except Exception as e:
+            print(f"[WARNING] Sentiment analysis failed: {e}")
+            return 0.0  # Neutral fallback
         
     def detect_emotion(self, text: str) -> List[Dict]:
         """Detect emotions using the transformer model."""
-        results = self.emotion_classifier(text)[0]
-        return results
+        try:
+            # Limit text length for performance (transformer models have token limits)
+            if len(text) > 512:  # Reasonable limit for DistilRoBERTa
+                text = text[:512]
+            
+            results = self.emotion_classifier(text)[0]
+            return results
+        except Exception as e:
+            print(f"[WARNING] Emotion detection failed: {e}")
+            # Return neutral fallback
+            return [{'label': 'neutral', 'score': 1.0}]
         
     def get_mental_state(self, text: str) -> Dict:
         """Analyze text and return mental state analysis."""
+        # Input validation
+        if not text or not text.strip():
+            return {
+                'sentiment_score': 0.0,
+                'primary_emotion': 'neutral',
+                'emotion_score': 0.5,
+                'mental_state': 'Neutral'
+            }
+        
         # Get sentiment
         sentiment_score = self.analyze_sentiment(text)
         

@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import {  SendIcon, EmojiEmotionsIcon, CheckCircleIcon, InfoIcon, WarningIcon } from '../utils/icons';
 import api from '../services/api'; // Use the centralized, secure api service
+import { useAppStore } from '../store/useAppStore';
 
 const EMO_BUDDY_API_PREFIX = '/emo-buddy';
 
@@ -70,6 +71,9 @@ export const EmoBuddy: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [firstMessageSent, setFirstMessageSent] = useState(false);
   const lastEndSessionCall = useRef<number>(0);
+  
+  // Get user info from store
+  const user = useAppStore((state) => state.user);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -78,6 +82,11 @@ export const EmoBuddy: React.FC = () => {
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
+    if (!user?.id) {
+      setError('User authentication required');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     const userMessage: Message = {
@@ -93,6 +102,7 @@ export const EmoBuddy: React.FC = () => {
         // First message: start session
         const res = await api.post(`${EMO_BUDDY_API_PREFIX}/start`, {
           user_message: userMessage.content,
+          user_id: user.id
         });
         const data = res.data;
         setSessionId(data.session_id);
@@ -111,6 +121,7 @@ export const EmoBuddy: React.FC = () => {
         const res = await api.post(`${EMO_BUDDY_API_PREFIX}/continue`, {
           session_id: sessionId,
           user_message: userMessage.content,
+          user_id: user.id
         });
         const data = res.data;
         setMessages((prev) => [
@@ -138,13 +149,14 @@ export const EmoBuddy: React.FC = () => {
   };
 
   const callEndSession = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !user?.id) return;
     const now = Date.now();
     if (now - lastEndSessionCall.current < 2000) return; // throttle: 2 seconds
     lastEndSessionCall.current = now;
     try {
-      await api.post(`${EMO_BUDDY_API_PREFIX}/end-session`, {
+      await api.post(`${EMO_BUDDY_API_PREFIX}/end`, {
         session_id: sessionId,
+        user_id: user.id
       });
     } catch (e) {
       // Optionally handle error

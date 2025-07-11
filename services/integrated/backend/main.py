@@ -284,6 +284,7 @@ def root():
             "/analyze-video": "POST - Analyze emotion from video",
             "/analyze-speech": "POST - Analyze speech audio",
             "/analyze-chat": "POST - Analyze chat text",
+            "/analyze-complete": "POST - Analyze complete chat file",
             "/analyze-survey": "POST - Analyze survey data",
             "/analyze-all": "POST - Analyze multiple data sources",
             "/health": "GET - Health check endpoint",
@@ -603,8 +604,16 @@ async def analyze_video(request: Request, file: UploadFile = File(...), user_id:
     start_time = time.time()
     
     try:
-        # Extract token from header
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        # Extract token from header for forwarding
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token: {'Present' if token else 'None'}")
 
         # Validate user_id
         if SHARED_AUTH_AVAILABLE:
@@ -691,8 +700,16 @@ async def analyze_speech(request: Request, audio_file: UploadFile = File(...), u
     start_time = time.time()
     
     try:
-        # Extract token from header
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        # Extract token from header for forwarding
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token: {'Present' if token else 'None'}")
 
         # Validate user_id
         if SHARED_AUTH_AVAILABLE:
@@ -771,7 +788,16 @@ async def start_emo_buddy_session(request: Request):
         payload = await request.json()
         
         # Extract token from header and add to payload for forwarding
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received for Emo Buddy start: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token for Emo Buddy start: {'Present' if token else 'None'}")
+
         if token:
             payload["token"] = token
 
@@ -831,7 +857,16 @@ async def continue_emo_buddy_conversation(request: Request):
         payload = await request.json()
 
         # Extract token from header and add to payload for forwarding
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received for Emo Buddy continue: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token for Emo Buddy continue: {'Present' if token else 'None'}")
+
         if token:
             payload["token"] = token
 
@@ -889,7 +924,16 @@ async def end_emo_buddy_session(request: Request):
         payload = await request.json()
 
         # Extract token from header and add to payload for forwarding
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received for Emo Buddy end: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token for Emo Buddy end: {'Present' if token else 'None'}")
+
         if token:
             payload["token"] = token
 
@@ -957,79 +1001,148 @@ async def check_emo_buddy_availability():
 
 @app.post("/analyze-chat")
 async def analyze_chat(request: Request):
-    """Analyze chat text"""
+    """Analyze chat text by forwarding to the dedicated chat service."""
     REQUESTS.labels(endpoint='analyze-chat').inc()
     start_time = time.time()
     
     try:
+        # Extract the original payload and auth token
         data = await request.json()
+        auth_header = request.headers.get("Authorization", "")
         
-        # Extract token from header
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        # Prepare headers for the forwarded request
+        forward_headers = {
+            "Content-Type": "application/json",
+        }
+        if auth_header:
+            forward_headers["Authorization"] = auth_header
         
-        # Validate user_id if provided
-        user_id = data.get("user_id")
-        if user_id:
-            if SHARED_AUTH_AVAILABLE:
+        # The chat service expects the token in the payload for single analysis
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if token:
+                data["token"] = token
+        
+        # Forward the request to the chat analysis service and stream back the response
+        async with session.post(CHAT_BACKEND_URL, json=data, headers=forward_headers) as resp:
+            response_data = await resp.read()
+            return Response(
+                content=response_data,
+                status_code=resp.status,
+                headers=dict(resp.headers)
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in analyze-chat proxy: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='general').inc()
+        return JSONResponse(
+            content={"error": "An unexpected error occurred while processing the chat analysis."}, 
+            status_code=500
+        )
+    finally:
+        PROCESSING_TIME.labels(endpoint='analyze-chat').observe(time.time() - start_time)
+
+@app.post("/analyze-complete")
+async def analyze_complete(request: Request, file: UploadFile = File(...), user_id: str = Form(None)):
+    """Analyze complete chat file - forwards to chat analysis service"""
+    REQUESTS.labels(endpoint='analyze-complete').inc()
+    start_time = time.time()
+    
+    try:
+        # Extract token from header for forwarding
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received for chat complete analysis: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token for chat complete analysis: {'Present' if token else 'None'}")
+
+        # Read and parse the JSON file
+        file_content = await file.read()
+        
+        try:
+            # Parse the JSON content
+            json_data = json.loads(file_content.decode('utf-8'))
+            
+            # Determine user_id priority: form field > token > JSON file > fallback
+            final_user_id = None
+            
+            # First priority: user_id from form field
+            if user_id:
+                final_user_id = user_id
+            # Second priority: extract from token
+            elif token and SHARED_AUTH_AVAILABLE:
                 try:
-                    user_uuid = validate_user_uuid(user_id)
-                except HTTPException as e:
-                    ERROR_COUNT.labels(endpoint='analyze-chat', error_type='invalid_user_id').inc()
-                    return JSONResponse(content={"error": e.detail}, status_code=e.status_code)
-            else:
-                try:
-                    user_uuid = UUID(user_id)
-                except ValueError:
-                    ERROR_COUNT.labels(endpoint='analyze-chat', error_type='invalid_user_id').inc()
-                    return JSONResponse(content={"error": "Invalid user_id format"}, status_code=400)
+                    # Try to get user info from the token by calling core service
+                    headers = {"Authorization": f"Bearer {token}"}
+                    async with session.get(f"{CORE_SERVICE_URL}/auth/me", headers=headers) as resp:
+                        if resp.status == 200:
+                            user_data = await resp.json()
+                            final_user_id = user_data.get("id")
+                except Exception as e:
+                    logger.warning(f"Failed to get user info from token: {e}")
+            
+            # Third priority: check if it's already in the JSON
+            if not final_user_id:
+                final_user_id = json_data.get("user_id")
+            
+            # Final fallback
+            if not final_user_id:
+                final_user_id = "user_api"
+            
+            # Ensure user_id is in the JSON data
+            json_data["user_id"] = final_user_id
+            
+            # Convert back to JSON string
+            modified_content = json.dumps(json_data).encode('utf-8')
+            
+            logger.info(f"Chat complete analysis: using user_id={final_user_id}")
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in uploaded file: {e}")
+            ERROR_COUNT.labels(endpoint='analyze-complete', error_type='invalid_json').inc()
+            return JSONResponse(content={"error": "Invalid JSON format in uploaded file"}, status_code=400)
+        
+        # Prepare FormData for forwarding to chat service
+        form_data = FormData()
+        form_data.add_field(
+            name="file",
+            value=modified_content,
+            filename=file.filename,
+            content_type=file.content_type or "application/json"
+        )
+        
+        # Forward to chat analysis service analyze-complete endpoint
+        chat_complete_url = "http://localhost:8003/analyze-complete"
+        
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+            logger.info(f"Forwarding Authorization header to chat service: Bearer {token[:10]}...")
         else:
-            # For backward compatibility, generate a temporary user ID
-            user_uuid = None
+            logger.warning("No token available to forward to chat service")
         
-        # Forward to chat analysis service
-        async with session.post(CHAT_BACKEND_URL, json=data) as resp:
+        logger.info(f"Forwarding to chat service: {chat_complete_url}")
+        
+        async with session.post(chat_complete_url, data=form_data, headers=headers) as resp:
             if resp.status == 200:
                 result = await resp.json()
-                
-                # --- NEW: Store in database via core service ---
-                if user_uuid and "sentiment" in result:
-                    # Transform chat analysis data for database storage
-                    db_data = {
-                        "message_text": data.get("text", ""),
-                        "sentiment_score": result.get("sentiment", 0.0),
-                        "mental_state": result.get("mental_state", "unknown"),
-                        "confidence_score": result.get("confidence", 0.0),
-                        "processing_time": result.get("processing_time", 0.0),
-                        "session_id": data.get("person_id", "api_session"),
-                        "metadata": {
-                            "analysis_method": result.get("model_used", "chat_analyzer"),
-                            "timestamp": datetime.now().isoformat(),
-                            "source": "integrated_backend"
-                        }
-                    }
-                    
-                    # Store in core database
-                    db_result = await store_analysis_in_core_db("chat", db_data, str(user_uuid), token)
-                    if db_result:
-                        result["database_stored"] = True
-                        result["database_id"] = db_result.get("id")
-                    else:
-                        result["database_stored"] = False
-                        logger.warning(f"Failed to store chat analysis in database for user {user_uuid}")
-                
                 return JSONResponse(content=result, status_code=resp.status)
             else:
                 error_text = await resp.text()
-                logger.error(f"Chat analysis service error: {resp.status} - {error_text}")
-                ERROR_COUNT.labels(endpoint='analyze-chat', error_type='service_error').inc()
+                logger.error(f"Chat complete analysis service error: {resp.status} - {error_text}")
+                ERROR_COUNT.labels(endpoint='analyze-complete', error_type='service_error').inc()
                 return JSONResponse(content={"error": error_text}, status_code=resp.status)
                 
     except Exception as e:
-        logger.error(f"Error in analyze-chat: {str(e)}")
-        ERROR_COUNT.labels(endpoint='analyze-chat', error_type='general').inc()
+        logger.error(f"Error in analyze-complete: {str(e)}")
+        ERROR_COUNT.labels(endpoint='analyze-complete', error_type='general').inc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
     finally:
-        PROCESSING_TIME.labels(endpoint='analyze-chat').observe(time.time() - start_time)
+        PROCESSING_TIME.labels(endpoint='analyze-complete').observe(time.time() - start_time)
 
 @app.post("/analyze-survey")
 async def analyze_survey(request: Request):
@@ -1041,7 +1154,15 @@ async def analyze_survey(request: Request):
         raw_body = await request.body()
         
         # Extract token from header for forwarding
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+            if not token:  # If token is empty after removal
+                token = None
+        
+        logger.info(f"Authorization header received for survey analysis: {auth_header[:20] + '...' if auth_header else 'None'}")
+        logger.info(f"Extracted token for survey analysis: {'Present' if token else 'None'}")
 
         logger.info(f"Raw incoming request body: {raw_body}")
         try:

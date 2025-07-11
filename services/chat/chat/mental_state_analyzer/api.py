@@ -6,6 +6,7 @@ from typing import List, Optional
 from uuid import UUID
 import tempfile
 import time
+import sys
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
@@ -17,6 +18,93 @@ from src.data_loader import DataLoader
 from src.emotion_detector import EmotionDetector
 from src.visualizer import Visualizer
 import httpx
+
+
+def safe_print(message: str):
+    """Safely print Unicode messages to console, handling Windows encoding issues"""
+    try:
+        # Replace common emoji with text equivalents to prevent encoding issues
+        safe_message = (message
+                       .replace("✅", "[SUCCESS]")
+                       .replace("❌", "[ERROR]")
+                       .replace("🔄", "[PROCESSING]")
+                       .replace("⚠️", "[WARNING]"))
+        
+        # Encode with error handling for console output
+        if sys.stdout.encoding:
+            safe_encoded = safe_message.encode(sys.stdout.encoding, errors='replace').decode(sys.stdout.encoding)
+            print(safe_encoded)
+        else:
+            # Fallback to ASCII-safe encoding
+            print(safe_message.encode('ascii', errors='replace').decode('ascii'))
+    except Exception as e:
+        # Ultimate fallback - just print a basic message
+        print(f"[LOG] Message encoding failed: {type(e).__name__}")
+
+
+def map_sentiment_to_core_enum(sentiment_score: float) -> str:
+    """
+    Map sentiment score to Core service expected sentiment enum values.
+    Core service expects: 'positive', 'negative', 'neutral'
+    """
+    if sentiment_score > 0.1:
+        return 'positive'
+    elif sentiment_score < -0.1:
+        return 'negative'
+    else:
+        return 'neutral'
+
+
+def map_mental_state_to_core_enum(chat_mental_state: str) -> str:
+    """
+    Map chat service mental state values to Core service expected enum values.
+    Core service expects: 'calm', 'stressed', 'anxious', 'depressed', 'excited', 'confused', 'focused'
+    """
+    # Mapping from our chat service states to Core service enum
+    state_mapping = {
+        'Positive': 'excited',     # Positive emotions -> excited
+        'Neutral': 'calm',         # Neutral state -> calm
+        'Stressed': 'stressed',    # Direct mapping
+        'Anxious': 'anxious',      # Direct mapping
+        'Negative': 'depressed',   # Negative emotions -> depressed
+        'Happy': 'excited',        # Happy -> excited
+        'Sad': 'depressed',        # Sad -> depressed
+        'Angry': 'stressed',       # Anger -> stressed
+        'Fear': 'anxious',         # Fear -> anxious
+        'Confused': 'confused',    # Direct mapping
+        'Focused': 'focused',      # Direct mapping
+    }
+    
+    # Convert to lowercase and get mapped value, default to 'calm'
+    normalized_state = chat_mental_state.strip().title()  # Normalize case
+    mapped_state = state_mapping.get(normalized_state, 'calm')
+    
+    safe_print(f"[MAPPING] Mental State: '{chat_mental_state}' -> '{mapped_state}'")
+    return mapped_state
+
+
+def map_emotion_to_core_enum(emotion: str) -> str:
+    """
+    Map emotion labels to Core service expected emotion enum values.
+    Core service expects: 'happy', 'sad', 'angry', 'fear', 'surprise', 'disgust', 'neutral', 'contempt'
+    """
+    emotion_mapping = {
+        'joy': 'happy',
+        'sadness': 'sad',
+        'anger': 'angry',
+        'fear': 'fear',
+        'surprise': 'surprise',
+        'disgust': 'disgust',
+        'neutral': 'neutral',
+        'contempt': 'contempt',
+        'love': 'happy',  # Map love to happy
+    }
+    
+    normalized_emotion = emotion.lower().strip()
+    mapped_emotion = emotion_mapping.get(normalized_emotion, 'neutral')
+    
+    safe_print(f"[MAPPING] Emotion: '{emotion}' -> '{mapped_emotion}'")
+    return mapped_emotion
 
 
 def validate_user_uuid(user_id: str) -> UUID:
@@ -34,9 +122,9 @@ def validate_user_uuid(user_id: str) -> UUID:
 try:
     emotion_detector = EmotionDetector()
     visualizer = Visualizer()
-    print("EmotionDetector and Visualizer initialized successfully.")
+    safe_print("EmotionDetector and Visualizer initialized successfully.")
 except Exception as e:
-    print(f"Error initializing components: {e}")
+    safe_print(f"Error initializing components: {e}")
     emotion_detector = None
     visualizer = None
 
@@ -82,34 +170,43 @@ async def store_chat_analysis_in_core_service(raw_data: dict, analyzed_messages:
         CORE_SERVICE_URL = "http://localhost:8000"
         
         if not token:
-            print("No authentication token provided, skipping storage")
+            safe_print("No authentication token provided, skipping storage")
             return
             
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
+
+        safe_print(f"Storing analysis for user {user_uuid} via Core service")
         
-        print(f"Storing analysis for user {user_uuid} via Core service")
-        
-        # Store each analyzed message via Core service API
         async with httpx.AsyncClient(timeout=30.0) as client:
             for msg in analyzed_messages:
-                # Prepare data according to Core service ChatAnalysisCreate schema
+                # Convert datetime objects to ISO strings for JSON serialization
+                timestamp_str = msg.get('timestamp')
+                if isinstance(timestamp_str, datetime):
+                    timestamp_str = timestamp_str.isoformat()
+                
+                # Map the chat service output to the Core service's ChatAnalysisCreate schema
                 analysis_data = {
                     "user_id": str(user_uuid),
                     "session_id": raw_data.get("session_id", f"mental_state_{user_uuid}"),
-                    "message_content": msg.get('message', ''),
-                    "sentiment_label": msg.get('mental_state', 'neutral'),
+                    "message_text": msg.get('message', '') or msg.get('text', ''),  # Handle both field names
+                    "message_count": 1,
+                    "sentiment": map_sentiment_to_core_enum(msg.get('sentiment_score', 0.0)),
                     "sentiment_score": float(msg.get('sentiment_score', 0.0)),
-                    "emotions_detected": msg.get('emotions', []),
-                    "confidence_score": float(msg.get('emotion_score', 0.0)),
-                    "analysis_metadata": {
+                    "dominant_emotion": map_emotion_to_core_enum(msg.get('emotions', ['neutral'])[0] if msg.get('emotions') else msg.get('primary_emotion', 'neutral')),
+                    "emotion_scores": [{"emotion": map_emotion_to_core_enum(emo), "score": 1.0/len(msg.get('emotions', ['neutral']))} for emo in msg.get('emotions', ['neutral'])], # Dummy scores
+                    "mental_state": map_mental_state_to_core_enum(msg.get('mental_state', 'neutral')),
+                    "raw_analysis_data": {
                         "service": "mental_state_analyzer",
                         "person_id": msg.get('person_id', 'unknown'),
-                        "timestamp": msg.get('timestamp'),
-                        "message_length": len(msg.get('message', '')),
-                        "processing_version": "1.0"
+                        "timestamp": timestamp_str,  # Now properly serialized
+                        "message_length": len(msg.get('message', '') or msg.get('text', '')),
+                        "processing_version": "1.0",
+                        "full_emotion_output": msg.get('emotions', []),
+                        "emotion_score": float(msg.get('emotion_score', 0.0)),
+                        "primary_emotion": map_emotion_to_core_enum(msg.get('primary_emotion', 'neutral'))
                     }
                 }
                 
@@ -121,19 +218,20 @@ async def store_chat_analysis_in_core_service(raw_data: dict, analyzed_messages:
                     )
                     
                     if response.status_code == 200:
-                        print(f"✅ Stored message analysis for user {user_uuid}")
+                        safe_print(f"[SUCCESS] Stored message analysis for user {user_uuid}")
                     else:
-                        print(f"❌ Failed to store message: {response.status_code} - {response.text}")
+                        safe_print(f"[ERROR] Failed to store message: {response.status_code} - {response.text}")
                         
                 except httpx.RequestError as e:
-                    print(f"❌ Network error storing message: {e}")
+                    safe_print(f"[ERROR] Network error storing message: {e}")
                 except Exception as e:
-                    print(f"❌ Error storing individual message: {e}")
+                    safe_print(f"[ERROR] Error storing individual message: {e}")
 
-        print(f"✅ Completed storing {len(analyzed_messages)} messages via Core service")
+        safe_print(f"[SUCCESS] Completed storing {len(analyzed_messages)} messages via Core service")
 
     except Exception as e:
-        print(f"❌ Error storing chat analysis via Core service: {str(e)}")
+        error_message = f"[ERROR] Error in store_chat_analysis_in_core_service: {str(e)}"
+        safe_print(error_message)
 
 
 class CompleteAnalysisResponse(BaseModel):
@@ -170,22 +268,25 @@ async def analyze_complete(file: UploadFile = File(...), request: Request = None
         # Extract token from header for storage
         auth_header = request.headers.get("Authorization")
         token = auth_header.split(" ")[1] if auth_header and " " in auth_header else None
+        
+        safe_print(f"[API] Authorization header: {auth_header}")
+        safe_print(f"[API] Extracted token: {token[:10] + '...' if token else 'None'}")
 
-        print(f"[API] Received file: {file.filename}")
+        safe_print(f"[API] Received file: {file.filename}")
         
         if not file.filename.endswith('.json'):
             ERROR_COUNT.labels(endpoint='analyze-complete', error_type='invalid_file_type').inc()
             raise HTTPException(status_code=400, detail="Only JSON files are supported")
         
         contents = await file.read()
-        print(f"[API] File size: {len(contents)} bytes")
+        safe_print(f"[API] File size: {len(contents)} bytes")
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as temp_file:
             temp_file.write(contents.decode('utf-8'))
             temp_file_path = temp_file.name
         
         try:
-            print(f"[API] Created temp file: {temp_file_path}")
+            safe_print(f"[API] Created temp file: {temp_file_path}")
             
             data_loader = DataLoader(file_path=temp_file_path)
             raw_data = data_loader.load_data()
@@ -202,29 +303,29 @@ async def analyze_complete(file: UploadFile = File(...), request: Request = None
                 raise e
             
             messages = data_loader.preprocess_messages(raw_data)
-            print(f"[API] Loaded {len(messages)} messages for user {user_uuid}")
+            safe_print(f"[API] Loaded {len(messages)} messages for user {user_uuid}")
             
             analyzed_messages = emotion_detector.analyze_messages(messages)
-            print(f"[API] Analyzed {len(analyzed_messages)} messages")
+            safe_print(f"[API] Analyzed {len(analyzed_messages)} messages")
             
             mental_states_path = 'outputs/mental_states.png'
             sentiment_trend_path = 'outputs/sentiment_trend.png'
             
             visualizer.plot_mental_states(analyzed_messages, mental_states_path)
             visualizer.plot_sentiment_trend(analyzed_messages, sentiment_trend_path)
-            print(f"[API] Generated visualizations")
+            safe_print(f"[API] Generated visualizations")
             
             summary = visualizer.generate_summary(analyzed_messages)
-            print(f"[API] Generated summary")
+            safe_print(f"[API] Generated summary")
             
             results = {
                 'analyzed_messages': analyzed_messages,
                 'summary': summary
             }
             
-            with open('outputs/api_results.json', 'w') as f:
-                json.dump(results, f, indent=2, default=str)
-            print(f"[API] Saved results to outputs/api_results.json")
+            with open('outputs/api_results.json', 'w', encoding='utf-8') as f:
+                json.dump(results, f, indent=2, default=str, ensure_ascii=False)
+            safe_print(f"[API] Saved results to outputs/api_results.json")
             
             await store_chat_analysis_in_core_service(raw_data, analyzed_messages, user_uuid=user_uuid, token=token)
             
@@ -232,7 +333,7 @@ async def analyze_complete(file: UploadFile = File(...), request: Request = None
                 if isinstance(msg.get('timestamp'), datetime):
                     msg['timestamp'] = msg['timestamp'].strftime("%B %d, %Y at %I:%M %p")
             
-            print(f"[API] Analysis complete - returning response")
+            safe_print(f"[API] Analysis complete - returning response")
             
             response = CompleteAnalysisResponse(
                 summary=summary,
@@ -248,7 +349,11 @@ async def analyze_complete(file: UploadFile = File(...), request: Request = None
             return response
             
         finally:
-            os.unlink(temp_file_path)
+            if 'temp_file_path' in locals():
+                try:
+                    os.unlink(temp_file_path)
+                except FileNotFoundError:
+                    pass
             
     except json.JSONDecodeError:
         ERROR_COUNT.labels(endpoint='analyze-complete', error_type='json_decode').inc()
@@ -258,7 +363,7 @@ async def analyze_complete(file: UploadFile = File(...), request: Request = None
         raise HTTPException(status_code=400, detail="File processing error")
     except Exception as e:
         ERROR_COUNT.labels(endpoint='analyze-complete', error_type='general').inc()
-        print(f"[API] Error: {str(e)}")
+        safe_print(f"[API] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
     finally:
         PROCESSING_TIME.labels(endpoint='analyze-complete').observe(time.time() - start_time)
@@ -274,13 +379,35 @@ async def analyze_single_message(request: SingleMessageRequest):
     start_time = time.time()
     
     try:
-        print(f"[API] Single message analysis for: {request.text[:50]}...")
+        # Safely handle text with potential emoji characters
+        safe_text_preview = request.text[:50].encode('utf-8', errors='replace').decode('utf-8')
+        safe_print(f"[API] Single message analysis for: {safe_text_preview}...")
+        safe_print(f"[API] Received token: {request.token[:10] + '...' if request.token else 'None'}")
         
         user_uuid = validate_user_uuid(request.user_id)
         
-        analysis = emotion_detector.get_mental_state(request.text)
+        try:
+            analysis = emotion_detector.get_mental_state(request.text)
+        except UnicodeEncodeError as e:
+            safe_print(f"[API] Unicode encoding error during analysis: {e}")
+            # Fallback analysis for text with encoding issues
+            analysis = {
+                'sentiment_score': 0.0,
+                'primary_emotion': 'neutral',
+                'emotion_score': 0.5,
+                'mental_state': 'neutral'
+            }
+        except Exception as e:
+            safe_print(f"[API] Error during emotion analysis: {e}")
+            # Fallback analysis for any other issues
+            analysis = {
+                'sentiment_score': 0.0,
+                'primary_emotion': 'neutral',
+                'emotion_score': 0.5,
+                'mental_state': 'neutral'
+            }
         
-        print(f"[API] Single message analysis complete: {analysis}")
+        safe_print(f"[API] Single message analysis complete: {analysis}")
         
         # Construct the necessary data structures to reuse the storage function
         raw_data_for_storage = {
@@ -289,9 +416,9 @@ async def analyze_single_message(request: SingleMessageRequest):
         
         analyzed_message_for_storage = {
             'message': request.text,
-            'mental_state': analysis.get('mental_state', 'neutral'),
+            'mental_state': map_mental_state_to_core_enum(analysis.get('mental_state', 'neutral')),
             'sentiment_score': float(analysis.get('sentiment_score', 0.0)),
-            'emotions': [analysis.get('primary_emotion', 'neutral')],
+            'emotions': [map_emotion_to_core_enum(analysis.get('primary_emotion', 'neutral'))],
             'emotion_score': float(analysis.get('emotion_score', 0.0)),
             'person_id': request.person_id,
             'timestamp': datetime.utcnow().isoformat(),
@@ -308,18 +435,18 @@ async def analyze_single_message(request: SingleMessageRequest):
         update_system_metrics()
         
         return SingleMessageResponse(
-            primary_emotion=analysis.get('primary_emotion', 'neutral'),
+            primary_emotion=map_emotion_to_core_enum(analysis.get('primary_emotion', 'neutral')),
             sentiment_score=analysis.get('sentiment_score', 0.0),
-            mental_state=analysis.get('mental_state', 'neutral'),
+            mental_state=map_mental_state_to_core_enum(analysis.get('mental_state', 'neutral')),
             emotion_score=analysis.get('emotion_score', 0.0),
             success=True,
             message="Single message analysis completed successfully"
         )
         
     except Exception as e:
-        ERROR_COUNT.labels(endpoint='analyze/single', error_type='general').inc()
-        print(f"[API] Single message analysis error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Single message analysis failed: {str(e)}")
+        error_message = f"Single message analysis failed: {str(e)}"
+        safe_print(f"[API] Single message analysis error: {error_message}")
+        raise HTTPException(status_code=500, detail=error_message)
     finally:
         PROCESSING_TIME.labels(endpoint='analyze/single').observe(time.time() - start_time)
 
@@ -340,5 +467,5 @@ async def metrics():
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Mental State Analyzer API...")
+    safe_print("Starting Mental State Analyzer API...")
     uvicorn.run(app, host="0.0.0.0", port=8003) 
