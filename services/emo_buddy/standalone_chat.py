@@ -188,7 +188,7 @@ class StandaloneEmoBuddy:
             intensity = "low"
         
         return {
-            "transcription": message,
+            "transcribed_text": message,  # Fixed field name to match agent expectations
             "sentiment": {
                 "label": sentiment_label,
                 "confidence": sentiment_confidence,

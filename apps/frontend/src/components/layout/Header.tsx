@@ -19,6 +19,7 @@ import {
 } from '../../utils/icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ServiceStatus } from '../common/ServiceStatus';
+import { LogoutConfirmDialog } from '../common/LogoutConfirmDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,9 +33,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const [statusAnchorEl, setStatusAnchorEl] = useState<HTMLElement | null>(null);
 
-  const { isAuthenticated, actions } = useAppStore((state) => ({
+  const { isAuthenticated, user, showLogoutDialog, actions, setShowLogoutDialog } = useAppStore((state) => ({
     isAuthenticated: state.isAuthenticated,
+    user: state.user,
+    showLogoutDialog: state.showLogoutDialog,
     actions: state.actions,
+    setShowLogoutDialog: state.setShowLogoutDialog,
   }));
   const navigate = useNavigate();
 
@@ -49,12 +53,22 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const statusPopoverOpen = Boolean(statusAnchorEl);
 
   const handleLogout = () => {
-    actions.logout();
+    actions.requestLogout();
+  };
+
+  const handleConfirmLogout = async () => {
+    setShowLogoutDialog(false);
+    await actions.logout();
     navigate('/login');
   };
 
+  const handleCancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
+
   return (
-    <AppBar
+    <>
+      <AppBar
       position="fixed"
       sx={{
         backgroundColor: 'background.paper',
@@ -165,5 +179,13 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </Box>
       </Toolbar>
     </AppBar>
+    
+      <LogoutConfirmDialog
+        open={showLogoutDialog}
+        onClose={handleCancelLogout}
+        onConfirm={handleConfirmLogout}
+        userName={user?.first_name}
+      />
+    </>
   );
 };

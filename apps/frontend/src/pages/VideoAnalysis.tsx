@@ -47,9 +47,9 @@ const VideoAnalysis: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { showSuccess, showError } = useNotification();
-  const { addAnalysisResult } = useAppStore();
+  const { addAnalysisResult, user, token } = useAppStore();
   
-  const { error, isActive, videoRef, start, stop } = useWebcam();
+  const { error, isActive, videoRef, start, stop, capture } = useWebcam();
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -60,13 +60,103 @@ const VideoAnalysis: React.FC = () => {
     setIsAnalyzing(true);
     setAnalysis(null);
     
+    if (!user?.id || !token) {
+      showError('You must be logged in to perform this analysis.');
+      setIsAnalyzing(false);
+      return;
+    }
+
+    if (!isActive) {
+      showError('Please start the camera first.');
+      setIsAnalyzing(false);
+      return;
+    }
+    
     try {
-      const result = await videoApi.analyzeContinuous(10);
+      const duration = 10; // 10 seconds analysis
+      const interval = 500; // Capture frame every 500ms
+      const totalFrames = Math.floor((duration * 1000) / interval);
+      const frames: string[] = [];
+      
+      showSuccess('Starting 10-second continuous analysis...');
+      
+      // Capture frames for 10 seconds
+      for (let i = 0; i < totalFrames; i++) {
+        const frameData = capture();
+        if (frameData) {
+          frames.push(frameData);
+        }
+        
+        // Wait for the interval
+        await new Promise(resolve => setTimeout(resolve, interval));
+      }
+      
+      if (frames.length === 0) {
+        showError('No frames captured. Please ensure camera is active.');
+        setIsAnalyzing(false);
+        return;
+      }
+      
+      // Analyze frames using the frame analysis endpoint
+      const analysisResults = [];
+      const emotions: { [key: string]: number } = {};
+      
+      for (let i = 0; i < frames.length; i++) {
+        try {
+          const result = await videoApi.analyzeFrame(frames[i], user.id, token);
+          if (result.dominantEmotion) {
+            analysisResults.push(result);
+            emotions[result.dominantEmotion] = (emotions[result.dominantEmotion] || 0) + 1;
+          }
+        } catch (error) {
+          console.warn(`Frame ${i} analysis failed:`, error);
+        }
+      }
+      
+      if (analysisResults.length === 0) {
+        showError('No emotions detected in the captured frames.');
+        setIsAnalyzing(false);
+        return;
+      }
+      
+      // Calculate aggregated results
+      const mostCommonEmotion = Object.entries(emotions).reduce((a, b) => 
+        emotions[a[0]] > emotions[b[0]] ? a : b
+      )[0];
+      
+      const totalDetections = analysisResults.length;
+      const avgConfidence = analysisResults.reduce((sum, result) => 
+        sum + result.averageConfidence, 0
+      ) / totalDetections;
+      
+      // Create emotion distribution
+      const emotionDistribution = Object.entries(emotions).map(([emotion, count]) => ({
+        emotion,
+        confidence: count / totalDetections,
+        timestamp: Date.now()
+      })).sort((a, b) => b.confidence - a.confidence);
+      
+      // Create comprehensive result
+      const result: VideoAnalysisResult = {
+        dominantEmotion: mostCommonEmotion,
+        averageConfidence: avgConfidence,
+        emotions: emotionDistribution,
+        total_detections: totalDetections,
+        duration: duration,
+        analysis_details: {
+          confidence_level: avgConfidence > 0.7 ? 'HIGH' : avgConfidence > 0.4 ? 'MEDIUM' : 'LOW',
+          frames_analyzed: frames.length,
+          successful_detections: totalDetections,
+          detection_rate: (totalDetections / frames.length * 100).toFixed(1) + '%'
+        }
+      };
+      
       setAnalysis(result);
       addAnalysisResult('video', result);
       showSuccess('Continuous video analysis complete! Enhanced emotion detection used.');
     } catch (error) {
-      showError('Continuous analysis failed. Camera may not be available.');
+      console.error('Continuous analysis failed:', error);
+      showError('Continuous analysis failed. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -75,6 +165,11 @@ const VideoAnalysis: React.FC = () => {
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    if (!user?.id || !token) {
+      showError('You must be logged in to perform this analysis.');
+      return;
+    }
 
     if (!file.type.startsWith('image/')) {
       showError('Please select a valid image file.');
@@ -88,7 +183,7 @@ const VideoAnalysis: React.FC = () => {
 
     setLoading(true);
     try {
-      const result = await videoApi.analyzeFrame(file);
+      const result = await videoApi.analyzeFrame(file, user.id, token);
       setAnalysis(result);
       addAnalysisResult('video', result);
       showSuccess('Image analyzed successfully!');
@@ -260,14 +355,23 @@ const VideoAnalysis: React.FC = () => {
                         variant="contained"
                         color="primary"
                         size="large"                        
-                        startIcon={<CameraIcon />}
+                        startIcon={isAnalyzing ? <RefreshIcon /> : <CameraIcon />}
                         onClick={analyzeContinuous}
                         disabled={loading || isAnalyzing}
                         fullWidth
                         sx={{ mb: 1 }}
                       >
-                        🎯 Enhanced Analysis (10s)
+                        {isAnalyzing ? 'Analyzing Frames...' : '🎯 Enhanced Analysis (10s)'}
                       </Button>
+                      
+                      {isAnalyzing && (
+                        <LinearProgress 
+                          sx={{ mt: 1, mb: 1 }} 
+                          variant="indeterminate" 
+                          color="primary" 
+                        />
+                      )}
+                      
                       <Button
                         variant="outlined"
                         startIcon={<StopIcon />}
@@ -393,7 +497,7 @@ const VideoAnalysis: React.FC = () => {
                       mb: 1,
                     }}
                   >
-                    {analysis.dominantEmotion}
+                                          {analysis.dominantEmotion}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Average confidence: {Math.round(analysis.averageConfidence * 100)}%

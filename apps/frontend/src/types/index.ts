@@ -8,6 +8,18 @@ export interface VideoAnalysisResult {
   emotions: EmotionResult[];
   dominantEmotion: string;
   averageConfidence: number;
+  total_detections?: number;
+  duration?: number;
+  analysis_details?: {
+    confidence_level?: string;
+    frames_analyzed?: number;
+    successful_detections?: number;
+    detection_rate?: string;
+    [key: string]: any;
+  };
+  emotion_timeline?: any;
+  faces_detected?: number;
+  face_quality_score?: number;
   timestamp: number;
 }
 
@@ -25,13 +37,15 @@ export interface SentimentResult {
 }
 
 export interface SpeechAnalysisResult {
-  transcription: string;
-  sentiment: SentimentResult;
+  transcribed_text: string;
+  sentiment: SentimentResult | { label: string; confidence: number };
   emotions: EmotionResult[];
-  genAIInsights: string;
-  technicalReport: string;
-  duration: number;
+  genAIInsights?: string | null;
+  technicalReport?: string | null;
+  audio_duration_seconds: number;
   timestamp: number;
+  session_id?: string;
+  emoBuddyResponse?: string;
 }
 
 export interface ChatMessage {
@@ -148,17 +162,17 @@ export interface BurnoutResult {
 // Authentication Types
 export interface User {
   id: string;
-  username: string;
+  username?: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  phoneNumber: string;
-  employeeId: string;
-  department: string;
+  first_name: string;
+  last_name: string;
+  phone_number?: string;
+  employee_id?: string;
+  department_id?: number;
   role: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UserLogin {
@@ -170,11 +184,11 @@ export interface UserRegister {
   email: string;
   password: string;
   confirmPassword?: string;
-  firstName: string;
-  lastName: string;
-  phoneNumber: string;
-  employeeId: string;
-  departmentId: number;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  employee_id: string;
+  department_id: number;
   role: 'employee' | 'manager' | 'admin';
 }
 

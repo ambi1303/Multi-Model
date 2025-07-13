@@ -159,6 +159,23 @@ class AuthService:
         except ValueError:
             return None
 
+    async def get_user_from_refresh_token(self, db: AsyncSession, token: str) -> Optional[User]:
+        """Get user from refresh token"""
+        payload = self.decode_token(token)
+        if not payload or payload.get("type") != "refresh":
+            return None
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+            
+        try:
+            user_uuid = UUID(user_id)
+            user = await repositories.user.get(db, user_uuid)
+            return user if user and user.is_active and not user.is_locked else None
+        except ValueError:
+            return None
+
 
 class UserService:
     """User management service"""
@@ -401,7 +418,22 @@ class EmoBuddyService:
         # Check if user has active session
         active_session = await repositories.emo_buddy_session.get_active_session(db, user_id)
         if active_session:
-            return schemas.EmoBuddySessionResponse.model_validate(active_session)
+            # Create response without loading messages to avoid MissingGreenlet error
+            return schemas.EmoBuddySessionResponse(
+                user_id=active_session.user_id,
+                session_start=active_session.session_start,
+                therapeutic_goals=active_session.therapeutic_goals or {},
+                id=active_session.id,
+                session_uuid=active_session.session_uuid,
+                session_end=active_session.session_end,
+                message_count=active_session.message_count,
+                user_messages=active_session.user_messages,
+                bot_responses=active_session.bot_responses,
+                is_active_session=active_session.is_active_session,
+                created_at=active_session.created_at,
+                updated_at=active_session.updated_at,
+                messages=None  # Don't load messages here to avoid async issues
+            )
         
         # Create new session
         session_data = schemas.EmoBuddySessionCreate(
@@ -410,7 +442,22 @@ class EmoBuddyService:
         )
         session = await repositories.emo_buddy_session.create(db, obj_in=session_data)
         
-        return schemas.EmoBuddySessionResponse.model_validate(session)
+        # Return response without loading messages
+        return schemas.EmoBuddySessionResponse(
+            user_id=session.user_id,
+            session_start=session.session_start,
+            therapeutic_goals=session.therapeutic_goals or {},
+            id=session.id,
+            session_uuid=session.session_uuid,
+            session_end=session.session_end,
+            message_count=session.message_count,
+            user_messages=session.user_messages,
+            bot_responses=session.bot_responses,
+            is_active_session=session.is_active_session,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            messages=None  # Don't load messages here to avoid async issues
+        )
     
     async def add_message(
         self, 
@@ -470,7 +517,22 @@ class EmoBuddyService:
         
         updated_session = await repositories.emo_buddy_session.update(db, db_obj=session, obj_in=update_data)
         
-        return schemas.EmoBuddySessionResponse.model_validate(updated_session)
+        # Return response with properly loaded messages
+        return schemas.EmoBuddySessionResponse(
+            user_id=updated_session.user_id,
+            session_start=updated_session.session_start,
+            therapeutic_goals=updated_session.therapeutic_goals or {},
+            id=updated_session.id,
+            session_uuid=updated_session.session_uuid,
+            session_end=updated_session.session_end,
+            message_count=updated_session.message_count,
+            user_messages=updated_session.user_messages,
+            bot_responses=updated_session.bot_responses,
+            is_active_session=updated_session.is_active_session,
+            created_at=updated_session.created_at,
+            updated_at=updated_session.updated_at,
+            messages=[schemas.EmoBuddyMessage.model_validate(msg) for msg in session.messages] if session.messages else None
+        )
 
 
 class SurveyService:

@@ -71,6 +71,7 @@ class TokenResponse(BaseModel):
     refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int = Field(..., description="Token expiration time in seconds")
+    user_id: Optional[UUID] = Field(None, description="The UUID of the authenticated user (not present for service tokens)")
 
 
 class UserProfile(TimestampMixin):
@@ -264,7 +265,7 @@ class EmoBuddySessionResponse(EmoBuddySessionCreate, TimestampMixin):
     user_messages: int
     bot_responses: int
     is_active_session: bool
-    messages: List[EmoBuddyMessage] = []
+    messages: Optional[List[EmoBuddyMessage]] = None
     
     model_config = ConfigDict(from_attributes=True)
 

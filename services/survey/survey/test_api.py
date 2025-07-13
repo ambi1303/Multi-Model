@@ -6,6 +6,7 @@ import requests
 import json
 import time
 import sys
+import uuid
 
 BASE_URL = "http://localhost:8004"
 
@@ -30,13 +31,17 @@ def test_metrics():
 def test_predict():
     """Test the predict endpoint"""
     print("Testing predict endpoint...")
+    test_user_id = str(uuid.uuid4())
     payload = {
         "designation": 3,
         "resource_allocation": 7,
         "mental_fatigue_score": 6,
         "company_type": "Service",
         "wfh_setup_available": "Yes",
-        "gender": "Male"
+        "gender": "Male",
+        "user_id": test_user_id,
+        "user_email": "test@example.com",
+        "user_name": "Test User"
     }
     response = requests.post(f"{BASE_URL}/predict", json=payload)
     print(f"Status: {response.status_code}")
@@ -44,9 +49,31 @@ def test_predict():
     assert response.status_code == 200
     print("Prediction passed!\n")
 
+def test_analyze_employee():
+    """Test the analyze-employee endpoint"""
+    print("Testing analyze-employee endpoint...")
+    test_user_id = str(uuid.uuid4())
+    payload = {
+        "designation": 3,
+        "resource_allocation": 7,
+        "mental_fatigue_score": 6,
+        "company_type": "Service",
+        "wfh_setup_available": "Yes",
+        "gender": "Male",
+        "user_id": test_user_id,
+        "user_email": "test@example.com",
+        "user_name": "Test User"
+    }
+    response = requests.post(f"{BASE_URL}/analyze-employee", json=payload)
+    print(f"Status: {response.status_code}")
+    print(f"Response: {json.dumps(response.json(), indent=2)}")
+    assert response.status_code == 200
+    print("Employee analysis passed!\n")
+
 def test_analyze_survey():
     """Test the analyze-survey endpoint"""
     print("Testing analyze-survey endpoint...")
+    test_user_id = str(uuid.uuid4())
     payload = {
         "employee": {
             "designation": 3,
@@ -54,7 +81,10 @@ def test_analyze_survey():
             "mental_fatigue_score": 6,
             "company_type": "Service",
             "wfh_setup_available": "Yes",
-            "gender": "Male"
+            "gender": "Male",
+            "user_id": test_user_id,
+            "user_email": "test@example.com",
+            "user_name": "Test User"
         },
         "survey": {
             "q1": 3,
@@ -68,6 +98,7 @@ def test_analyze_survey():
             "q9": 3,
             "q10": 2
         },
+        "user_id": test_user_id,
         "employee_id": "test_user_123"
     }
     response = requests.post(f"{BASE_URL}/analyze-survey", json=payload)
@@ -76,19 +107,82 @@ def test_analyze_survey():
     assert response.status_code == 200
     print("Survey analysis passed!\n")
 
+def test_analyze_survey_questions():
+    """Test the analyze-survey-questions endpoint"""
+    print("Testing analyze-survey-questions endpoint...")
+    test_user_id = str(uuid.uuid4())
+    payload = {
+        "q1": 3,
+        "q2": 4,
+        "q3": 4,
+        "q4": 2,
+        "q5": 3,
+        "q6": 4,
+        "q7": 2,
+        "q8": 3,
+        "q9": 3,
+        "q10": 2
+    }
+    response = requests.post(f"{BASE_URL}/analyze-survey-questions", json=payload, params={"user_id": test_user_id})
+    print(f"Status: {response.status_code}")
+    print(f"Response: {json.dumps(response.json(), indent=2)}")
+    assert response.status_code == 200
+    print("Survey questions analysis passed!\n")
+
+def test_analyze_combined():
+    """Test the analyze-combined endpoint"""
+    print("Testing analyze-combined endpoint...")
+    test_user_id = str(uuid.uuid4())
+    payload = {
+        "employee": {
+            "designation": 3,
+            "resource_allocation": 7,
+            "mental_fatigue_score": 6,
+            "company_type": "Service",
+            "wfh_setup_available": "Yes",
+            "gender": "Male",
+            "user_id": test_user_id,
+            "user_email": "test@example.com",
+            "user_name": "Test User"
+        },
+        "survey": {
+            "q1": 3,
+            "q2": 4,
+            "q3": 4,
+            "q4": 2,
+            "q5": 3,
+            "q6": 4,
+            "q7": 2,
+            "q8": 3,
+            "q9": 3,
+            "q10": 2
+        },
+        "user_id": test_user_id,
+        "employee_id": "test_user_123"
+    }
+    response = requests.post(f"{BASE_URL}/analyze-combined", json=payload)
+    print(f"Status: {response.status_code}")
+    print(f"Response: {json.dumps(response.json(), indent=2)}")
+    assert response.status_code == 200
+    print("Combined analysis passed!\n")
+
 def load_test(num_requests=10):
     """Simple load test for the API"""
     print(f"Running load test with {num_requests} requests...")
     start_time = time.time()
     
     for i in range(num_requests):
+        test_user_id = str(uuid.uuid4())
         payload = {
             "designation": 3,
             "resource_allocation": 7,
             "mental_fatigue_score": 6,
             "company_type": "Service",
             "wfh_setup_available": "Yes",
-            "gender": "Male"
+            "gender": "Male",
+            "user_id": test_user_id,
+            "user_email": f"test{i}@example.com",
+            "user_name": f"Test User {i}"
         }
         response = requests.post(f"{BASE_URL}/predict", json=payload)
         if response.status_code != 200:
@@ -103,7 +197,10 @@ if __name__ == "__main__":
         test_health()
         test_metrics()
         test_predict()
+        test_analyze_employee()
         test_analyze_survey()
+        test_analyze_survey_questions()
+        test_analyze_combined()
         
         # Run load test if specified
         if len(sys.argv) > 1 and sys.argv[1] == "--load-test":

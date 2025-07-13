@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Box, Container, Fade, Typography,  Alert } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
-import { BurnoutResult } from '../types';
+import { BurnoutResult, User } from '../types';
 import { 
   analyzeCombined,
   analyzeEmployee,
@@ -39,13 +39,16 @@ interface FormData {
   employee_id?: string;
 }
 
-const createEmployeeData = (data: FormData): EmployeeData => ({
+const createEmployeeData = (data: FormData, user: User | null): Omit<EmployeeData, 'designation' | 'resource_allocation' | 'mental_fatigue_score' | 'company_type' | 'wfh_setup_available' | 'gender'> & { designation: number; resource_allocation: number; mental_fatigue_score: number; company_type: "Service" | "Product"; wfh_setup_available: "Yes" | "No"; gender: "Male" | "Female"; } => ({
   designation: Number(data.designation),
   resource_allocation: Number(data.resourceAllocation),
   mental_fatigue_score: Number(data.mentalFatigueScore),
   company_type: data.companyType as 'Service' | 'Product',
   wfh_setup_available: data.wfhSetupAvailable as 'Yes' | 'No',
   gender: data.gender as 'Male' | 'Female',
+  user_id: user?.id,
+  user_email: user?.email,
+  user_name: user?.full_name,
 });
 
 const createSurveyData = (data: FormData): SurveyData => ({
@@ -64,10 +67,20 @@ const createSurveyData = (data: FormData): SurveyData => ({
 const EnhancedBurnoutSurvey: React.FC = () => {
   const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const { showSuccess, showError } = useNotification();
-  const { addAnalysisResult } = useAppStore();
+  const { addAnalysisResult, user, token } = useAppStore();
   const theme = useTheme();
   const navigate = useNavigate();
+
+  // Cleanup function to cancel ongoing requests
+  useEffect(() => {
+    return () => {
+      if (abortController) {
+        abortController.abort();
+      }
+    };
+  }, [abortController]);
 
   const formMethods = useForm<FormData>({
     defaultValues: {
@@ -83,25 +96,47 @@ const EnhancedBurnoutSurvey: React.FC = () => {
   });
 
   const onSubmit = async (data: FormData) => {
+    // Prevent duplicate submissions
+    if (loading) {
+      console.log('Submission already in progress, ignoring duplicate request');
+      return;
+    }
+
+    // Cancel any existing requests
+    if (abortController) {
+      abortController.abort();
+    }
+
+    // Create new AbortController for this request
+    const newAbortController = new AbortController();
+    setAbortController(newAbortController);
+    
     setLoading(true);
     setResult(null);
     
+    if (!user || !token) {
+      showError('You must be logged in to take the survey.');
+      setLoading(false);
+      setAbortController(null);
+      return;
+    }
+
     try {
-      const employeeData = createEmployeeData(data);
+      const employeeData = createEmployeeData(data, user);
       const surveyData = createSurveyData(data);
-      const employeeId = data.employee_id || `emp_${Date.now()}`;
+      const employeeId = data.employee_id || user.id || `emp_${Date.now()}`;
 
       // Step 1: Call ML Model API for burnout prediction
       console.log('Step 1: Calling ML Model API...');
-      const mlResult: EmployeeAnalysisResponse = await analyzeEmployee(employeeData, employeeId);
+      const mlResult: EmployeeAnalysisResponse = await analyzeEmployee(employeeData, employeeId, newAbortController.signal);
       
       // Step 2: Call Likert Survey API for risk assessment
       console.log('Step 2: Calling Survey API...');
-      const surveyResult: SurveyAnalysisResponse = await analyzeSurveyQuestions(surveyData);
+      const surveyResult: SurveyAnalysisResponse = await analyzeSurveyQuestions(surveyData, newAbortController.signal);
       
       // Step 3: Call Combined Analysis API for Gemini insights
       console.log('Step 3: Calling Combined Analysis API...');
-      const combinedResult: CombinedAnalysisResponse = await analyzeCombined(employeeData, surveyData, employeeId);
+      const combinedResult: CombinedAnalysisResponse = await analyzeCombined(employeeData, surveyData, employeeId, newAbortController.signal);
 
       // Map all results to CombinedAnalysisResponse format for component
       const inferredRisk: 'Low' | 'Medium' | 'High' = (() => {
@@ -184,9 +219,16 @@ const EnhancedBurnoutSurvey: React.FC = () => {
       showSuccess('Analysis completed successfully! All insights are now available.');
     } catch (err: any) {
       console.error('Analysis error:', err);
-      showError(`Analysis failed: ${err.message || 'Please check your connection and try again.'}`);
+      
+      // Don't show error if request was cancelled
+      if (err.name === 'AbortError' || err.message?.includes('canceled') || err.message?.includes('cancelled')) {
+        console.log('Request was cancelled by user');
+      } else {
+        showError(`Analysis failed: ${err.message || 'Please check your connection and try again.'}`);
+      }
     } finally {
       setLoading(false);
+      setAbortController(null);
     }
   };
 

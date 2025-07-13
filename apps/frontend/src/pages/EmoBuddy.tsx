@@ -99,10 +99,19 @@ export const EmoBuddy: React.FC = () => {
     setInputValue('');
     try {
       if (!firstMessageSent) {
-        // First message: start session
+        // First message: start session using unified core format
         const res = await api.post(`${EMO_BUDDY_API_PREFIX}/start`, {
-          user_message: userMessage.content,
-          user_id: user.id
+          user_id: user.id,
+          analysis_report: {
+            transcribed_text: userMessage.content,
+            sentiment: { label: 'neutral', confidence: 0.5 },
+            emotions: [],
+            timestamp: Date.now()
+          }
+        }, {
+          headers: {
+            'X-Session-Mode': 'STANDALONE' // Indicate this is a standalone session
+          }
         });
         const data = res.data;
         setSessionId(data.session_id);
@@ -117,11 +126,15 @@ export const EmoBuddy: React.FC = () => {
         ]);
         setFirstMessageSent(true);
       } else if (sessionId) {
-        // Continue session
+        // Continue session using unified core format
         const res = await api.post(`${EMO_BUDDY_API_PREFIX}/continue`, {
           session_id: sessionId,
-          user_message: userMessage.content,
-          user_id: user.id
+          user_id: user.id,
+          user_input: userMessage.content
+        }, {
+          headers: {
+            'X-Session-Mode': 'CONTINUATION' // Indicate this is a continuation
+          }
         });
         const data = res.data;
         setMessages((prev) => [
@@ -157,6 +170,10 @@ export const EmoBuddy: React.FC = () => {
       await api.post(`${EMO_BUDDY_API_PREFIX}/end`, {
         session_id: sessionId,
         user_id: user.id
+      }, {
+        headers: {
+          'X-Session-Mode': 'CONTINUATION' // Indicate this is ending a session
+        }
       });
     } catch (e) {
       // Optionally handle error
@@ -221,6 +238,7 @@ export const EmoBuddy: React.FC = () => {
               </Box>
             </Box>
           ))}
+          
           {isLoading && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
               <CircularProgress size={16} />

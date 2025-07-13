@@ -1,291 +1,434 @@
 #!/usr/bin/env python3
-"""
-Complete Data Flow Test Suite
-Tests the entire flow: Frontend → Gateway → Services → Database → Response
-"""
 
 import asyncio
 import aiohttp
 import json
-import time
-import uuid
-from typing import Dict, Any
 import logging
+from datetime import datetime
+from typing import Dict, Any, Optional
+import tempfile
+import os
 
-# Setup logging
+# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Service URLs
-GATEWAY_URL = "http://localhost:9000"
-CORE_URL = "http://localhost:8000"
+INTEGRATED_BACKEND_URL = "http://localhost:9000"
+CORE_SERVICE_URL = "http://localhost:8000"
+STT_SERVICE_URL = "http://localhost:8002"
+EMO_BUDDY_SERVICE_URL = "http://localhost:8005"
 
-class DataFlowTester:
+# Test credentials
+TEST_USER = {
+    "email": "test@example.com",
+    "password": "testpassword123"
+}
+
+class DatabaseFlowAuditor:
     def __init__(self):
         self.session = None
-        self.test_user_id = str(uuid.uuid4())
-        self.results = {}
-        
-    async def setup(self):
-        """Setup test session and authenticate"""
-        self.session = aiohttp.ClientSession()
-        
-        # Create test user in core service
-        user_data = {
-            "email": f"test_{self.test_user_id}@test.com",
-            "username": f"test_user_{self.test_user_id[:8]}",
-            "full_name": "Test User",
-            "password": "testpass123",
-            "department_id": 1
+        self.auth_token = None
+        self.user_id = None
+        self.results = {
+            "authentication": {"status": "pending", "details": {}},
+            "speech_analysis": {"status": "pending", "details": {}},
+            "emobuddy_integration": {"status": "pending", "details": {}},
+            "database_storage": {"status": "pending", "details": {}},
+            "issues_found": []
         }
-        
-        try:
-            async with self.session.post(f"{CORE_URL}/auth/register", json=user_data) as resp:
-                if resp.status in [200, 201]:
-                    logger.info(f"✅ Test user created: {self.test_user_id}")
-                    return True
-                else:
-                    error = await resp.text()
-                    logger.warning(f"⚠️ User creation failed: {error} (may already exist)")
-                    return True  # Continue anyway
-        except Exception as e:
-            logger.error(f"❌ Failed to create test user: {e}")
-            return False
-    
-    async def cleanup(self):
-        """Cleanup test session"""
+
+    async def start_session(self):
+        """Start HTTP session"""
+        self.session = aiohttp.ClientSession()
+        logger.info("🔧 Starting database flow audit session")
+
+    async def close_session(self):
+        """Close HTTP session"""
         if self.session:
             await self.session.close()
-    
-    async def test_gateway_health(self) -> bool:
-        """Test 1: Gateway Health Check"""
-        logger.info("🔍 Testing Gateway Health Check...")
+            logger.info("🔧 Closed audit session")
+
+    async def authenticate(self):
+        """Test authentication flow"""
+        logger.info("🔐 Testing authentication flow...")
         try:
-            async with self.session.get(f"{GATEWAY_URL}/health") as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    logger.info(f"✅ Gateway health check passed: {data.get('status')}")
+            # Login to get token
+            async with self.session.post(
+                f"{INTEGRATED_BACKEND_URL}/auth/login",
+                json=TEST_USER
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    self.auth_token = data.get("access_token")
+                    self.user_id = data.get("user", {}).get("id")
+                    
+                    self.results["authentication"]["status"] = "success"
+                    self.results["authentication"]["details"] = {
+                        "token_received": bool(self.auth_token),
+                        "user_id_received": bool(self.user_id)
+                    }
+                    logger.info(f"✅ Authentication successful - User ID: {self.user_id}")
                     return True
                 else:
-                    logger.error(f"❌ Gateway health check failed: {resp.status}")
+                    error_text = await response.text()
+                    logger.error(f"❌ Authentication failed: {response.status} - {error_text}")
+                    self.results["authentication"]["status"] = "failed"
+                    self.results["authentication"]["details"] = {"error": error_text}
                     return False
         except Exception as e:
-            logger.error(f"❌ Gateway health check error: {e}")
+            logger.error(f"❌ Authentication error: {e}")
+            self.results["authentication"]["status"] = "error"
+            self.results["authentication"]["details"] = {"error": str(e)}
             return False
-    
-    async def test_chat_analysis_flow(self) -> bool:
-        """Test 2: Chat Analysis → Database Flow"""
-        logger.info("🔍 Testing Chat Analysis Flow...")
+
+    async def test_speech_analysis_flow(self):
+        """Test speech analysis with EmoBuddy integration"""
+        logger.info("🎤 Testing speech analysis flow...")
+        
+        if not self.auth_token or not self.user_id:
+            logger.error("❌ Cannot test speech analysis - authentication required")
+            return False
+
         try:
-            payload = {
-                "text": "I'm feeling quite stressed and overwhelmed with work lately",
-                "person_id": "test_person",
-                "user_id": self.test_user_id
-            }
+            # Create a dummy audio file for testing
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                # Create a minimal WAV file (just headers, no actual audio)
+                temp_file.write(b'RIFF')
+                temp_file.write((36).to_bytes(4, 'little'))
+                temp_file.write(b'WAVE')
+                temp_file.write(b'fmt ')
+                temp_file.write((16).to_bytes(4, 'little'))
+                temp_file.write((1).to_bytes(2, 'little'))  # PCM
+                temp_file.write((1).to_bytes(2, 'little'))  # Mono
+                temp_file.write((16000).to_bytes(4, 'little'))  # Sample rate
+                temp_file.write((32000).to_bytes(4, 'little'))  # Byte rate
+                temp_file.write((2).to_bytes(2, 'little'))  # Block align
+                temp_file.write((16).to_bytes(2, 'little'))  # Bits per sample
+                temp_file.write(b'data')
+                temp_file.write((0).to_bytes(4, 'little'))  # Data size
+                temp_file_path = temp_file.name
+
+            # Test speech analysis
+            data = aiohttp.FormData()
+            data.add_field('file', open(temp_file_path, 'rb'), filename='test_audio.wav')
+            data.add_field('user_id', self.user_id)
+
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
             
-            async with self.session.post(f"{GATEWAY_URL}/analyze-chat", json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    logger.info(f"✅ Chat analysis completed: sentiment={data.get('sentiment')}")
-                    
-                    # Check if data was stored in database
-                    if data.get("database_stored"):
-                        logger.info(f"✅ Chat data stored in database: ID={data.get('database_id')}")
-                        return True
-                    else:
-                        logger.warning("⚠️ Chat analysis successful but not stored in database")
-                        return True  # Still counts as success for flow test
+            async with self.session.post(
+                f"{INTEGRATED_BACKEND_URL}/analyze-speech",
+                data=data,
+                headers=headers
+            ) as response:
+                response_data = await response.json() if response.status == 200 else await response.text()
+                
+                self.results["speech_analysis"]["status"] = "success" if response.status == 200 else "failed"
+                self.results["speech_analysis"]["details"] = {
+                    "response_status": response.status,
+                    "has_transcription": bool(response_data.get("transcription")) if response.status == 200 else False,
+                    "has_sentiment": bool(response_data.get("sentiment")) if response.status == 200 else False,
+                    "has_emotions": bool(response_data.get("emotions")) if response.status == 200 else False,
+                    "has_emobuddy_response": bool(response_data.get("emo_buddy_response")) if response.status == 200 else False,
+                    "has_technical_report": bool(response_data.get("technical_report")) if response.status == 200 else False,
+                    "has_gen_ai_insights": bool(response_data.get("gen_ai_insights")) if response.status == 200 else False,
+                    "session_id": response_data.get("session_id") if response.status == 200 else None,
+                    "response_data": response_data
+                }
+                
+                if response.status == 200:
+                    logger.info("✅ Speech analysis successful")
+                    logger.info(f"   - EmoBuddy response: {bool(response_data.get('emo_buddy_response'))}")
+                    logger.info(f"   - Technical report: {bool(response_data.get('technical_report'))}")
+                    logger.info(f"   - Session ID: {response_data.get('session_id')}")
+                    return True
                 else:
-                    error = await resp.text()
-                    logger.error(f"❌ Chat analysis failed: {resp.status} - {error}")
+                    logger.error(f"❌ Speech analysis failed: {response.status} - {response_data}")
                     return False
-        except Exception as e:
-            logger.error(f"❌ Chat analysis error: {e}")
-            return False
-    
-    async def test_survey_analysis_flow(self) -> bool:
-        """Test 3: Survey Analysis → Database Flow"""
-        logger.info("🔍 Testing Survey Analysis Flow...")
-        try:
-            payload = {
-                "employee": {
-                    "designation": 3.0,
-                    "resource_allocation": 7.0,
-                    "mental_fatigue_score": 8.0,
-                    "company_type": "Service",
-                    "wfh_setup_available": "Yes",
-                    "gender": "Male"
-                },
-                "survey": {
-                    "emotional_exhaustion": 4.5,
-                    "depersonalization": 3.2,
-                    "personal_accomplishment": 2.8,
-                    "work_life_balance": 2.5,
-                    "job_satisfaction": 3.0
-                },
-                "user_id": self.test_user_id
-            }
-            
-            async with self.session.post(f"{GATEWAY_URL}/analyze-survey", json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    logger.info(f"✅ Survey analysis completed: burnout={data.get('burnout_percentage')}%")
                     
-                    # Check if data was stored in database
-                    if data.get("database_stored"):
-                        logger.info(f"✅ Survey data stored in database: ID={data.get('database_id')}")
-                        return True
-                    else:
-                        logger.warning("⚠️ Survey analysis successful but not stored in database")
-                        return True  # Still counts as success for flow test
-                else:
-                    error = await resp.text()
-                    logger.error(f"❌ Survey analysis failed: {resp.status} - {error}")
-                    return False
         except Exception as e:
-            logger.error(f"❌ Survey analysis error: {e}")
+            logger.error(f"❌ Speech analysis error: {e}")
+            self.results["speech_analysis"]["status"] = "error"
+            self.results["speech_analysis"]["details"] = {"error": str(e)}
             return False
-    
-    async def test_emo_buddy_flow(self) -> bool:
-        """Test 4: Emo Buddy Session → Database Flow"""
-        logger.info("🔍 Testing Emo Buddy Flow...")
+        finally:
+            # Clean up temp file
+            if 'temp_file_path' in locals():
+                try:
+                    os.unlink(temp_file_path)
+                except:
+                    pass
+
+    async def test_emobuddy_session_storage(self):
+        """Test EmoBuddy session database storage"""
+        logger.info("🤖 Testing EmoBuddy session storage...")
+        
+        if not self.auth_token or not self.user_id:
+            logger.error("❌ Cannot test EmoBuddy - authentication required")
+            return False
+
         try:
-            # Start session
-            payload = {
-                "user_id": self.test_user_id,
-                "initial_message": "I'm feeling anxious about my workload"
-            }
+            # Test EmoBuddy session creation via Core Service
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
             
-            async with self.session.post(f"{GATEWAY_URL}/emo-buddy/start", json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    session_id = data.get("session_id")
-                    logger.info(f"✅ Emo Buddy session started: {session_id}")
+            async with self.session.post(
+                f"{CORE_SERVICE_URL}/emo-buddy/sessions",
+                headers=headers
+            ) as response:
+                if response.status == 200:
+                    session_data = await response.json()
+                    session_uuid = session_data.get("session_uuid")
                     
-                    # Continue conversation
-                    continue_payload = {
-                        "session_id": session_id,
-                        "message": "Can you help me manage this stress?",
-                        "user_id": self.test_user_id
+                    logger.info(f"✅ EmoBuddy session created: {session_uuid}")
+                    
+                    # Test adding a message
+                    message_data = {
+                        "message_text": "Hello, I'm feeling stressed today.",
+                        "is_user_message": True,
+                        "sentiment": "negative"
                     }
                     
-                    async with self.session.post(f"{GATEWAY_URL}/emo-buddy/continue", json=continue_payload) as resp2:
-                        if resp2.status == 200:
-                            continue_data = await resp2.json()
-                            logger.info(f"✅ Emo Buddy conversation continued")
+                    async with self.session.post(
+                        f"{CORE_SERVICE_URL}/emo-buddy/sessions/{session_uuid}/messages",
+                        json=message_data,
+                        headers=headers
+                    ) as msg_response:
+                        if msg_response.status == 200:
+                            logger.info("✅ EmoBuddy message added successfully")
                             
-                            # End session
-                            end_payload = {
-                                "session_id": session_id,
-                                "user_id": self.test_user_id
-                            }
-                            
-                            async with self.session.post(f"{GATEWAY_URL}/emo-buddy/end", json=end_payload) as resp3:
-                                if resp3.status == 200:
-                                    end_data = await resp3.json()
-                                    logger.info(f"✅ Emo Buddy session ended successfully")
+                            # Test getting session
+                            async with self.session.get(
+                                f"{CORE_SERVICE_URL}/emo-buddy/sessions/{session_uuid}",
+                                headers=headers
+                            ) as get_response:
+                                if get_response.status == 200:
+                                    session_info = await get_response.json()
+                                    self.results["emobuddy_integration"]["status"] = "success"
+                                    self.results["emobuddy_integration"]["details"] = {
+                                        "session_created": True,
+                                        "message_added": True,
+                                        "session_retrieved": True,
+                                        "session_uuid": session_uuid,
+                                        "message_count": session_info.get("message_count", 0)
+                                    }
+                                    logger.info("✅ EmoBuddy session retrieval successful")
                                     return True
                                 else:
-                                    logger.warning(f"⚠️ Emo Buddy session end failed: {resp3.status}")
-                                    return True  # Session still worked
+                                    logger.error(f"❌ Failed to retrieve EmoBuddy session: {get_response.status}")
                         else:
-                            logger.warning(f"⚠️ Emo Buddy continue failed: {resp2.status}")
-                            return True  # Initial session still worked
+                            logger.error(f"❌ Failed to add EmoBuddy message: {msg_response.status}")
                 else:
-                    error = await resp.text()
-                    logger.error(f"❌ Emo Buddy session start failed: {resp.status} - {error}")
-                    return False
-        except Exception as e:
-            logger.error(f"❌ Emo Buddy flow error: {e}")
-            return False
-    
-    async def test_database_storage_verification(self) -> bool:
-        """Test 5: Verify data storage in core database"""
-        logger.info("🔍 Testing Database Storage Verification...")
-        try:
-            # Try to fetch user's analysis history from core service
-            async with self.session.get(f"{CORE_URL}/health") as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    logger.info(f"✅ Core service accessible: {data.get('status')}")
+                    logger.error(f"❌ Failed to create EmoBuddy session: {response.status}")
                     
-                    # Check database connectivity
-                    if data.get("database", {}).get("connected"):
-                        logger.info("✅ Database connection verified")
-                        return True
-                    else:
-                        logger.warning("⚠️ Database connection issue detected")
-                        return False
-                else:
-                    logger.error(f"❌ Core service not accessible: {resp.status}")
-                    return False
-        except Exception as e:
-            logger.error(f"❌ Database verification error: {e}")
+            self.results["emobuddy_integration"]["status"] = "failed"
             return False
-    
-    async def run_all_tests(self) -> Dict[str, bool]:
-        """Run all data flow tests"""
-        logger.info("🚀 Starting Complete Data Flow Test Suite")
-        logger.info("=" * 60)
+            
+        except Exception as e:
+            logger.error(f"❌ EmoBuddy session storage error: {e}")
+            self.results["emobuddy_integration"]["status"] = "error"
+            self.results["emobuddy_integration"]["details"] = {"error": str(e)}
+            return False
+
+    async def test_database_storage(self):
+        """Test database storage for analysis results"""
+        logger.info("💾 Testing database storage...")
         
-        # Setup
-        if not await self.setup():
-            logger.error("❌ Test setup failed")
-            return {}
+        if not self.auth_token or not self.user_id:
+            logger.error("❌ Cannot test database storage - authentication required")
+            return False
+
+        try:
+            # Test getting user's speech analyses
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            async with self.session.get(
+                f"{CORE_SERVICE_URL}/analyses/speech/user/{self.user_id}",
+                headers=headers
+            ) as response:
+                if response.status == 200:
+                    analyses = await response.json()
+                    logger.info(f"✅ Retrieved {len(analyses)} speech analyses from database")
+                    
+                    self.results["database_storage"]["status"] = "success"
+                    self.results["database_storage"]["details"] = {
+                        "speech_analyses_count": len(analyses),
+                        "latest_analysis": analyses[0] if analyses else None
+                    }
+                    return True
+                else:
+                    logger.error(f"❌ Failed to retrieve speech analyses: {response.status}")
+                    self.results["database_storage"]["status"] = "failed"
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Database storage test error: {e}")
+            self.results["database_storage"]["status"] = "error"
+            self.results["database_storage"]["details"] = {"error": str(e)}
+            return False
+
+    async def identify_issues(self):
+        """Identify issues with the database flow"""
+        logger.info("🔍 Identifying database flow issues...")
         
-        # Run tests
-        tests = [
-            ("Gateway Health", self.test_gateway_health),
-            ("Chat Analysis Flow", self.test_chat_analysis_flow),
-            ("Survey Analysis Flow", self.test_survey_analysis_flow),
-            ("Emo Buddy Flow", self.test_emo_buddy_flow),
-            ("Database Storage", self.test_database_storage_verification),
-        ]
+        issues = []
         
-        results = {}
-        for test_name, test_func in tests:
-            try:
-                results[test_name] = await test_func()
-                await asyncio.sleep(1)  # Brief pause between tests
-            except Exception as e:
-                logger.error(f"❌ Test '{test_name}' crashed: {e}")
-                results[test_name] = False
+        # Check authentication
+        if self.results["authentication"]["status"] != "success":
+            issues.append({
+                "category": "authentication",
+                "severity": "critical",
+                "description": "Authentication flow is not working properly",
+                "impact": "Users cannot access the system"
+            })
         
-        # Cleanup
-        await self.cleanup()
+        # Check speech analysis
+        speech_details = self.results["speech_analysis"]["details"]
+        if self.results["speech_analysis"]["status"] != "success":
+            issues.append({
+                "category": "speech_analysis",
+                "severity": "critical",
+                "description": "Speech analysis endpoint is not working",
+                "impact": "Audio analysis feature is broken"
+            })
+        elif speech_details.get("has_emobuddy_response") is False:
+            issues.append({
+                "category": "speech_analysis",
+                "severity": "major",
+                "description": "EmoBuddy response is missing from speech analysis",
+                "impact": "Users don't get therapeutic companion responses during audio analysis"
+            })
         
-        # Summary
-        logger.info("=" * 60)
-        logger.info("📊 TEST RESULTS SUMMARY")
-        logger.info("=" * 60)
+        # Check EmoBuddy integration
+        if self.results["emobuddy_integration"]["status"] != "success":
+            issues.append({
+                "category": "emobuddy_integration",
+                "severity": "major",
+                "description": "EmoBuddy session storage is not working",
+                "impact": "EmoBuddy conversations are not being saved to database"
+            })
         
-        passed = 0
-        total = len(results)
+        # Check database storage
+        if self.results["database_storage"]["status"] != "success":
+            issues.append({
+                "category": "database_storage",
+                "severity": "critical",
+                "description": "Database storage is not working properly",
+                "impact": "Analysis results are not being persisted"
+            })
         
-        for test_name, result in results.items():
-            status = "✅ PASS" if result else "❌ FAIL"
-            logger.info(f"{test_name:.<30} {status}")
-            if result:
-                passed += 1
+        # Check for missing EmoBuddy session creation during speech analysis
+        if (self.results["speech_analysis"]["status"] == "success" and 
+            self.results["speech_analysis"]["details"].get("has_emobuddy_response") and
+            self.results["emobuddy_integration"]["status"] == "success"):
+            # This suggests EmoBuddy works standalone but not integrated with speech analysis
+            issues.append({
+                "category": "integration",
+                "severity": "major",
+                "description": "EmoBuddy sessions are not being created during speech analysis",
+                "impact": "EmoBuddy responses from audio analysis are not stored in database"
+            })
         
-        logger.info("=" * 60)
-        logger.info(f"📈 OVERALL: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+        self.results["issues_found"] = issues
         
-        if passed == total:
-            logger.info("🎉 ALL TESTS PASSED - Data flow is working correctly!")
+        # Log issues
+        if issues:
+            logger.warning(f"⚠️  Found {len(issues)} issues:")
+            for issue in issues:
+                logger.warning(f"   - {issue['severity'].upper()}: {issue['description']}")
         else:
-            logger.warning(f"⚠️ {total-passed} test(s) failed - Review the logs above")
+            logger.info("✅ No issues found - database flow is working correctly")
+
+    async def generate_report(self):
+        """Generate comprehensive audit report"""
+        logger.info("📋 Generating audit report...")
         
-        return results
+        report = {
+            "audit_timestamp": datetime.now().isoformat(),
+            "audit_summary": {
+                "total_tests": 4,
+                "passed_tests": sum(1 for result in self.results.values() if isinstance(result, dict) and result.get("status") == "success"),
+                "failed_tests": sum(1 for result in self.results.values() if isinstance(result, dict) and result.get("status") == "failed"),
+                "error_tests": sum(1 for result in self.results.values() if isinstance(result, dict) and result.get("status") == "error"),
+                "issues_found": len(self.results["issues_found"])
+            },
+            "detailed_results": self.results,
+            "recommendations": []
+        }
+        
+        # Add recommendations based on issues
+        for issue in self.results["issues_found"]:
+            if issue["category"] == "integration":
+                report["recommendations"].append({
+                    "priority": "high",
+                    "action": "Integrate EmoBuddy session creation with speech analysis flow",
+                    "description": "Modify STT service to create EmoBuddy sessions in database during audio analysis"
+                })
+            elif issue["category"] == "speech_analysis":
+                report["recommendations"].append({
+                    "priority": "high",
+                    "action": "Fix EmoBuddy integration in speech analysis",
+                    "description": "Ensure EmoBuddy responses are properly generated and returned"
+                })
+            elif issue["category"] == "database_storage":
+                report["recommendations"].append({
+                    "priority": "critical",
+                    "action": "Fix database storage connections",
+                    "description": "Ensure all services can properly store and retrieve data from database"
+                })
+        
+        # Save report to file
+        report_filename = f"database_flow_audit_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(report_filename, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        logger.info(f"📁 Audit report saved to: {report_filename}")
+        return report
+
+    async def run_complete_audit(self):
+        """Run complete database flow audit"""
+        logger.info("🚀 Starting complete database flow audit...")
+        
+        try:
+            await self.start_session()
+            
+            # Run tests in sequence
+            await self.authenticate()
+            await self.test_speech_analysis_flow()
+            await self.test_emobuddy_session_storage()
+            await self.test_database_storage()
+            
+            # Analyze results
+            await self.identify_issues()
+            report = await self.generate_report()
+            
+            # Print summary
+            logger.info("\n" + "="*60)
+            logger.info("📊 DATABASE FLOW AUDIT SUMMARY")
+            logger.info("="*60)
+            logger.info(f"Tests Run: {report['audit_summary']['total_tests']}")
+            logger.info(f"Passed: {report['audit_summary']['passed_tests']}")
+            logger.info(f"Failed: {report['audit_summary']['failed_tests']}")
+            logger.info(f"Errors: {report['audit_summary']['error_tests']}")
+            logger.info(f"Issues Found: {report['audit_summary']['issues_found']}")
+            
+            if self.results["issues_found"]:
+                logger.info("\n⚠️  CRITICAL ISSUES FOUND:")
+                for issue in self.results["issues_found"]:
+                    logger.info(f"   - {issue['severity'].upper()}: {issue['description']}")
+            else:
+                logger.info("\n✅ ALL TESTS PASSED - Database flow is working correctly!")
+            
+            logger.info("="*60)
+            
+        except Exception as e:
+            logger.error(f"❌ Audit failed with error: {e}")
+        finally:
+            await self.close_session()
 
 async def main():
-    """Main test runner"""
-    tester = DataFlowTester()
-    results = await tester.run_all_tests()
-    
-    # Exit with appropriate code
-    all_passed = all(results.values()) if results else False
-    exit(0 if all_passed else 1)
+    """Main function to run the audit"""
+    auditor = DatabaseFlowAuditor()
+    await auditor.run_complete_audit()
 
 if __name__ == "__main__":
     asyncio.run(main()) 

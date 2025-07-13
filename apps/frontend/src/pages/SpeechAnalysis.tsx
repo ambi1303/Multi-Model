@@ -159,7 +159,7 @@ const SpeechAnalysis: React.FC = () => {
   const { settings, updateSetting } = useAudioSettings();
   const { history, addAnalysis, clearHistory } = useAnalysisHistory();
   const { showSuccess, showError } = useNotification();
-  const { addAnalysisResult } = useAppStore();
+  const { addAnalysisResult, user, token } = useAppStore();
 
   // Format time helper
   const formatTime = useCallback((seconds: number) => {
@@ -175,10 +175,15 @@ const SpeechAnalysis: React.FC = () => {
       return;
     }
 
+    if (!user || !token) {
+      showError('You must be logged in to analyze audio.');
+      return;
+    }
+
     const progressInterval = startProgress();
 
     try {
-      const result = await speechApi.analyzeAudio(audioBlob);
+      const result = await speechApi.analyzeAudio(audioBlob, user?.id);
       const enhancedResult = {
         ...result,
         duration,
@@ -834,7 +839,7 @@ const SpeechAnalysis: React.FC = () => {
                             {new Date(item.timestamp).toLocaleString()}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Duration: {formatTime(item.duration)} • 
+                            Duration: {formatTime(item.audio_duration_seconds)} • 
                             Sentiment: {item.sentiment?.label || 'N/A'}
                           </Typography>
                           {item.emotions && item.emotions.length > 0 && (
@@ -867,7 +872,7 @@ const SpeechAnalysis: React.FC = () => {
         <Fade in timeout={800}>
           <Box sx={{ mt: 4 }}>
             {/* Transcription */}
-            {analysis.transcription && (
+            {analysis.transcribed_text && (
               <EnhancedCard sx={{ mb: 3 }}>
                 <CardContent>
                   <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -884,7 +889,7 @@ const SpeechAnalysis: React.FC = () => {
                       lineHeight: 1.6,
                     }}
                   >
-                    "{analysis.transcription}"
+                                          "{analysis.transcribed_text}"
                   </Typography>
                 </CardContent>
                 <CardActions sx={{ p: 2, justifyContent: 'flex-end' }}>
@@ -971,7 +976,7 @@ const SpeechAnalysis: React.FC = () => {
                       onClick={() => {
                         const reportData = {
                           timestamp: new Date().toISOString(),
-                          duration: analysis.duration,
+                          duration: analysis.audio_duration_seconds,
                           content: analysis.technicalReport,
                           wordCount: analysis.technicalReport.split(/\s+/).length,
                           characterCount: analysis.technicalReport.length

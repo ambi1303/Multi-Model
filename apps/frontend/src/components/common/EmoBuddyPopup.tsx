@@ -31,10 +31,11 @@ import {
   MicIcon,
 } from '../../utils/icons';
 import { speechApi, EmoBuddySession, EmoBuddyConversation } from '../../services/speechApi';
-import { SpeechAnalysisResult } from '../../types';
+import { SpeechAnalysisResult, User } from '../../types';
 import { useNotification } from '../../contexts/NotificationContext';
 import { BoxProps } from '@mui/material/Box';
 import { shouldForwardProp } from '@mui/system';
+import { useAppStore } from '../../store/useAppStore';
 
 // Styled Components
 const NotificationBubble = styled(Paper)(({ theme }) => ({
@@ -134,6 +135,7 @@ interface EmoBuddyPopupProps {
 export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, onClose }) => {
   const theme = useTheme();
   const { showError, showSuccess } = useNotification();
+  const user = useAppStore((state) => state.user);
   
   // State management
   const [showNotification, setShowNotification] = useState(true);
@@ -168,6 +170,10 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
       showError('No analysis result available for Emo Buddy session.');
       return;
     }
+    if (!user?.id) {
+      showError('You must be logged in to use Emo Buddy.');
+      return;
+    }
 
     setShowNotification(false);
     setIsLoading(true);
@@ -181,7 +187,7 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
       }
 
       // Start session
-      const sessionData = await speechApi.startEmoBuddySession(analysisResult);
+      const sessionData = await speechApi.startEmoBuddySession(analysisResult, user.id);
       setSession(sessionData);
       
       // Add initial message
@@ -208,6 +214,10 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
     if (now - lastSendCall.current < 2000) return; // throttle: 2 seconds
     lastSendCall.current = now;
     if (!inputValue.trim() || !session || isLoading) return;
+    if (!user?.id) {
+      showError('You must be logged in to use Emo Buddy.');
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -221,7 +231,7 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
     setIsLoading(true);
 
     try {
-      const response = await speechApi.continueEmoBuddyConversation(session.session_id, userMessage.content);
+      const response = await speechApi.continueEmoBuddyConversation(session.session_id, userMessage.content, user.id);
       
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -251,16 +261,22 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
     const now = Date.now();
     if (now - lastEndCall.current < 2000) return; // throttle: 2 seconds
     lastEndCall.current = now;
-    if (!session) return;
+    if (!session || isLoading) return;
+    if (!user?.id) {
+      showError('You must be logged in to use Emo Buddy.');
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      await speechApi.endEmoBuddySession(session.session_id);
-      showSuccess('Emo Buddy session ended. Take care! 💙');
+      const endData = await speechApi.endEmoBuddySession(session.session_id, user.id);
+      showSuccess(`Emo Buddy session ended. Summary: ${endData.summary}`);
       setShowChatWindow(false);
       setShowEndDialog(false);
       onClose();
     } catch (error) {
-      console.error('Failed to end session:', error);
+      console.error('Failed to end Emo Buddy session:', error);
       showError('Failed to end session properly.');
     }
   };

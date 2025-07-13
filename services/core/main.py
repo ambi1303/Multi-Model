@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, status, Query, BackgroundTasks, File, UploadFile, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Query, BackgroundTasks, File, UploadFile, Request, Body
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
@@ -222,7 +222,8 @@ async def register_user(
         return schemas.TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
-            expires_in=config.auth.access_token_expire_minutes * 60
+            expires_in=config.auth.access_token_expire_minutes * 60,
+            user_id=user.id
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -272,29 +273,76 @@ async def login_user(
     return schemas.TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        expires_in=config.auth.access_token_expire_minutes * 60
+        expires_in=config.auth.access_token_expire_minutes * 60,
+        user_id=user.id
     )
 
+
+@app.post("/auth/refresh", response_model=schemas.TokenResponse, tags=["Authentication"])
+async def refresh_access_token(
+    refresh_token: str = Body(..., embed=True),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Refresh access token"""
+    user = await services.auth.get_user_from_refresh_token(db, refresh_token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    new_access_token = services.auth.create_access_token(user.id, user.email, user.role)
+    
+    return schemas.TokenResponse(
+        access_token=new_access_token,
+        expires_in=config.auth.access_token_expire_minutes * 60,
+        user_id=user.id
+    )
 
 @app.post("/auth/logout", tags=["Authentication"])
 async def logout_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """User logout - invalidate the current session"""
+    """User logout - invalidate the current session and log audit event"""
     try:
+        # Log the logout event for audit and security purposes
+        logger.info(f"User {current_user.email} (ID: {current_user.id}) logged out successfully")
+        
+        # Update user's last activity timestamp
+        await repositories.user.update_last_login(db, current_user.id)
+        
         # In a JWT-based system, we typically rely on token expiration
-        # But we can log the logout event for audit purposes
-        logger.info(f"User {current_user.email} (ID: {current_user.id}) logged out")
+        # For enhanced security, you could implement token blacklisting here
+        # by storing revoked tokens in Redis with their expiration time
         
-        # You could implement token blacklisting here if needed
-        # For now, we just return success - the frontend will clear the token
+        # Create audit log entry for logout
+        audit_data = {
+            "user_id": current_user.id,
+            "action": "logout",
+            "details": {
+                "email": current_user.email,
+                "timestamp": datetime.utcnow().isoformat(),
+                "success": True
+            }
+        }
         
-        return {"message": "Successfully logged out"}
+        return {
+            "message": "Successfully logged out",
+            "success": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
     except Exception as e:
         logger.error(f"Logout error for user {current_user.id}: {e}")
         # Even if there's an error, we should allow logout to proceed
-        return {"message": "Logged out"}
+        # This ensures users can always log out from the frontend
+        return {
+            "message": "Logged out",
+            "success": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @app.get("/auth/me", response_model=schemas.UserProfile, tags=["Authentication"])

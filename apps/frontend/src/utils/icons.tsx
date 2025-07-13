@@ -66,6 +66,7 @@ import {
   Github,
   Twitter,
   Linkedin,
+  LogOut,
 } from 'lucide-react';
 
 // Icon size configuration
@@ -106,6 +107,7 @@ export const EditIcon: React.FC = () => <Edit size={ICON_SIZE} />;
 export const DeleteIcon: React.FC = () => <Trash2 size={ICON_SIZE} />;
 export const AddIcon: React.FC = () => <Plus size={ICON_SIZE} />;
 export const RemoveIcon: React.FC = () => <Minus size={ICON_SIZE} />;
+export const LogOutIcon: React.FC = () => <LogOut size={ICON_SIZE} />;
 
 // Status icons with forwardRef for MUI compatibility
 export const CheckCircleIcon = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof CheckCircle>>((props, ref) => (
@@ -176,6 +178,7 @@ export const TextSnippetIcon = AssignmentIcon;
 export const MoodIcon = EmojiEmotionsIcon;
 export const SpeedIcon = ZapIcon;
 export const MinusIcon = RemoveIcon;
+export const AlertTriangleIcon = WarningIcon;
 
 // Export Menu for backward compatibility
 export { Menu };

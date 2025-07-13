@@ -148,8 +148,29 @@ def transcribe_with_google(audio_file):
 def transcribe_with_vosk(audio_file):
     """Transcribe using Vosk as fallback"""
     try:
-        # Initialize Vosk model
-        model = Model("vosk-model-small-en-us-0.15")
+        # Initialize Vosk model - check multiple possible paths
+        model_paths = [
+            "vosk-model-small-en-us-0.15",
+            "../vosk-model-small-en-us-0.15",
+            "../../vosk-model-small-en-us-0.15",
+            os.path.join(os.path.dirname(__file__), "vosk-model-small-en-us-0.15"),
+            os.path.join(os.path.dirname(__file__), "..", "vosk-model-small-en-us-0.15")
+        ]
+        
+        model = None
+        for model_path in model_paths:
+            if os.path.exists(model_path):
+                try:
+                    model = Model(model_path)
+                    logger.info(f"Loaded Vosk model from: {model_path}")
+                    break
+                except Exception as e:
+                    logger.warning(f"Failed to load model from {model_path}: {e}")
+                    continue
+        
+        if model is None:
+            raise Exception("Could not find or load Vosk model from any expected location")
+            
         wf = wave.open(audio_file, "rb")
         
         # Create recognizer

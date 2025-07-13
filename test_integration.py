@@ -16,7 +16,7 @@ class IntegrationTester:
     def __init__(self):
         self.core_url = "http://localhost:8000"
         self.stt_url = "http://localhost:8002"
-        self.emobuddy_url = "http://localhost:8004"
+        self.emobuddy_url = "http://localhost:8005"
         self.admin_token = None
         self.test_user_id = None
         

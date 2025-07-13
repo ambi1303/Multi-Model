@@ -4,7 +4,7 @@ backend_urls:
   video: http://localhost:8001/analyze-emotion
   stt: http://localhost:8002/analyze-speech
   chat: http://localhost:8003/analyze/single
-  survey: http://localhost:8004/analyze
+  survey: http://localhost:8004
   emo_buddy: http://localhost:8005
 
 # Logging

@@ -292,7 +292,9 @@ export const analyzeBatchChatMessages = async (messages: Array<{ text: string; p
       person_id: msg.person_id || 'user_api'
     }));
     
-    const response = await axios.post(`${API_URL}/analyze/multiple`, processedMessages);
+    const response = await api.post('/analyze/multiple', processedMessages, {
+      timeout: 60000, // 60 seconds timeout for batch analysis
+    });
     return response.data;
   } catch (error) {
     console.error('Batch chat analysis failed:', error);
@@ -300,18 +302,18 @@ export const analyzeBatchChatMessages = async (messages: Array<{ text: string; p
   }
 };
 
-// Survey Backend URL (survey service on port 8004)
-const SURVEY_API_URL = import.meta.env.VITE_SURVEY_API_URL || 'http://localhost:8004';
+// Survey Backend URL (should go through integrated gateway)
+const SURVEY_API_URL = import.meta.env.VITE_SURVEY_API_URL || 'http://localhost:9000';
 
 // Survey Analysis API functions
 
 // Analyze employee data only (ML model prediction)
-export const analyzeEmployee = async (employeeData: EmployeeData, employeeId?: string): Promise<EmployeeAnalysisResponse> => {
+export const analyzeEmployee = async (employeeData: EmployeeData, employeeId?: string, signal?: AbortSignal): Promise<EmployeeAnalysisResponse> => {
   try {
-    const payload = employeeId ? { ...employeeData, employee_id: employeeId } : employeeData;
-    const response = await axios.post(`${SURVEY_API_URL}/analyze-employee`, payload, {
+    const payload = { ...employeeData, employee_id: employeeId };
+    const response = await api.post(`${SURVEY_API_URL}/analyze-survey`, payload, {
       timeout: 30000,
-      headers: { 'Content-Type': 'application/json' }
+      signal,
     });
     return response.data;
   } catch (error) {
@@ -321,11 +323,11 @@ export const analyzeEmployee = async (employeeData: EmployeeData, employeeId?: s
 };
 
 // Analyze survey questions only (Likert scale assessment)
-export const analyzeSurveyQuestions = async (surveyData: SurveyData): Promise<SurveyAnalysisResponse> => {
+export const analyzeSurveyQuestions = async (surveyData: SurveyData, signal?: AbortSignal): Promise<SurveyAnalysisResponse> => {
   try {
-    const response = await axios.post(`${SURVEY_API_URL}/analyze-survey-questions`, surveyData, {
+    const response = await api.post(`${SURVEY_API_URL}/analyze-survey`, surveyData, {
       timeout: 30000,
-      headers: { 'Content-Type': 'application/json' }
+      signal,
     });
     return response.data;
   } catch (error) {
@@ -338,17 +340,19 @@ export const analyzeSurveyQuestions = async (surveyData: SurveyData): Promise<Su
 export const analyzeCombined = async (
   employeeData: EmployeeData, 
   surveyData: SurveyData, 
-  employeeId?: string
+  employeeId?: string,
+  signal?: AbortSignal
 ): Promise<CombinedAnalysisResponse> => {
   try {
     const payload = {
       employee: employeeData,
       survey: surveyData,
-      employee_id: employeeId || `emp_${Date.now()}`
+      employee_id: employeeId || `emp_${Date.now()}`,
+      user_id: employeeData.user_id,
     };
-    const response = await axios.post(`${SURVEY_API_URL}/analyze-combined`, payload, {
+    const response = await api.post(`${SURVEY_API_URL}/analyze-survey`, payload, {
       timeout: 30000,
-      headers: { 'Content-Type': 'application/json' }
+      signal,
     });
     return response.data;
   } catch (error) {
@@ -365,6 +369,10 @@ export interface EmployeeData {
   company_type: 'Service' | 'Product';
   wfh_setup_available: 'Yes' | 'No';
   gender: 'Male' | 'Female';
+  user_id?: string;
+  user_email?: string;
+  user_name?: string;
+  employee_id?: string;
 }
 
 export interface SurveyData {

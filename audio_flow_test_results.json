@@ -1,0 +1,47 @@
+{
+  "summary": {
+    "total_tests": 6,
+    "passed": 1,
+    "failed": 5,
+    "success_rate": "16.7%"
+  },
+  "test_results": [
+    {
+      "test": "User Registration",
+      "success": false,
+      "message": "Exception: ",
+      "timestamp": "2025-07-12T14:05:51.934322"
+    },
+    {
+      "test": "User Login",
+      "success": false,
+      "message": "Exception: ",
+      "timestamp": "2025-07-12T14:05:57.804129"
+    },
+    {
+      "test": "Audio Upload (Integrated)",
+      "success": false,
+      "message": "No authentication token available",
+      "timestamp": "2025-07-12T14:05:57.804129"
+    },
+    {
+      "test": "Audio Upload (Direct STT)",
+      "success": false,
+      "message": "No authentication token available",
+      "timestamp": "2025-07-12T14:05:57.804129"
+    },
+    {
+      "test": "Database Storage Verification",
+      "success": false,
+      "message": "No authentication token available",
+      "timestamp": "2025-07-12T14:05:57.804129"
+    },
+    {
+      "test": "Service Health Checks",
+      "success": true,
+      "message": "Integrated Backend: \u2705 Healthy; Core Service: \u2705 Healthy; STT Service: \u2705 Healthy",
+      "timestamp": "2025-07-12T14:06:00.624082"
+    }
+  ],
+  "timestamp": "2025-07-12T14:06:00.626092"
+}

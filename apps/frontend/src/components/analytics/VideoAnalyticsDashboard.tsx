@@ -202,21 +202,21 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                         <CardContent sx={{ p: 2 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                             <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32, mr: 2 }}>
-                              {session.dominantEmotion.charAt(0).toUpperCase()}
+                              {session.dominantEmotion?.charAt(0).toUpperCase() || '?'}
                             </Avatar>
                             <Box>
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                Session {session.id.slice(-6)}
+                                Session {session.id?.slice(-6) || 'Unknown'}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {new Date(session.timestamp).toLocaleDateString()}
+                                {session.timestamp ? new Date(session.timestamp).toLocaleDateString() : 'Unknown date'}
                               </Typography>
                             </Box>
                           </Box>
                           
                           <Box sx={{ mb: 2 }}>
                             <Typography variant="body2" sx={{ mb: 1 }}>
-                              Dominant Emotion: <strong>{session.dominantEmotion}</strong>
+                              Dominant Emotion: <strong>{session.dominantEmotion || 'Unknown'}</strong>
                             </Typography>
                             <Typography variant="body2" sx={{ mb: 1 }}>
                               Processing Time: {session.processingTime}ms

@@ -178,13 +178,13 @@ class ComprehensiveServiceManager:
         """Start all services with comprehensive fixes"""
         # All services based on diagnostic results
         services = [
-            ("Database Service", "services/db_service", "main", "app", 8000),
+            ("Core Service", "services/core", "main", "app", 8000),
             ("Video Emotion API", "services/video/emp_face", "api", "app", 8001),
             ("Speech Analysis API", "services/stt/api", "main", "app", 8002),
             ("Mental State Analyzer", "services/chat/chat/mental_state_analyzer", "api", "app", 8003),
             ("Survey Prediction API", "services/survey/survey", "backend", "app", 8004),
             ("Emo Buddy API", "services/emo_buddy", "api", "app", 8005),
-            ("Core Integration API", "services/core", "main", "app", 9000),
+            ("Integrated Gateway", "services/integrated/backend", "main", "app", 9000),
         ]
         
         print("🚀 Multi-Model Backend Startup (ALL ISSUES FIXED)")
@@ -258,11 +258,12 @@ class ComprehensiveServiceManager:
             print(f"\n🔗 Quick Access:")
             print("-" * 40)
             ready_ports = [port for _, port in ready_services]
-            if 9000 in ready_ports:
-                print(f"• Core API Documentation → http://localhost:9000/docs")
-                print(f"• Health Check           → http://localhost:9000/health")
             if 8000 in ready_ports:
-                print(f"• Database API Docs      → http://localhost:8000/docs")
+                print(f"• Core Service API       → http://localhost:8000/docs")
+                print(f"• Core Health Check      → http://localhost:8000/health")
+            if 9000 in ready_ports:
+                print(f"• Integrated Gateway     → http://localhost:9000/docs")
+                print(f"• Gateway Health Check   → http://localhost:9000/health")
             if 8001 in ready_ports:
                 print(f"• Video Emotion API      → http://localhost:8001/docs")
             if 8002 in ready_ports:

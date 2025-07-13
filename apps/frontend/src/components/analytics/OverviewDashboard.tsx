@@ -143,10 +143,10 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography color="textSecondary" gutterBottom variant="body2">
-                      System Accuracy
+                      Mental States Tracked
                     </Typography>
                     <Typography variant="h4">
-                      {(data.systemAccuracy * 100).toFixed(1)}%
+                      {data.mentalStateDistribution.length}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                       {getTrendIcon('positive')}
@@ -201,7 +201,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid item xs={12} md={6}>
           <Card sx={{ p: 3, height: 400 }}>
             <Typography variant="h6" gutterBottom>
               Performance by Modality
@@ -209,10 +209,27 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
             <SimpleChartFallback
               data={data.modalityPerformance?.map(item => ({
                 name: item.modality,
-                value: item.accuracy,
+                value: item.avgConfidence,
                 color: '#82ca9d'
               })) || []}
               type="bar"
+              height={300}
+            />
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Mental State Distribution
+            </Typography>
+            <SimpleChartFallback
+              data={data.mentalStateDistribution?.map(item => ({
+                name: item.state,
+                value: item.count,
+                color: '#ff7c7c'
+              })) || []}
+              type="pie"
               height={300}
             />
           </Card>

@@ -8,19 +8,24 @@ import httpx
 import logging
 from typing import Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from emo_buddy_agent import EmoBuddyAgent
+# Import unified core
+from core.unified_api import UnifiedEmoBuddyAPI
+from core.models import (
+    SessionStartRequest, SessionContinueRequest, SessionEndRequest,
+    SessionResponse, SessionEndResponse, SessionMode
+)
 
 # Load environment variables from .env file
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = FastAPI(
-    title="Emo Buddy Standalone API",
-    version="1.0.0",
+    title="Emo Buddy Unified API",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -34,264 +39,225 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# In-memory session store for EmoBuddy agents (for processing logic)
-# Core database integration handles persistence
-sessions: Dict[str, EmoBuddyAgent] = {}
+# Initialize unified EmoBuddy API
+unified_api = UnifiedEmoBuddyAPI()
+
+# --- Authentication ---
+async def get_token(authorization: Optional[str] = Header(None)) -> str:
+    """Extracts and validates the bearer token from the Authorization header."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header is missing")
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != 'bearer' or not token:
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme")
+        return token
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
 
 # --- Helper Functions ---
-
-def get_core_service_url():
-    """Get the core service URL from environment variables"""
-    url = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
-    return url
-
-def get_service_token():
-    """Get service account token for internal API calls"""
-    service_token = os.getenv("SERVICE_AUTH_TOKEN")
-    if not service_token:
-        logger.warning("SERVICE_AUTH_TOKEN not set, core database integration will fail")
-    return service_token
-
-async def create_core_session(user_id: str) -> Optional[str]:
-    """Create EmoBuddy session in core service database"""
-    core_service_url = get_core_service_url()
-    service_token = get_service_token()
+def get_session_mode(request: Request) -> SessionMode:
+    """Determine session mode from request headers or query parameters."""
+    # Check for mode in headers
+    mode_header = request.headers.get("X-Session-Mode")
+    if mode_header:
+        try:
+            return SessionMode(mode_header.upper())
+        except ValueError:
+            pass
     
-    if not service_token:
-        logger.error("No service token available for creating core session")
-        return None
+    # Check for mode in query parameters
+    mode_param = request.query_params.get("mode")
+    if mode_param:
+        try:
+            return SessionMode(mode_param.upper())
+        except ValueError:
+            pass
     
-    headers = {
-        "Authorization": f"Bearer {service_token}",
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{core_service_url}/emo-buddy/sessions",
-                headers=headers,
-                params={"user_id": user_id},
-                timeout=10.0
-            )
-            
-            if response.status_code == 200:
-                session_data = response.json()
-                session_uuid = session_data["session_uuid"]
-                logger.info(f"Created core session {session_uuid} for user {user_id}")
-                return str(session_uuid)
-            else:
-                logger.error(f"Failed to create core session: {response.status_code} - {response.text}")
-                return None
-                
-    except Exception as e:
-        logger.error(f"Error creating core session: {e}")
-        return None
-
-async def add_message_to_core_session(session_uuid: str, user_message: str, bot_response: str, user_id: str):
-    """Add messages to EmoBuddy session in core database"""
-    core_service_url = get_core_service_url()
-    service_token = get_service_token()
-    
-    if not service_token:
-        logger.error("No service token available for adding messages")
-        return
-    
-    headers = {
-        "Authorization": f"Bearer {service_token}",
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            # Add user message
-            user_message_data = {
-                "message_text": user_message,
-                "is_user_message": True
-            }
-            
-            response = await client.post(
-                f"{core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
-                headers=headers,
-                json=user_message_data,
-                params={"user_id": user_id},
-                timeout=10.0
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Failed to add user message: {response.status_code} - {response.text}")
-            
-            # Add bot response
-            bot_message_data = {
-                "message_text": bot_response,
-                "is_user_message": False
-            }
-            
-            response = await client.post(
-                f"{core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
-                headers=headers,
-                json=bot_message_data,
-                params={"user_id": user_id},
-                timeout=10.0
-            )
-            
-            if response.status_code == 200:
-                logger.info(f"Added messages to core session {session_uuid}")
-            else:
-                logger.error(f"Failed to add bot message: {response.status_code} - {response.text}")
-                
-    except Exception as e:
-        logger.error(f"Error adding messages to core session: {e}")
-
-# --- Pydantic Models ---
-
-class SessionStartRequest(BaseModel):
-    user_id: str
-    analysis_report: Dict[str, Any]
-
-class SessionContinueRequest(BaseModel):
-    user_input: str
-
-class SessionResponse(BaseModel):
-    session_id: str
-    response: str
-    core_session_uuid: Optional[str] = None
-
-class SessionEndResponse(BaseModel):
-    session_id: str
-    summary: str
-    core_session_uuid: Optional[str] = None
+    # Default to standalone mode
+    return SessionMode.STANDALONE
 
 # --- API Endpoints ---
 
-@app.post("/start-session", response_model=SessionResponse)
-async def start_session(req: SessionStartRequest):
-    """
-    Starts a new Emo Buddy session with a technical analysis report.
-    Integrates with core service database for persistence.
-    """
-    session_id = str(uuid.uuid4())
-    logger.info(f"Starting new session: {session_id} for user: {req.user_id}")
-    
+@app.post("/start", response_model=SessionResponse)
+async def start_session(request: Request, token: str = Depends(get_token)):
+    """Start a new EmoBuddy session using unified core."""
     try:
-        # Create session in core database first
-        core_session_uuid = await create_core_session(req.user_id)
+        body = await request.json()
         
-        # Create EmoBuddy agent for processing
-        agent = EmoBuddyAgent()
-        initial_response = agent.start_session(req.analysis_report)
-        sessions[session_id] = agent
+        # Get session mode from request
+        mode = get_session_mode(request)
         
-        # Store the initial interaction in core database
-        if core_session_uuid:
-            initial_user_message = req.analysis_report.get("transcription", "Starting emotional analysis session")
-            await add_message_to_core_session(
-                core_session_uuid, 
-                initial_user_message, 
-                initial_response, 
-                req.user_id
-            )
+        # Extract parameters
+        user_id = body.get("user_id")
+        analysis_report = body.get("analysis_report", {})
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        
+        # Start session using unified API with correct parameters
+        response = await unified_api.start_session(
+            user_id=user_id,
+            user_token=token,
+            mode=mode,
+            analysis_data=analysis_report if analysis_report else None
+        )
         
         return SessionResponse(
-            session_id=session_id, 
-            response=initial_response, 
-            core_session_uuid=core_session_uuid
+            session_id=response.session_id,
+            response=response.response,
+            should_continue=response.should_continue,
+            core_session_uuid=response.core_session_uuid,
+            metadata={"mode": mode.value}
         )
+        
     except Exception as e:
-        logger.error(f"Error starting session {session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to start Emo Buddy session.")
+        logger.error(f"Error starting session: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start session: {str(e)}")
 
-@app.post("/continue-session/{session_id}", response_model=SessionResponse)
-async def continue_session(session_id: str, req: SessionContinueRequest):
-    """
-    Continues an existing Emo Buddy session.
-    Persists interactions to core service database.
-    """
-    logger.info(f"Continuing session: {session_id}")
-    agent = sessions.get(session_id)
-    
-    if not agent:
-        raise HTTPException(status_code=404, detail="Session not found.")
-        
+@app.post("/continue", response_model=SessionResponse)
+async def continue_session(request: Request, token: str = Depends(get_token)):
+    """Continue an existing EmoBuddy session using unified core."""
     try:
-        response, should_continue = agent.continue_conversation(req.user_input)
+        body = await request.json()
         
-        # Get core session UUID from agent's session data if available
-        core_session_uuid = None
-        if hasattr(agent, 'current_session') and agent.current_session.get('user_id'):
-            user_id = agent.current_session['user_id']
-            # We should store the core session UUID when creating the session
-            # For now, we'll create a new one if needed (not ideal, but functional)
-            
-        # Store interaction in core database
-        if core_session_uuid:
-            await add_message_to_core_session(
-                core_session_uuid, 
-                req.user_input, 
-                response, 
-                user_id
-            )
+        # Extract parameters
+        session_id = body.get("session_id")
+        user_id = body.get("user_id")
+        user_input = body.get("user_input") or body.get("user_message")
         
-        if not should_continue:
-            # If the agent signals to end, we automatically end the session.
-            summary = agent.end_session()
-            del sessions[session_id]
-            # We can augment the response to let the client know it was auto-terminated.
-            response += f"\n\n[INFO] Your session has concluded. Summary: {summary}"
-            
+        if not all([session_id, user_id, user_input]):
+            raise HTTPException(status_code=400, detail="session_id, user_id, and user_input are required")
+        
+        # Continue session using unified API with correct parameters
+        response = await unified_api.continue_session(
+            session_id=session_id,
+            user_id=user_id,
+            user_token=token,
+            user_message=user_input
+        )
+        
         return SessionResponse(
-            session_id=session_id, 
-            response=response, 
-            core_session_uuid=core_session_uuid
+            session_id=response.session_id,
+            response=response.response,
+            should_continue=response.should_continue,
+            core_session_uuid=response.core_session_uuid
         )
+        
     except Exception as e:
-        logger.error(f"Error continuing session {session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to continue Emo Buddy session.")
+        logger.error(f"Error continuing session: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to continue session: {str(e)}")
 
-@app.post("/end-session/{session_id}", response_model=SessionEndResponse)
-async def end_session(session_id: str):
-    """
-    Explicitly ends an Emo Buddy session and returns a summary.
-    """
-    logger.info(f"Ending session: {session_id}")
-    agent = sessions.get(session_id)
-    
-    if not agent:
-        raise HTTPException(status_code=404, detail="Session not found.")
-        
+@app.post("/end", response_model=SessionEndResponse)
+async def end_session(request: Request, token: str = Depends(get_token)):
+    """End an EmoBuddy session using unified core."""
     try:
-        summary = agent.end_session()
+        body = await request.json()
         
-        # Get core session info if available
-        core_session_uuid = None
-        if hasattr(agent, 'current_session') and agent.current_session.get('user_id'):
-            # In a real implementation, we'd track the core session UUID
-            pass
+        # Extract parameters
+        session_id = body.get("session_id")
+        user_id = body.get("user_id")
         
-        del sessions[session_id]
+        if not all([session_id, user_id]):
+            raise HTTPException(status_code=400, detail="session_id and user_id are required")
+        
+        # End session using unified API with correct parameters
+        response = await unified_api.end_session(
+            session_id=session_id,
+            user_id=user_id,
+            user_token=token
+        )
         
         return SessionEndResponse(
-            session_id=session_id, 
-            summary=summary, 
-            core_session_uuid=core_session_uuid
+            session_id=response.session_id,
+            summary=response.summary,
+            total_messages=response.total_messages,
+            session_duration_minutes=response.session_duration_minutes,
+            core_session_uuid=response.core_session_uuid
         )
+        
     except Exception as e:
-        logger.error(f"Error ending session {session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to end Emo Buddy session.")
+        logger.error(f"Error ending session: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to end session: {str(e)}")
+
+@app.get("/availability")
+def availability_check():
+    """Check if the EmoBuddy service is available."""
+    try:
+        # Check unified API availability
+        is_available = unified_api.check_availability()
+        
+        return {
+            "available": is_available,
+            "service": "unified_emobuddy",
+            "version": "2.0.0"
+        }
+    except Exception as e:
+        logger.error(f"Error checking availability: {str(e)}")
+        return {
+            "available": False,
+            "service": "unified_emobuddy",
+            "version": "2.0.0",
+            "error": str(e)
+        }
 
 @app.get("/health")
 def health_check():
-    """
-    Health check endpoint to verify the service is running.
-    """
-    return {
-        "status": "ok", 
-        "service": "EmoBuddyAPI_Enhanced",
-        "core_service_url": get_core_service_url(),
-        "has_service_token": bool(get_service_token()),
-        "active_sessions": len(sessions)
-    }
+    """Health check endpoint."""
+    try:
+        # Check unified API health
+        health_status = unified_api.get_health_status()
+        
+        return {
+            "status": "healthy" if health_status["healthy"] else "unhealthy",
+            "service": "unified_emobuddy",
+            "version": "2.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "details": health_status
+        }
+    except Exception as e:
+        logger.error(f"Error in health check: {str(e)}")
+        return {
+            "status": "unhealthy",
+            "service": "unified_emobuddy",
+            "version": "2.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }
+
+# --- Additional Endpoints for Backward Compatibility ---
+
+@app.get("/session/{session_id}/status")
+async def get_session_status(session_id: str, token: str = Depends(get_token)):
+    """Get the status of a specific session."""
+    try:
+        status = await unified_api.get_session_status(session_id, token)
+        return status
+    except Exception as e:
+        logger.error(f"Error getting session status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get session status: {str(e)}")
+
+@app.get("/user/{user_id}/sessions")
+async def get_user_sessions(user_id: str, token: str = Depends(get_token)):
+    """Get all sessions for a specific user."""
+    try:
+        sessions = await unified_api.get_user_sessions(user_id, token)
+        return sessions
+    except Exception as e:
+        logger.error(f"Error getting user sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user sessions: {str(e)}")
+
+# --- Debug Endpoints ---
+
+@app.get("/debug/core-status")
+async def debug_core_status():
+    """Debug endpoint to check core service status."""
+    try:
+        return await unified_api.debug_core_status()
+    except Exception as e:
+        logger.error(f"Error in debug core status: {str(e)}")
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api:app", host="0.0.0.0", port=8004, reload=True) 
+    uvicorn.run(app, host="0.0.0.0", port=8005) 

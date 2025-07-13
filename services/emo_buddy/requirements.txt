@@ -5,5 +5,5 @@ python-dotenv
 numpy
 sentence-transformers
 faiss-cpu
-google-generativeai
 httpx
+langchain-google-genai

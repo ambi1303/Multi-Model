@@ -57,8 +57,13 @@ interface AppState {
   actions: {
     login: (user: User, token: string) => void;
     logout: () => Promise<void>;
+    requestLogout: () => void;
     initializeAuth: () => Promise<void>;
   };
+  
+  // Logout confirmation dialog state
+  showLogoutDialog: boolean;
+  setShowLogoutDialog: (show: boolean) => void;
   notifications: Notification[];
   addNotification: (notification: Omit<Notification, 'id'>) => void;
 }
@@ -112,6 +117,11 @@ export const useAppStore = create<AppState>()(
         user: null,
         token: null,
         isInitializing: true,
+        
+        // Logout confirmation dialog state
+        showLogoutDialog: false,
+        setShowLogoutDialog: (show) => set({ showLogoutDialog: show }),
+        
         actions: {
           login: (user, token) => {
             sessionStorage.setItem('auth_token', token);
@@ -129,9 +139,42 @@ export const useAppStore = create<AppState>()(
               console.error('Logout error:', error);
               // Don't throw error - we want logout to always succeed locally
             } finally {
+              // Complete cleanup of all user data
               sessionStorage.removeItem('auth_token');
-              set({ isAuthenticated: false, user: null, token: null, isInitializing: false, showWelcomeModal: false });
+              localStorage.removeItem('auth_token'); // Also clear from localStorage if it exists
+              
+              // Clear all analysis history
+              const currentState = get();
+              
+              set({ 
+                isAuthenticated: false, 
+                user: null, 
+                token: null, 
+                isInitializing: false, 
+                showWelcomeModal: false,
+                // Clear all analysis history
+                analysisHistory: {
+                  video: [],
+                  speech: [],
+                  chat: [],
+                  survey: [],
+                  'enhanced-survey': [],
+                },
+                // Reset notifications
+                notifications: [],
+                // Reset preferences to defaults
+                preferences: {
+                  autoSave: true,
+                  showTutorials: true,
+                  defaultAnalysisMode: 'webcam',
+                }
+              });
+              
+              console.log('User successfully logged out and all data cleared');
             }
+          },
+          requestLogout: () => {
+            set({ showLogoutDialog: true });
           },
           initializeAuth: async () => {
             set({ isInitializing: true });

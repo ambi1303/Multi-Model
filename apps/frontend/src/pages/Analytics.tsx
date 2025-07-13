@@ -28,7 +28,7 @@ import {
 import { motion } from 'framer-motion';
 import { useNotification } from '../contexts/NotificationContext';
 import { OptimizedLoadingSpinner } from '../components/common/OptimizedLoadingSpinner';
-import { analyticsApi } from '../services/analyticsApi';
+import { getAnalyticsData, exportAnalytics } from '../services/analyticsApi';
 import { AnalyticsFilters, AnalyticsData } from '../types/analytics';
 import SEO from '../components/common/SEO';
 import { 
@@ -37,6 +37,8 @@ import {
   SpeechAnalyticsDashboard, 
   ChatAnalyticsDashboard 
 } from '../components/LazyComponents';
+import { EmoBuddyAnalyticsDashboard } from '../components/analytics/EmoBuddyAnalyticsDashboard';
+import { SurveyAnalyticsDashboard } from '../components/analytics/SurveyAnalyticsDashboard';
 import SentimentTrendChart from '../components/charts/SentimentTrendChart';
 import SimpleChartFallback from '../components/charts/SimpleChartFallback';
 
@@ -61,6 +63,8 @@ const tabs = [
   { label: 'Video Analysis', value: 'video', icon: <AnalyticsIcon /> },
   { label: 'Speech Analysis', value: 'speech', icon: <AnalyticsIcon /> },
   { label: 'Chat Analysis', value: 'chat', icon: <AnalyticsIcon /> },
+  { label: 'EmoBuddy', value: 'emobuddy', icon: <AnalyticsIcon /> },
+  { label: 'Survey', value: 'survey', icon: <AnalyticsIcon /> },
 ];
 
 const Analytics: React.FC = () => {
@@ -79,7 +83,7 @@ const Analytics: React.FC = () => {
 
   const { data, error, isLoading, isSuccess, isError, refetch } = useQuery<AnalyticsData, Error>({
     queryKey: ['analytics', filters],
-    queryFn: () => analyticsApi.getAnalytics(filters),
+    queryFn: () => getAnalyticsData(filters),
     notifyOnChangeProps: ['data', 'error'],
   });
 
@@ -111,7 +115,7 @@ const Analytics: React.FC = () => {
 
   const handleExportData = async () => {
     try {
-      const exportData = await analyticsApi.exportData(filters);
+      const exportData = await exportAnalytics(filters);
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -143,7 +147,7 @@ const Analytics: React.FC = () => {
     <Box>
       <SEO
         title="Analytics Dashboard"
-        description="Dive deep into emotion analytics. Explore comprehensive dashboards for video, speech, and text analysis to gain actionable insights."
+        description="Dive deep into emotion analytics. Explore comprehensive dashboards for video, speech, text analysis, EmoBuddy sessions, and survey results to gain actionable insights."
       />
       {/* Header */}
       <motion.div
@@ -238,9 +242,11 @@ const Analytics: React.FC = () => {
                       onChange={(e) => handleFilterChange('modality', e.target.value)}
                     >
                       <MenuItem value="all">All Modalities</MenuItem>
-                      <MenuItem value="text">Text Analysis</MenuItem>
-                      <MenuItem value="speech">Speech Analysis</MenuItem>
                       <MenuItem value="video">Video Analysis</MenuItem>
+                      <MenuItem value="speech">Speech Analysis</MenuItem>
+                      <MenuItem value="chat">Chat Analysis</MenuItem>
+                      <MenuItem value="emobuddy">EmoBuddy Sessions</MenuItem>
+                      <MenuItem value="survey">Survey Results</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -253,8 +259,9 @@ const Analytics: React.FC = () => {
                     >
                       <MenuItem value="all">All Levels</MenuItem>
                       <MenuItem value="low">Low Risk</MenuItem>
-                      <MenuItem value="medium">Medium Risk</MenuItem>
+                      <MenuItem value="moderate">Moderate Risk</MenuItem>
                       <MenuItem value="high">High Risk</MenuItem>
+                      <MenuItem value="severe">Severe Risk</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -289,7 +296,7 @@ const Analytics: React.FC = () => {
       {/* Main Content */}
       {data && (
         <Card>
-          <Tabs value={activeTab} onChange={handleTabChange} centered>
+          <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto">
             {tabs.map((tab, index) => (
               <Tab key={index} label={tab.label} icon={tab.icon} />
             ))}
@@ -306,6 +313,12 @@ const Analytics: React.FC = () => {
             </TabPanel>
             <TabPanel value={activeTab} index={3}>
               {data?.chat && <ChatAnalyticsDashboard data={data.chat} filters={filters} />}
+            </TabPanel>
+            <TabPanel value={activeTab} index={4}>
+              {data?.emobuddy && <EmoBuddyAnalyticsDashboard data={data.emobuddy} />}
+            </TabPanel>
+            <TabPanel value={activeTab} index={5}>
+              {data?.survey && <SurveyAnalyticsDashboard data={data.survey} />}
             </TabPanel>
           </CardContent>
         </Card>

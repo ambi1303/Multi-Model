@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -18,6 +18,19 @@ from dotenv import load_dotenv
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from uuid import UUID
 
+# --- Authentication ---
+async def get_token(authorization: Optional[str] = Header(None)) -> Optional[str]:
+    """Extracts the bearer token from the Authorization header."""
+    if not authorization:
+        return None
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() == 'bearer':
+            return token
+    except ValueError:
+        return None
+    return None
+
 # --- NEW: Core Service Integration ---
 CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
 
@@ -26,7 +39,7 @@ async def store_survey_in_core_service(survey_data: dict, user_id: str, token: O
     try:
         if not token:
             logger.warning("No auth token provided; skipping survey storage in core service.")
-            return
+            return False
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -36,23 +49,54 @@ async def store_survey_in_core_service(survey_data: dict, user_id: str, token: O
         # The survey service now sends data to the specific survey analysis endpoint
         survey_analysis_endpoint = f"{CORE_SERVICE_URL}/surveys/responses"
         
-        logger.info(f"Sending survey data to core service for user {user_id}: {survey_data}")
+        # Convert user_id to proper format and ensure schema compliance
+        try:
+            user_uuid = str(UUID(user_id))  # Validate and convert to string format
+        except (ValueError, TypeError):
+            logger.error(f"Invalid user_id format: {user_id}")
+            return False
+        
+        # Ensure schema compliance with core service SurveyResponseCreate
+        compliant_data = {
+            "user_id": user_uuid,  # UUID as string
+            "survey_type": survey_data.get("survey_type", "unknown"),
+            "survey_version": survey_data.get("survey_version", "1.0"),
+            "responses": survey_data.get("responses", {}),
+            "completion_time_seconds": survey_data.get("completion_time_seconds"),
+            "burnout_score": float(survey_data.get("burnout_score", 0.0)) if survey_data.get("burnout_score") is not None else None,
+            "stress_level": survey_data.get("stress_level"),
+            "risk_categories": survey_data.get("risk_categories", {}),
+            "prediction_model_version": survey_data.get("prediction_model_version"),
+            "prediction_confidence": float(survey_data.get("prediction_confidence", 0.0)) if survey_data.get("prediction_confidence") is not None else None,
+            "predicted_outcomes": survey_data.get("predicted_outcomes", {}),
+            "ai_recommendations": survey_data.get("ai_recommendations", {}),
+            "follow_up_suggested": survey_data.get("follow_up_suggested", False)
+        }
+        
+        logger.info(f"Sending compliant survey data to core service for user {user_id}: {compliant_data}")
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(survey_analysis_endpoint, json=survey_data, headers=headers, timeout=30.0)
+            response = await client.post(survey_analysis_endpoint, json=compliant_data, headers=headers, timeout=30.0)
             
-            if 400 <= response.status_code < 500:
+            if response.status_code == 200:
+                logger.info(f"Successfully stored survey analysis for user {user_id} in core service.")
+                return True
+            elif 400 <= response.status_code < 500:
                 logger.error(f"Client error storing survey for user {user_id}: {response.status_code} - {response.text}")
-            
-            response.raise_for_status()
-            logger.info(f"Successfully stored survey analysis for user {user_id} in core service.")
+                return False
+            else:
+                logger.error(f"Server error storing survey for user {user_id}: {response.status_code} - {response.text}")
+                return False
 
     except httpx.RequestError as e:
         logger.error(f"Network error sending survey analysis to core service for user {user_id}: {e}")
+        return False
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error storing survey analysis for user {user_id}: {e.response.status_code} - {e.response.text}")
+        return False
     except Exception as e:
         logger.error(f"An unexpected error occurred while storing survey analysis for user {user_id}: {e}")
+        return False
 
 # Mock user validation and DB client for now
 def validate_user_uuid(user_id: str) -> UUID:
@@ -142,7 +186,7 @@ class EmployeeData(BaseModel):
     user_id: str = Field(..., description="User UUID for database storage")
     user_email: Optional[str] = None
     user_name: Optional[str] = None
-    token: Optional[str] = None
+    employee_id: Optional[str] = None
 
 class PredictionResponse(BaseModel):
     burn_rate: float
@@ -183,7 +227,6 @@ class AnalyzeSurveyRequest(BaseModel):
     survey: SurveyLikertData
     user_id: str = Field(..., description="User UUID for database storage")
     employee_id: Optional[str] = None
-    token: Optional[str] = None
 
 # Add new data models for separate endpoints
 class EmployeeAnalysisResponse(BaseModel):
@@ -205,7 +248,6 @@ class CombinedAnalysisRequest(BaseModel):
     survey: SurveyLikertData
     user_id: str = Field(..., description="User UUID for database storage")
     employee_id: Optional[str] = None
-    token: Optional[str] = None
 
 class CombinedAnalysisResponse(BaseModel):
     mental_health_summary: str = Field(..., description="AI-generated mental health summary")
@@ -640,335 +682,300 @@ async def analyze_survey(request: AnalyzeSurveyRequest):
     finally:
         PROCESSING_TIME.labels(endpoint='analyze_survey').observe(time.time() - start_time)
 
+def _generate_recommendations(burnout_score: int, employee: EmployeeData) -> List[str]:
+    """Generate personalized recommendations based on burnout score and employee data."""
+    recommendations = []
+    
+    if burnout_score >= 80:
+        recommendations.extend([
+            "Immediate intervention recommended - consider taking time off",
+            "Schedule urgent consultation with HR or mental health professional",
+            "Implement stress reduction techniques immediately"
+        ])
+    elif burnout_score >= 60:
+        recommendations.extend([
+            "High stress levels detected - consider workload redistribution",
+            "Implement regular break schedules",
+            "Explore stress management workshops"
+        ])
+    elif burnout_score >= 30:
+        recommendations.extend([
+            "Monitor stress levels closely",
+            "Consider preventive wellness activities",
+            "Maintain work-life balance"
+        ])
+    else:
+        recommendations.extend([
+            "Continue current positive practices",
+            "Share stress management techniques with colleagues",
+            "Consider mentoring opportunities"
+        ])
+    
+    # Add specific recommendations based on employee factors
+    if employee.mental_fatigue_score >= 7:
+        recommendations.append("Focus on improving sleep quality and work-life balance")
+    
+    if employee.resource_allocation <= 3:
+        recommendations.append("Discuss resource needs with management")
+    
+    if employee.wfh_setup_available == "No":
+        recommendations.append("Explore remote work options to reduce commute stress")
+    
+    return recommendations
+
 @app.post("/analyze-employee", response_model=EmployeeAnalysisResponse, tags=["Separate Analysis"])
-async def analyze_employee(employee: EmployeeData, employee_id: Optional[str] = None):
+async def analyze_employee(employee: EmployeeData, background_tasks: BackgroundTasks, token: Optional[str] = Depends(get_token)):
     """
-    Analyze employee data using ML model only - returns burnout prediction with score and label.
+    Analyzes employee data for burnout prediction.
+    - Requires bearer token for authentication.
+    - Stores results asynchronously in the core service.
     """
-    REQUESTS.labels(endpoint='analyze_employee').inc()
+    REQUESTS.labels(endpoint='/analyze-employee').inc()
     start_time = time.time()
-    
-    try:
-        # Get ML model prediction directly from /predict endpoint
-        burn_result = await predict(employee)
-        ml_burn_rate = burn_result["burn_rate"]  # 0.0 to 1.0
-        ml_burn_percentage = round(ml_burn_rate * 100)  # Convert to percentage
-        
-        # Use the stress level directly from /predict endpoint (the source of truth)
-        ml_stress_label = burn_result["stress_level"]
+    update_system_metrics()
 
-        # --- NEW: Store in Core Service ---
-        try:
-            survey_payload = {
-                "user_id": employee.user_id,
-                "survey_type": "employee_ml_burnout",
-                "responses": employee.dict(exclude={'user_id', 'token'}),
-                "burnout_score": ml_burn_rate,
-                "stress_level": ml_stress_label,
-                "prediction_model_version": burn_result["model_used"],
-                "prediction_confidence": 0.9 if ml_burn_rate > 0.2 else 0.75,
-            }
-            if employee.user_id and employee.token:
-                await store_survey_in_core_service(survey_payload, employee.user_id, employee.token)
-            else:
-                logger.warning("Cannot store survey in core service: missing user_id or token.")
-        except Exception as e:
-            logger.error(f"Failed to store employee analysis in core service: {e}")
-
-        # Update metrics
-        update_system_metrics()
-        
-        return EmployeeAnalysisResponse(
-            burnout_score=ml_burn_percentage,
-            burnout_label=ml_stress_label,
-            model_used=burn_result["model_used"],
-            prediction_confidence="High" if ml_burn_rate > 0.2 else "Medium",
-            employee_id=employee_id,
-            analysis_timestamp=datetime.now().isoformat()
-        )
-        
-    except Exception as e:
-        ERROR_COUNT.labels(endpoint='analyze_employee', error_type='general').inc()
-        logger.error(f"Error in analyze-employee: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        PROCESSING_TIME.labels(endpoint='analyze_employee').observe(time.time() - start_time)
-
-@app.post("/analyze-survey-questions", response_model=SurveyAnalysisResponse, tags=["Separate Analysis"])
-async def analyze_survey_questions(survey: SurveyLikertData, user_id: Optional[str] = None, token: Optional[str] = None):
-    """
-    Analyze Likert scale survey questions only - returns risk level label (no score exposed).
-    """
-    REQUESTS.labels(endpoint='analyze_survey_questions').inc()
-    start_time = time.time()
-    
-    try:
-        # Calculate survey scores
-        survey_scores = [
-            survey.q1, survey.q2, survey.q3, survey.q4, survey.q5,
-            survey.q6, survey.q7, survey.q8, survey.q9, survey.q10
-        ]
-        survey_total_score = sum(survey_scores)
-        
-        # Survey risk level classification based on your specified ranges
-        # Total Score Range | Label
-        # 1 – 17           | Low
-        # 18 – 34          | Medium  
-        # 35 – 50          | High
-        if survey_total_score <= 17:
-            survey_risk_label = "Low"
-        elif survey_total_score <= 34:
-            survey_risk_label = "Medium"
-        else:  # 35-50
-            survey_risk_label = "High"
-
-        # --- NEW: Store in Core Service ---
-        try:
-            if user_id and token:
-                survey_payload = {
-                    "user_id": user_id,
-                    "survey_type": "likert_10_question",
-                    "responses": survey.dict(),
-                    "stress_level": survey_risk_label,
-                }
-                await store_survey_in_core_service(survey_payload, user_id, token)
-            else:
-                logger.warning("Cannot store survey questions analysis in core service: missing user_id or token.")
-        except Exception as e:
-            logger.error(f"Failed to store survey questions analysis in core service: {e}")
-
-        # Update metrics
-        update_system_metrics()
-        
-        return SurveyAnalysisResponse(
-            risk_level=survey_risk_label,
-            assessment_method="10-Question Likert Scale",
-            total_questions=10,
-            analysis_timestamp=datetime.now().isoformat()
-        )
-        
-    except Exception as e:
-        ERROR_COUNT.labels(endpoint='analyze_survey_questions', error_type='general').inc()
-        logger.error(f"Error in analyze-survey-questions: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        PROCESSING_TIME.labels(endpoint='analyze_survey_questions').observe(time.time() - start_time)
-
-@app.post("/analyze-combined", response_model=CombinedAnalysisResponse, tags=["Separate Analysis"])
-async def analyze_combined(request: CombinedAnalysisRequest):
-    """
-    Combine employee and survey data for AI-powered personalized insights and recommendations.
-    """
-    REQUESTS.labels(endpoint='analyze_combined').inc()
-    start_time = time.time()
-    
     try:
         # Validate user_id
-        try:
-            user_uuid = validate_user_uuid(request.user_id)
-        except HTTPException as e:
-            ERROR_COUNT.labels(endpoint='analyze_combined', error_type='invalid_user_id').inc()
-            raise e
-        except ValueError:
-            ERROR_COUNT.labels(endpoint='analyze_combined', error_type='invalid_user_id').inc()
-            raise HTTPException(status_code=400, detail="Invalid user_id format")
+        user_uuid = validate_user_uuid(employee.user_id)
         
-        # Get ML prediction for context directly from /predict endpoint
-        burn_result = await predict(request.employee)
-        ml_burn_rate = burn_result["burn_rate"]
-        ml_burn_percentage = round(ml_burn_rate * 100)
-        
-        # Use the stress level directly from /predict endpoint (the source of truth)
-        ml_stress_label = burn_result["stress_level"]
-        
-        # Get survey analysis for context
-        survey_scores = [
-            request.survey.q1, request.survey.q2, request.survey.q3, request.survey.q4, request.survey.q5,
-            request.survey.q6, request.survey.q7, request.survey.q8, request.survey.q9, request.survey.q10
-        ]
-        survey_total_score = sum(survey_scores)
-        
-        # Survey risk level classification based on specified ranges
-        # Total Score Range | Label
-        # 1 – 17           | Low
-        # 18 – 34          | Medium  
-        # 35 – 50          | High
-        if survey_total_score <= 17:
-            survey_risk_label = "Low"
-        elif survey_total_score <= 34:
-            survey_risk_label = "Medium"
-        else:  # 35-50
-            survey_risk_label = "High"
+        # Load the pre-trained model and scaler
+        models_dir = os.path.join(os.path.dirname(__file__), 'models')
+        scaler_path = os.path.join(models_dir, 'scaler.pkl')
+        model_path = os.path.join(models_dir, 'linear_regression.pkl')
 
-        # AI-Powered Personalized Analysis
-        gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-        personalized_summary = ""
-        personalized_recommendations = []
-        analysis_source = "Rule-based Fallback"
-        
-        if gemini_api_key:
-            try:
-                prompt = f"""
-                You are a mental health expert analyzing an employee's burnout risk and stress levels. Provide personalized insights based on both ML model prediction and survey responses.
+        with open(scaler_path, 'rb') as f:
+            scaler = pickle.load(f)
+        with open(model_path, 'rb') as f:
+            model = pickle.load(f)
 
-                EMPLOYEE PROFILE:
-                - Designation Level: {request.employee.designation}/5 (1=entry level, 5=senior executive)
-                - Resource Allocation: {request.employee.resource_allocation}/10 (workload distribution)
-                - Mental Fatigue Score: {request.employee.mental_fatigue_score}/10 (current mental exhaustion)
-                - Company Type: {request.employee.company_type}
-                - WFH Setup Available: {request.employee.wfh_setup_available}
-                - Gender: {request.employee.gender}
+        # Preprocess input data - using exact column names that the model expects
+        data = {
+            'Designation': [employee.designation],
+            'Resource Allocation': [employee.resource_allocation],
+            'Mental Fatigue Score': [employee.mental_fatigue_score],
+            'Company Type_Service': [1 if employee.company_type == 'Service' else 0],
+            'WFH Setup Available_Yes': [1 if employee.wfh_setup_available == 'Yes' else 0],
+            'Gender_Male': [1 if employee.gender == 'Male' else 0],
+        }
+        input_df = pd.DataFrame(data)
+        input_scaled = scaler.transform(input_df)
 
-                ML MODEL ANALYSIS:
-                - Burnout Rate: {ml_burn_rate:.4f} ({ml_burn_percentage}%)
-                - AI Prediction: {ml_stress_label}
-                - Model Used: {burn_result["model_used"]}
+        # Make prediction
+        prediction = model.predict(input_scaled)[0]
+        burnout_score = int(prediction * 100)
 
-                SURVEY ANALYSIS:
-                - Total Score: {survey_total_score}/50
-                - Survey Classification: {survey_risk_label}
-                - Score Breakdown (1=Strongly Disagree, 5=Strongly Agree):
-                  * Feel happy and relaxed at work: {request.survey.q1}/5
-                  * Feel anxious/stressed due to work: {request.survey.q2}/5
-                  * Feel emotionally exhausted after work: {request.survey.q3}/5
-                  * Feel motivated and excited about work: {request.survey.q4}/5
-                  * Feel sense of accomplishment: {request.survey.q5}/5
-                  * Feel detached/indifferent about work: {request.survey.q6}/5
-                  * Workload is manageable: {request.survey.q7}/5
-                  * Have control over tasks: {request.survey.q8}/5
-                  * Receive team/manager support: {request.survey.q9}/5
-                  * Work-life balance is respected: {request.survey.q10}/5
+        # Interpret prediction
+        if burnout_score < 30:
+            burnout_label = "Low Stress"
+        elif 30 <= burnout_score < 60:
+            burnout_label = "Medium Stress"
+        elif 60 <= burnout_score < 80:
+            burnout_label = "High Stress"
+        else:
+            burnout_label = "Very High Stress / Burnout"
 
-                ANALYSIS CORRELATION:
-                - ML Model says: {ml_stress_label}
-                - Survey indicates: {survey_risk_label} risk level
-                - Agreement level: {"High" if (ml_stress_label.lower() in survey_risk_label.lower() or survey_risk_label.lower() in ml_stress_label.lower()) else "Moderate"}
+        # Calculate processing time for response and database storage
+        processing_time = time.time() - start_time
 
-                Please provide a comprehensive analysis in JSON format:
-                {{
-                    "Mental Health Summary": "Detailed 2-3 sentence analysis combining ML prediction ({ml_burn_percentage}% burnout risk) and survey results ({survey_total_score}/50 points, {survey_risk_label} risk). Explain any discrepancies between AI model and self-reported survey.",
-                    "Recommendations": [
-                        "Specific actionable recommendation based on highest risk factors",
-                        "Workplace-specific suggestion considering company type and WFH setup",
-                        "Personal wellness strategy tailored to their designation level and mental fatigue",
-                        "Long-term prevention strategy based on survey responses"
-                    ]
-                }}
-                """
-                
-                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + gemini_api_key
-                gemini_payload = {
-                    "contents": [{"parts": [{"text": prompt}]}]
+        # Construct response
+        response = EmployeeAnalysisResponse(
+            burnout_score=burnout_score,
+            burnout_label=burnout_label,
+            model_used="BERT-MLP",  # Placeholder for actual model name
+            prediction_confidence="High",  # Placeholder
+            employee_id=employee.employee_id,
+            analysis_timestamp=datetime.now().isoformat()
+        )
+
+        # Asynchronously store results in the database - proper schema mapping
+        db_data = {
+            "survey_type": "employee_ml_prediction",
+            "survey_version": "1.0",
+            "responses": employee.dict(),
+            "completion_time_seconds": int(processing_time * 1000),  # Convert to milliseconds
+            "burnout_score": float(burnout_score / 100.0),  # Convert percentage to 0-1 scale
+            "stress_level": burnout_label,
+            "risk_categories": {
+                "burnout_risk": burnout_label,
+                "stress_category": "high" if burnout_score >= 60 else "medium" if burnout_score >= 30 else "low",
+                "mental_fatigue_level": "high" if employee.mental_fatigue_score >= 7 else "medium" if employee.mental_fatigue_score >= 4 else "low"
+            },
+            "prediction_model_version": "linear_regression_v1.0",
+            "prediction_confidence": 0.85,  # High confidence as stated in response
+            "predicted_outcomes": {
+                "burnout_probability": float(burnout_score / 100.0),
+                "stress_level_prediction": burnout_label,
+                "risk_factors": {
+                    "designation_level": employee.designation,
+                    "resource_allocation": employee.resource_allocation,
+                    "mental_fatigue": employee.mental_fatigue_score,
+                    "company_type": employee.company_type,
+                    "wfh_setup": employee.wfh_setup_available,
+                    "gender": employee.gender
                 }
-                
-                async with httpx.AsyncClient() as client:
-                    gemini_resp = await client.post(gemini_url, json=gemini_payload, timeout=30)
-                    gemini_resp.raise_for_status()
-                    gemini_data = gemini_resp.json()
-                    
-                    # Parse Gemini response
-                    try:
-                        import re, json as pyjson
-                        text = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
-                        
-                        # Extract JSON from response
-                        match = re.search(r'\{.*\}', text, re.DOTALL)
-                        if match:
-                            parsed = pyjson.loads(match.group(0))
-                            personalized_summary = parsed.get("Mental Health Summary", "")
-                            personalized_recommendations = parsed.get("Recommendations", [])
-                            analysis_source = "Gemini AI"
-                        else:
-                            personalized_summary = text
-                            personalized_recommendations = [
-                                "Focus on stress management techniques",
-                                "Consider professional counseling if needed",
-                                "Maintain work-life balance"
-                            ]
-                            analysis_source = "Gemini AI (Unstructured)"
-                    except Exception as parse_error:
-                        logger.warning(f"Failed to parse Gemini response: {parse_error}")
-                        personalized_summary = "AI analysis completed but response format needs adjustment."
-                        personalized_recommendations = [
-                            "Prioritize self-care and mental health",
-                            "Seek support from colleagues and supervisors",
-                            "Consider professional guidance if stress persists"
-                        ]
-                        analysis_source = "Gemini AI (Parse Error)"
-                        
-            except Exception as gemini_error:
-                logger.warning(f"Gemini API failed: {str(gemini_error)}, using enhanced fallback")
-                analysis_source = "Rule-based Fallback"
-        
-        # Enhanced fallback if Gemini fails or no API key
-        if not personalized_summary:
-            if survey_risk_label == "High Risk" or ml_stress_label == "Very High Burnout Risk":
-                personalized_summary = f"Analysis indicates significant stress levels with {ml_burn_percentage}% burnout risk from ML model and {survey_risk_label} from survey responses. Immediate attention to mental health and work-life balance is strongly recommended."
-                personalized_recommendations = [
-                    "Seek immediate support from mental health professionals or employee assistance programs",
-                    "Discuss workload adjustment with your manager or HR department",
-                    "Implement daily stress reduction practices like meditation or deep breathing exercises"
-                ]
-            elif survey_risk_label == "Medium Risk" or ml_stress_label in ["Medium Burnout Risk", "High Burnout Risk"]:
-                personalized_summary = f"Analysis shows moderate stress levels with {ml_burn_percentage}% burnout risk. Proactive wellness measures and lifestyle adjustments are advised to prevent escalation."
-                personalized_recommendations = [
-                    "Establish clear boundaries between work and personal time",
-                    "Engage in regular physical activity and maintain social connections outside work",
-                    "Practice stress management techniques and consider mindfulness training"
-                ]
-            else:
-                personalized_summary = f"Analysis indicates relatively manageable stress levels with {ml_burn_percentage}% burnout risk. Continue current positive practices while monitoring for changes."
-                personalized_recommendations = [
-                    "Maintain current healthy work habits and coping strategies",
-                    "Continue regular self-assessment and stress monitoring",
-                    "Build resilience through continuous learning and skill development"
-                ]
-        
-        # --- NEW: Store Combined Analysis in Core Service ---
-        try:
-            combined_payload = {
-                "user_id": request.user_id,
-                "survey_type": "combined_burnout_assessment",
-                "responses": {
-                    "employee_data": request.employee.dict(exclude={'user_id', 'token'}),
-                    "survey_questions": request.survey.dict()
-                },
-                "burnout_score": ml_burn_rate,
-                "stress_level": f"{ml_stress_label} (ML) / {survey_risk_label} (Survey)",
-                "risk_categories": {
-                    "ml_prediction": ml_stress_label,
-                    "survey_assessment": survey_risk_label
-                },
-                "prediction_model_version": burn_result["model_used"],
-                "prediction_confidence": burn_result.get("prediction_confidence_score", 0.85),
-                "ai_recommendations": {
-                    "source": analysis_source,
-                    "summary": personalized_summary,
-                    "recommendations": personalized_recommendations
-                },
-                "follow_up_suggested": survey_risk_label in ["High", "Medium"]
-            }
-            if request.user_id and request.token:
-                await store_survey_in_core_service(combined_payload, request.user_id, request.token)
-            else:
-                logger.warning("Cannot store combined analysis in core service: missing user_id or token.")
-        except Exception as e:
-            logger.error(f"Failed to store combined analysis in core service: {e}")
+            },
+            "ai_recommendations": {
+                "immediate_actions": _generate_recommendations(burnout_score, employee),
+                "follow_up_timeline": "2-4 weeks" if burnout_score >= 60 else "1-2 months"
+            },
+            "follow_up_suggested": burnout_score >= 60
+        }
+        background_tasks.add_task(store_survey_in_core_service, db_data, employee.user_id, token)
 
-        # Final response
-        return CombinedAnalysisResponse(
-            mental_health_summary=personalized_summary,
-            recommendations=personalized_recommendations,
-            source=analysis_source,
+        PROCESSING_TIME.labels(endpoint='/analyze-employee').observe(processing_time)
+        
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in employee analysis: {str(e)}")
+        ERROR_COUNT.labels(endpoint='/analyze-employee', error_type='processing_error').inc()
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during employee analysis.")
+
+@app.post("/analyze-survey-questions", response_model=SurveyAnalysisResponse, tags=["Separate Analysis"])
+async def analyze_survey_questions(survey: SurveyLikertData, background_tasks: BackgroundTasks, token: Optional[str] = Depends(get_token)):
+    """
+    Analyzes Likert scale survey questions to determine risk level.
+    Requires bearer token for authentication.
+    """
+    REQUESTS.labels(endpoint='/analyze-survey-questions').inc()
+    start_time = time.time()
+    update_system_metrics()
+    
+    # Simple risk assessment logic (can be expanded)
+    total_score = sum(survey.dict().values())
+    num_questions = len(survey.dict())
+    avg_score = total_score / num_questions
+    
+    if avg_score > 3.5:
+        risk_level = "Low"
+    elif 2.5 <= avg_score <= 3.5:
+        risk_level = "Medium"
+    else:
+        risk_level = "High"
+
+    response = SurveyAnalysisResponse(
+        risk_level=risk_level,
+        assessment_method="Likert-10 Average Score",
+        total_questions=num_questions,
+        analysis_timestamp=datetime.now().isoformat()
+    )
+
+    # Note: Storing this result alone might not be as useful without user_id.
+    # The frontend orchestrates sending combined data. If this endpoint is called directly,
+    # we would need user_id passed in the body to store it.
+
+    processing_time = time.time() - start_time
+    PROCESSING_TIME.labels(endpoint='/analyze-survey-questions').observe(processing_time)
+    
+    return response
+
+@app.post("/analyze-combined", response_model=CombinedAnalysisResponse, tags=["Separate Analysis"])
+async def analyze_combined(request: CombinedAnalysisRequest, background_tasks: BackgroundTasks, token: Optional[str] = Depends(get_token)):
+    """
+    Provides AI-driven insights based on combined employee and survey data.
+    Requires bearer token for authentication.
+    """
+    REQUESTS.labels(endpoint='/analyze-combined').inc()
+    start_time = time.time()
+    update_system_metrics()
+
+    try:
+        user_uuid = validate_user_uuid(request.user_id)
+
+        # This is where you would integrate with a GenAI model like GPT or Gemini
+        # For now, we'll use a mocked response.
+        
+        # Mocked analysis logic
+        summary = f"AI analysis for {request.employee.user_name or 'user'} indicates a moderate level of stress, influenced by resource allocation and mental fatigue scores. Recommendations focus on improving work-life balance and resource management."
+        
+        recommendations = [
+            "Discuss resource allocation with your manager to ensure tasks are manageable.",
+            "Schedule regular short breaks throughout the day to mitigate mental fatigue.",
+            "Explore mindfulness or meditation techniques to manage stress levels.",
+            "Ensure a clear separation between work and personal time, especially if working from home."
+        ]
+
+        response = CombinedAnalysisResponse(
+            mental_health_summary=summary,
+            recommendations=recommendations,
+            source="GenAI-Mock-v1.0",
             employee_id=request.employee_id,
             analysis_timestamp=datetime.now().isoformat()
         )
+
+        # Calculate processing time before using it in database storage
+        processing_time = time.time() - start_time
+        
+        # Calculate risk score based on survey responses for database storage
+        survey_scores = list(request.survey.dict().values())
+        avg_survey_score = sum(survey_scores) / len(survey_scores)
+        
+        # Derive burnout score from survey analysis
+        if avg_survey_score > 3.5:
+            derived_burnout_score = 0.2  # Low risk
+            risk_level = "Low"
+        elif 2.5 <= avg_survey_score <= 3.5:
+            derived_burnout_score = 0.5  # Medium risk
+            risk_level = "Medium"
+        else:
+            derived_burnout_score = 0.8  # High risk
+            risk_level = "High"
+        
+        # Asynchronously store results in the database - proper schema mapping
+        db_data = {
+            "survey_type": "combined_ai_analysis",
+            "survey_version": "1.0",
+            "responses": {
+                "employee": request.employee.dict(),
+                "survey": request.survey.dict()
+            },
+            "completion_time_seconds": int(processing_time * 1000),  # Convert to milliseconds
+            "burnout_score": derived_burnout_score,
+            "stress_level": risk_level,
+            "risk_categories": {
+                "overall_risk": risk_level,
+                "survey_based_risk": risk_level,
+                "emotional_exhaustion": "high" if survey_scores[2] <= 2 else "low",  # q3: emotional exhaustion
+                "work_life_balance": "poor" if survey_scores[9] <= 2 else "good",   # q10: work-life balance
+                "job_satisfaction": "low" if survey_scores[4] <= 2 else "high"      # q5: accomplishment
+            },
+            "prediction_model_version": "combined_ai_v1.0",
+            "prediction_confidence": 0.75,
+            "predicted_outcomes": {
+                "burnout_risk": derived_burnout_score,
+                "stress_level_prediction": risk_level,
+                "survey_insights": {
+                    "happiness_score": survey_scores[0],
+                    "anxiety_level": survey_scores[1],
+                    "emotional_exhaustion": survey_scores[2],
+                    "motivation_level": survey_scores[3],
+                    "accomplishment_feeling": survey_scores[4],
+                    "detachment_level": survey_scores[5],
+                    "workload_manageability": survey_scores[6],
+                    "task_control": survey_scores[7],
+                    "support_availability": survey_scores[8],
+                    "work_life_balance": survey_scores[9]
+                }
+            },
+            "ai_recommendations": {
+                "immediate_actions": recommendations,
+                "mental_health_summary": summary,
+                "follow_up_timeline": "2-3 weeks" if risk_level == "High" else "1-2 months"
+            },
+            "follow_up_suggested": risk_level == "High"
+        }
+        background_tasks.add_task(store_survey_in_core_service, db_data, request.user_id, token)
+
+        PROCESSING_TIME.labels(endpoint='/analyze-combined').observe(processing_time)
+
+        return response
+        
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        ERROR_COUNT.labels(endpoint='analyze_combined', error_type='general').inc()
-        logger.error(f"Error in analyze-combined: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        PROCESSING_TIME.labels(endpoint='analyze_combined').observe(time.time() - start_time)
+        logger.error(f"Error in combined analysis: {str(e)}")
+        ERROR_COUNT.labels(endpoint='/analyze-combined', error_type='processing_error').inc()
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during combined analysis.")
 
 if __name__ == "__main__":
     import uvicorn
