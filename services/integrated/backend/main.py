@@ -302,6 +302,52 @@ async def get_token(authorization: Optional[str] = Header(None)) -> Optional[str
         return None
     return None
 
+async def validate_admin_access(token: str) -> dict:
+    """Validate token and ensure user has admin access"""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authorization token is missing")
+    
+    try:
+        # Get user profile from core service
+        headers = {"Authorization": f"Bearer {token}"}
+        async with session.get(f"{CORE_SERVICE_URL}/auth/me", headers=headers) as resp:
+            if resp.status != 200:
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+            
+            user = await resp.json()
+            
+            # Check if user has admin role (case-insensitive)
+            user_role = user.get("role", "").lower()
+            if user_role not in ["admin", "manager"]:
+                raise HTTPException(status_code=403, detail="Admin or Manager access required")
+            
+            return user
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        logger.error(f"Error validating admin access: {e}")
+        raise HTTPException(status_code=500, detail="Authentication service error")
+
+async def validate_user_access(token: str) -> dict:
+    """Validate token and get user info"""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authorization token is missing")
+    
+    try:
+        # Get user profile from core service
+        headers = {"Authorization": f"Bearer {token}"}
+        async with session.get(f"{CORE_SERVICE_URL}/auth/me", headers=headers) as resp:
+            if resp.status != 200:
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+            
+            user = await resp.json()
+            return user
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        logger.error(f"Error validating user access: {e}")
+        raise HTTPException(status_code=500, detail="Authentication service error")
+
 # Initialize logging first before any imports that might use it
 logger = logging.getLogger("integrated_backend")
 logger.setLevel(logging.DEBUG)
@@ -660,10 +706,11 @@ async def proxy_register(request: Request):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/departments")
-async def proxy_departments(request: Request):
-    """Proxy departments requests to core service (public endpoint)"""
+async def proxy_departments(request: Request, token: Optional[str] = Depends(get_token)):
+    """Proxy departments requests to core service (public endpoint with optional auth)"""
     try:
         # Forward to core service without authentication (public endpoint)
+        # Even if token is provided, we don't forward it since this is a public endpoint
         async with session.get(f"{CORE_SERVICE_URL}/departments") as resp:
             data = await resp.json()
             return JSONResponse(content=data, status_code=resp.status)
@@ -676,7 +723,6 @@ async def proxy_departments(request: Request):
 async def proxy_user_profile(request: Request):
     """Proxy user profile requests to core service"""
     try:
-        # Extract token from header
         authorization = request.headers.get("Authorization", "")
         if not authorization:
             return JSONResponse(content={"error": "Authorization header required"}, status_code=401)
@@ -749,6 +795,73 @@ async def proxy_logout(request: Request):
             "timestamp": datetime.utcnow().isoformat()
         }, status_code=200)
 
+
+# Admin Management Endpoints
+@app.get("/users")
+async def proxy_users(request: Request, token: Optional[str] = Depends(get_token)):
+    """Proxy users requests to core service (admin endpoint)"""
+    try:
+        # Validate admin access
+        user = await validate_admin_access(token)
+        logger.info(f"Admin user {user['email']} accessing users endpoint")
+        
+        # Forward query parameters and headers to core service
+        headers = {"Authorization": f"Bearer {token}"}
+        query_params = dict(request.query_params)
+        
+        async with session.get(f"{CORE_SERVICE_URL}/users", headers=headers, params=query_params) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error proxying users request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.get("/audit/logs")
+async def proxy_audit_logs(request: Request, token: Optional[str] = Depends(get_token)):
+    """Proxy audit logs requests to core service (admin endpoint)"""
+    try:
+        # Validate admin access
+        user = await validate_admin_access(token)
+        logger.info(f"Admin user {user['email']} accessing audit logs endpoint")
+        
+        # Forward query parameters and headers to core service
+        headers = {"Authorization": f"Bearer {token}"}
+        query_params = dict(request.query_params)
+        
+        async with session.get(f"{CORE_SERVICE_URL}/audit/logs", headers=headers, params=query_params) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error proxying audit logs request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.get("/system/health/history")
+async def proxy_system_health_history(request: Request, token: Optional[str] = Depends(get_token)):
+    """Proxy system health history requests to core service (admin endpoint)"""
+    try:
+        # Validate admin access
+        user = await validate_admin_access(token)
+        logger.info(f"Admin user {user['email']} accessing system health history endpoint")
+        
+        # Forward query parameters and headers to core service
+        headers = {"Authorization": f"Bearer {token}"}
+        query_params = dict(request.query_params)
+        
+        async with session.get(f"{CORE_SERVICE_URL}/system/health/history", headers=headers, params=query_params) as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error proxying system health history request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/metrics")
 async def metrics():

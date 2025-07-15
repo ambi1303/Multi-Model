@@ -73,6 +73,13 @@ import {
   Target,
   Gauge,
   Clock,
+  Lock,
+  Mail,
+  Phone,
+  Palette,
+  EyeOff,
+  Ban,
+  ShieldCheck,
 } from 'lucide-react';
 
 // Icon size configuration
@@ -181,6 +188,16 @@ export const LightbulbIcon: React.FC = () => <Zap size={ICON_SIZE} />;
 export const BusinessIcon: React.FC = () => <Folder size={ICON_SIZE} />;
 export const ScaleIcon: React.FC = () => <BarChart3 size={ICON_SIZE} />;
 export const ScheduleIcon: React.FC = () => <Timer size={ICON_SIZE} />;
+
+// Additional missing icons
+export const LockIcon: React.FC = () => <Lock size={ICON_SIZE} />;
+export const EmailIcon: React.FC = () => <Mail size={ICON_SIZE} />;
+export const PhoneIcon: React.FC = () => <Phone size={ICON_SIZE} />;
+export const PaletteIcon: React.FC = () => <Palette size={ICON_SIZE} />;
+export const VisibilityIcon: React.FC = () => <Eye size={ICON_SIZE} />;
+export const VisibilityOffIcon: React.FC = () => <EyeOff size={ICON_SIZE} />;
+export const BlockIcon: React.FC = () => <Ban size={ICON_SIZE} />;
+export const PrivacyTipIcon: React.FC = () => <ShieldCheck size={ICON_SIZE} />;
 
 // Aliases for backward compatibility
 export const MessageCircleIcon = ChatIcon;

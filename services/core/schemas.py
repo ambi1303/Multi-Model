@@ -426,7 +426,7 @@ class AuditLogCreate(BaseModel):
     request_path: Optional[str] = Field(None, max_length=500)
     status_code: Optional[int] = None
     response_time_ms: Optional[int] = Field(None, ge=0)
-    metadata: Optional[Dict[str, Any]] = {}
+    extra_data: Optional[Dict[str, Any]] = {}
 
 
 class AuditLogResponse(AuditLogCreate, TimestampMixin):

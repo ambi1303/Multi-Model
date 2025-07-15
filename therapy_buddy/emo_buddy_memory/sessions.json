@@ -1,0 +1,407 @@
+[
+  {
+    "session_id": 0,
+    "timestamp": "2025-07-02T22:27:44.127472",
+    "duration": "2025-07-02 22:27:03.726894",
+    "summary": "\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:00:40.400380\n\ud83d\udcac Total Interactions: 3\n\n\ud83e\udde0 EMOTIONS TRACKED:\n- sadness: 1 times\n- desire: 1 times\n- caring: 1 times\n\n\ud83d\udd27 THERAPEUTIC TECHNIQUES USED:\n- dbt: 1 times\n\n\ud83d\udca1 KEY INSIGHTS:\nInsights generated based on conversation patterns and emotional responses\n\n\n\n\ud83d\udcdd RECOMMENDATIONS:\n- Continue monitoring emotional patterns\n- Practice suggested coping strategies\n- Consider professional support if patterns persist\n\n\ud83c\udfaf NEXT STEPS:\n- Reflect on insights from this session\n- Apply therapeutic techniques in daily life\n- Return when you need support or want to check in\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-02T22:27:03.727217",
+        "sentiment": "negative",
+        "emotions": [
+          "sadness",
+          "desire",
+          "caring"
+        ],
+        "source": "technical_analysis"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-02T22:27:30.504050",
+        "technique": "dbt",
+        "context": "i feel low"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hello I am not feeling well I want to go home someone please help me I have fever"
+    ],
+    "initial_analysis": {
+      "transcription": "hello I am not feeling well I want to go home someone please help me I have fever",
+      "sentiment": {
+        "label": "negative",
+        "confidence": 0.8116642832756042,
+        "scores": {
+          "negative": 0.8116642832756042,
+          "neutral": 0.1712917983531952,
+          "positive": 0.017043881118297577
+        },
+        "polarity": 0.0,
+        "subjectivity": 0.0,
+        "intensity": "Mild"
+      },
+      "emotions": [
+        {
+          "emotion": "sadness",
+          "confidence": 0.5305349826812744
+        },
+        {
+          "emotion": "desire",
+          "confidence": 0.25776147842407227
+        },
+        {
+          "emotion": "caring",
+          "confidence": 0.08483760803937912
+        }
+      ]
+    }
+  },
+  {
+    "session_id": 1,
+    "timestamp": "2025-07-02T22:35:47.947431",
+    "duration": "2025-07-02 22:32:26.098944",
+    "summary": "\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:03:21.848055\n\ud83d\udcac Total Interactions: 15\n\n\ud83e\udde0 EMOTIONS TRACKED:\n- sadness: 1 times\n- desire: 1 times\n- disappointment: 1 times\n\n\ud83d\udd27 THERAPEUTIC TECHNIQUES USED:\n- dbt: 7 times\n\n\ud83d\udca1 KEY INSIGHTS:\nInsights generated based on conversation patterns and emotional responses\n\n\n\n\ud83d\udcdd RECOMMENDATIONS:\n- Continue monitoring emotional patterns\n- Practice suggested coping strategies\n- Consider professional support if patterns persist\n\n\ud83c\udfaf NEXT STEPS:\n- Reflect on insights from this session\n- Apply therapeutic techniques in daily life\n- Return when you need support or want to check in\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-02T22:32:26.099066",
+        "sentiment": "negative",
+        "emotions": [
+          "sadness",
+          "desire",
+          "disappointment"
+        ],
+        "source": "technical_analysis"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-02T22:32:57.475082",
+        "technique": "dbt",
+        "context": "fever body ache , but im in office forced to work"
+      },
+      {
+        "timestamp": "2025-07-02T22:33:41.842006",
+        "technique": "dbt",
+        "context": "i am thinking of informing hr and leaving and asking for delay in deadline"
+      },
+      {
+        "timestamp": "2025-07-02T22:34:02.783996",
+        "technique": "dbt",
+        "context": "7"
+      },
+      {
+        "timestamp": "2025-07-02T22:34:32.266083",
+        "technique": "dbt",
+        "context": "they might reject it but lets give it try"
+      },
+      {
+        "timestamp": "2025-07-02T22:34:52.108339",
+        "technique": "dbt",
+        "context": "if they say no i wont go home"
+      },
+      {
+        "timestamp": "2025-07-02T22:35:21.241590",
+        "technique": "dbt",
+        "context": "i have fever know , so i have to go home"
+      },
+      {
+        "timestamp": "2025-07-02T22:35:40.395218",
+        "technique": "dbt",
+        "context": "ok thanks"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hello I am not feeling well I want to go home I have fever please help me",
+      "fever body ache , but im in office forced to work",
+      "i am thinking of informing hr and leaving and asking for delay in deadline",
+      "they might reject it but lets give it try",
+      "if they say no i wont go home",
+      "i have fever know , so i have to go home"
+    ],
+    "initial_analysis": {
+      "transcription": "hello I am not feeling well I want to go home I have fever please help me",
+      "sentiment": {
+        "label": "negative",
+        "confidence": 0.871910035610199,
+        "scores": {
+          "negative": 0.871910035610199,
+          "neutral": 0.11739398539066315,
+          "positive": 0.010696055367588997
+        },
+        "polarity": 0.0,
+        "subjectivity": 0.0,
+        "intensity": "Mild"
+      },
+      "emotions": [
+        {
+          "emotion": "sadness",
+          "confidence": 0.5386276245117188
+        },
+        {
+          "emotion": "desire",
+          "confidence": 0.2305261343717575
+        },
+        {
+          "emotion": "disappointment",
+          "confidence": 0.08749808371067047
+        }
+      ]
+    }
+  },
+  {
+    "session_id": 2,
+    "timestamp": "2025-07-03T00:04:18.434996",
+    "duration": "2025-07-02 23:58:34.437362",
+    "summary": "\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:05:43.997098\n\ud83d\udcac Total Interactions: 13\n\n\ud83e\udde0 EMOTIONS TRACKED:\n- sadness: 1 times\n- desire: 1 times\n- disappointment: 1 times\n\n\ud83d\udd27 THERAPEUTIC TECHNIQUES USED:\n- dbt: 6 times\n\n\ud83d\udca1 KEY INSIGHTS:\nInsights generated based on conversation patterns and emotional responses\n\n\n\n\ud83d\udcdd RECOMMENDATIONS:\n- Continue monitoring emotional patterns\n- Practice suggested coping strategies\n- Consider professional support if patterns persist\n\n\ud83c\udfaf NEXT STEPS:\n- Reflect on insights from this session\n- Apply therapeutic techniques in daily life\n- Return when you need support or want to check in\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-02T23:58:34.437601",
+        "sentiment": "negative",
+        "emotions": [
+          "sadness",
+          "desire",
+          "disappointment"
+        ],
+        "source": "technical_analysis",
+        "intensity": "Mild"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-02T23:59:06.249710",
+        "technique": "dbt",
+        "context": "i have high fever , i feel like leaving work and going home",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-02T23:59:40.607157",
+        "technique": "dbt",
+        "context": "should i inform manager and leave",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:01:09.288571",
+        "technique": "dbt",
+        "context": "so i have fever and not feeling well and lot of work to do , suggest me best ways to cope up",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:02:02.591192",
+        "technique": "dbt",
+        "context": "ok",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:02:36.395547",
+        "technique": "dbt",
+        "context": "what to do if i dont feel like working",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:03:22.849684",
+        "technique": "dbt",
+        "context": "ok ill do it",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hello I am not feeling well I want to go home please help me",
+      "i have high fever , i feel like leaving work and going home",
+      "should i inform manager and leave",
+      "so i have fever and not feeling well and lot of work to do , suggest me best ways to cope up",
+      "what to do if i dont feel like working"
+    ],
+    "initial_analysis": {
+      "transcription": "hello I am not feeling well I want to go home please help me",
+      "sentiment": {
+        "label": "negative",
+        "confidence": 0.8282292485237122,
+        "scores": {
+          "negative": 0.8282292485237122,
+          "neutral": 0.15692538022994995,
+          "positive": 0.01484537310898304
+        },
+        "polarity": 0.0,
+        "subjectivity": 0.0,
+        "intensity": "Mild"
+      },
+      "emotions": [
+        {
+          "emotion": "sadness",
+          "confidence": 0.5606279969215393
+        },
+        {
+          "emotion": "desire",
+          "confidence": 0.3115655481815338
+        },
+        {
+          "emotion": "disappointment",
+          "confidence": 0.12372994422912598
+        }
+      ]
+    }
+  },
+  {
+    "session_id": 3,
+    "timestamp": "2025-07-03T00:13:34.349337",
+    "duration": "2025-07-03 00:12:37.942453",
+    "summary": "\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:00:56.406399\n\ud83d\udcac Total Interactions: 1\n\n\ud83e\udde0 EMOTIONS TRACKED:\n- neutral: 2 times\n- surprise: 1 times\n\n\ud83d\udd27 THERAPEUTIC TECHNIQUES USED:\nNo specific techniques applied\n\n\ud83d\udca1 KEY INSIGHTS:\nInsights generated based on conversation patterns and emotional responses\n\n\n\n\ud83d\udcdd RECOMMENDATIONS:\n- Continue monitoring emotional patterns\n- Practice suggested coping strategies\n- Consider professional support if patterns persist\n\n\ud83c\udfaf NEXT STEPS:\n- Reflect on insights from this session\n- Apply therapeutic techniques in daily life\n- Return when you need support or want to check in\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-03T00:13:06.666883",
+        "sentiment": "NEUTRAL",
+        "emotions": [
+          "neutral",
+          "surprise",
+          "neutral"
+        ],
+        "source": "technical_analysis",
+        "intensity": "low"
+      }
+    ],
+    "techniques_used": [],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hi i feel low"
+    ],
+    "initial_analysis": {
+      "transcription": "hi i feel low",
+      "sentiment": {
+        "label": "NEUTRAL",
+        "confidence": 0.6,
+        "intensity": "low"
+      },
+      "emotions": [
+        {
+          "emotion": "neutral",
+          "confidence": 0.7
+        },
+        {
+          "emotion": "surprise",
+          "confidence": 0.15
+        },
+        {
+          "emotion": "neutral",
+          "confidence": 0.1
+        }
+      ],
+      "source": "standalone_chat",
+      "timestamp": "2025-07-03T00:13:06.665168"
+    }
+  },
+  {
+    "session_id": 4,
+    "timestamp": "2025-07-03T00:22:18.400756",
+    "duration": "2025-07-03 00:15:08.036325",
+    "summary": "\n\ud83c\udf3f EMO BUDDY SESSION SUMMARY\n==================================================\n\n\ud83d\udcc5 Session Duration: 0:07:10.364330\n\ud83d\udcac Total Interactions: 19\n\n\ud83e\udde0 EMOTIONS TRACKED:\n- sadness: 1 times\n- caring: 1 times\n- disappointment: 1 times\n\n\ud83d\udd27 THERAPEUTIC TECHNIQUES USED:\n- dbt: 9 times\n\n\ud83d\udca1 KEY INSIGHTS:\nInsights generated based on conversation patterns and emotional responses\n\n\n\n\ud83d\udcdd RECOMMENDATIONS:\n- Continue monitoring emotional patterns\n- Practice suggested coping strategies\n- Consider professional support if patterns persist\n\n\ud83c\udfaf NEXT STEPS:\n- Reflect on insights from this session\n- Apply therapeutic techniques in daily life\n- Return when you need support or want to check in\n",
+    "emotions_tracked": [
+      {
+        "timestamp": "2025-07-03T00:15:08.036487",
+        "sentiment": "negative",
+        "emotions": [
+          "sadness",
+          "caring",
+          "disappointment"
+        ],
+        "source": "technical_analysis",
+        "intensity": "Mild"
+      }
+    ],
+    "techniques_used": [
+      {
+        "timestamp": "2025-07-03T00:16:47.353388",
+        "technique": "dbt",
+        "context": "i feel low and not like working , just quick hacks to improve mood",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:17:29.361479",
+        "technique": "dbt",
+        "context": "ok",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:17:55.982580",
+        "technique": "dbt",
+        "context": "agree to your dbt",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:19:08.414309",
+        "technique": "dbt",
+        "context": "emotional regulation",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:20:03.214322",
+        "technique": "dbt",
+        "context": "general",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:20:31.592250",
+        "technique": "dbt",
+        "context": "i feel sad and not motivated to work",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:20:46.860259",
+        "technique": "dbt",
+        "context": "no just feeling low in general",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:21:23.774890",
+        "technique": "dbt",
+        "context": "can you give some quick fix",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      },
+      {
+        "timestamp": "2025-07-03T00:21:57.585922",
+        "technique": "dbt",
+        "context": "ok lets try",
+        "rationale": "Emotional regulation and distress tolerance skills needed"
+      }
+    ],
+    "crisis_flags": [],
+    "key_phrases": [
+      "hello I am not feeling well I won't help",
+      "i feel low and not like working , just quick hacks to improve mood",
+      "i feel sad and not motivated to work",
+      "no just feeling low in general",
+      "can you give some quick fix"
+    ],
+    "initial_analysis": {
+      "transcription": "hello I am not feeling well I won't help",
+      "sentiment": {
+        "label": "negative",
+        "confidence": 0.9670228362083435,
+        "scores": {
+          "negative": 0.9670228362083435,
+          "neutral": 0.0300669614225626,
+          "positive": 0.002910184906795621
+        },
+        "polarity": 0.0,
+        "subjectivity": 0.0,
+        "intensity": "Mild"
+      },
+      "emotions": [
+        {
+          "emotion": "sadness",
+          "confidence": 0.50542151927948
+        },
+        {
+          "emotion": "caring",
+          "confidence": 0.18059678375720978
+        },
+        {
+          "emotion": "disappointment",
+          "confidence": 0.09523507952690125
+        }
+      ]
+    }
+  }
+]

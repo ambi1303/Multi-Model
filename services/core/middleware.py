@@ -148,7 +148,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Routes that don't require authentication
         self.public_routes = {
             "/docs", "/redoc", "/openapi.json", "/health",
-            "/auth/login", "/auth/register", "/auth/refresh"
+            "/auth/login", "/auth/register", "/auth/refresh", "/departments"
         }
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
