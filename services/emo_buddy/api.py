@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Import unified core
-from core.unified_api import UnifiedEmoBuddyAPI
+from core.unified_api import get_unified_api
 from core.models import (
     SessionStartRequest, SessionContinueRequest, SessionEndRequest,
     SessionResponse, SessionEndResponse, SessionMode
@@ -41,8 +41,8 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize unified EmoBuddy API
-unified_api = UnifiedEmoBuddyAPI()
+# Get singleton unified EmoBuddy API instance
+unified_api = get_unified_api()
 
 # --- Authentication ---
 async def get_token(authorization: Optional[str] = Header(None)) -> str:
@@ -81,7 +81,11 @@ def get_session_mode(request: Request) -> SessionMode:
 
 async def stream_response_generator(response_stream):
     for chunk in response_stream:
-        yield chunk.text
+        # Handle both chunk objects with .text attribute and plain strings
+        if hasattr(chunk, 'text'):
+            yield chunk.text
+        else:
+            yield str(chunk)
 
 # --- API Endpoints ---
 
@@ -105,6 +109,7 @@ async def start_session_stream(request: Request, token: str = Depends(get_token)
             mode=SessionMode.STANDALONE # Assuming standalone for this example
         )
         session_id = session_info["session_id"]
+        logger.info(f"Created session {session_id} for user {user_id}")
 
         # Get the response stream
         response_stream = await unified_api.start_session_stream(session_id, analysis_report)
@@ -113,7 +118,7 @@ async def start_session_stream(request: Request, token: str = Depends(get_token)
         # A common way is to use a multipart response or send it as a header,
         # but for simplicity, we'll prepend it to the stream.
         async def stream_with_session_id():
-            yield f"session_id:{session_id}\\n"
+            yield f"session_id:{session_id}\n"
             for chunk in response_stream:
                 yield chunk
 
@@ -125,26 +130,48 @@ async def start_session_stream(request: Request, token: str = Depends(get_token)
 
 @app.post("/continue", tags=["EmoBuddy"], description="Continue an existing Emo Buddy session and get a streamed response.")
 async def continue_session_stream(
-    session_id: str = Body(...), 
-    user_message: str = Body(...)
+    request: Request,
+    token: str = Depends(get_token)
 ):
     """
     Continue a session and stream the response back.
     """
-    if not session_id or not user_message:
-        raise HTTPException(status_code=400, detail="session_id and user_message are required")
-    
-    # This part of the logic needs to be updated to handle streaming correctly
-    # The unified_api should have a method that returns a generator/stream
-    response_stream = await unified_api.continue_session_stream(session_id, user_message)
-    
-    if response_stream:
-        return StreamingResponse(stream_response_generator(response_stream), media_type="text/event-stream")
-    else:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Failed to get response from EmoBuddy"}
-        )
+    try:
+        body = await request.json()
+        session_id = body.get("session_id")
+        user_message = body.get("user_message")
+        user_id = body.get("user_id")
+        
+        if not session_id or not user_message:
+            raise HTTPException(status_code=400, detail="session_id and user_message are required")
+        
+        # First check if session exists
+        logger.info(f"Checking session {session_id} for continue request")
+        session_status = unified_api.get_session_status(session_id)
+        logger.info(f"Session {session_id} status: {session_status}")
+        if not session_status.get("exists", False):
+            logger.error(f"Session {session_id} not found for continue request")
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        
+        if not session_status.get("active", False):
+            logger.error(f"Session {session_id} is not active")
+            raise HTTPException(status_code=400, detail=f"Session {session_id} is not active")
+        
+        # Continue the session with proper authentication
+        response_stream = await unified_api.continue_session_stream(session_id, user_message)
+        
+        if response_stream:
+            return StreamingResponse(stream_response_generator(response_stream), media_type="text/event-stream")
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to get response from EmoBuddy"}
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error continuing session: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to continue session: {str(e)}")
 
 @app.post("/end", response_model=SessionEndResponse)
 async def end_session(request: Request, token: str = Depends(get_token)):

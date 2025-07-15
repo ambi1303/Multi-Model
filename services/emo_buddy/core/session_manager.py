@@ -59,6 +59,7 @@ class EmoBuddySessionManager:
             
             # Store in active sessions
             self.active_sessions[session_id] = session
+            logger.info(f"Stored session {session_id} in active_sessions. Total active: {len(self.active_sessions)}")
             
             # Log session start
             log_session_event(session_id, "session_started", {
@@ -106,8 +107,10 @@ class EmoBuddySessionManager:
             sanitized_message = sanitize_message(request.user_message)
             
             # Get session
+            logger.info(f"Looking for session {request.session_id} in active_sessions. Available: {list(self.active_sessions.keys())}")
             session = self.active_sessions.get(request.session_id)
             if not session:
+                logger.error(f"Session {request.session_id} not found. Active sessions: {len(self.active_sessions)}")
                 raise SessionNotFoundError(request.session_id)
             
             if not session.is_active:

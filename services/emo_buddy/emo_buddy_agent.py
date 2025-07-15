@@ -124,7 +124,11 @@ class EmoBuddyAgent:
                 response_stream = self._generate_response(initial_prompt)
                 response_chunks = []
                 for chunk in response_stream:
-                    response_chunks.append(chunk.text)
+                    # Handle both cases: chunk objects with .text attribute and plain strings
+                    if hasattr(chunk, 'text'):
+                        response_chunks.append(chunk.text)
+                    else:
+                        response_chunks.append(str(chunk))
                 response = "".join(response_chunks)
             
             self._log_interaction("assistant", "session_start", response)
@@ -188,8 +192,15 @@ class EmoBuddyAgent:
                 
                 response_chunks = []
                 for chunk in response_stream:
-                    response_chunks.append(chunk.text)
-                    yield chunk.text
+                    # Handle both cases: chunk objects with .text attribute and plain strings
+                    if hasattr(chunk, 'text'):
+                        text = chunk.text
+                        response_chunks.append(text)
+                        yield text
+                    else:
+                        text = str(chunk)
+                        response_chunks.append(text)
+                        yield text
                 
                 full_response = "".join(response_chunks)
                 self._log_interaction("assistant", "therapeutic_response", full_response)
@@ -351,7 +362,7 @@ Rationale: {self.current_session.get('techniques_used', [{}])[-1].get('rationale
 Respond as Emo Buddy with deep therapeutic understanding and genuine human connection.
 """
     
-    def _generate_response(self, prompt: str) -> str:
+    def _generate_response(self, prompt: str):
         """Generate a response using the Gemini model"""
         try:
             # Generate content using the model with streaming enabled
@@ -368,8 +379,15 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
             return response
         except Exception as e:
             logger.error(f"Error generating response from Gemini: {e}")
-            # In case of error, yield a fallback message
-            yield "I'm having a little trouble formulating a response right now. Could you please rephrase or tell me more?"
+            # Return a generator that yields a fallback message as a simple object with .text attribute
+            class FallbackChunk:
+                def __init__(self, text):
+                    self.text = text
+            
+            def fallback_generator():
+                yield FallbackChunk("I'm having a little trouble formulating a response right now. Could you please rephrase or tell me more?")
+            
+            return fallback_generator()
     
     def _log_interaction(self, role: str, content: str, response: str):
         """Logs a single interaction to the session's message history."""

@@ -138,14 +138,15 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
   const user = useAppStore((state) => state.user);
   
   // State management
-  const [showNotification, setShowNotification] = useState(true);
-  const [showChatWindow, setShowChatWindow] = useState(false);
+  const [showNotification, setShowNotification] = useState(false); // Start with chat window open
+  const [showChatWindow, setShowChatWindow] = useState(true); // Show chat window immediately
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [session, setSession] = useState<EmoBuddySession | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
+  const [initialMessageSent, setInitialMessageSent] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -164,48 +165,88 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
     }
   }, [showChatWindow, isMinimized]);
 
-  // Handle notification click
-  const handleNotificationClick = async () => {
-    if (!analysisResult) {
-      showError('No analysis result available for Emo Buddy session.');
-      return;
+  // Auto-start session and send transcription when component mounts
+  useEffect(() => {
+    if (analysisResult && !initialMessageSent && !session) {
+      handleAutoStart();
     }
-    if (!user?.id) {
-      showError('You must be logged in to use Emo Buddy.');
+  }, [analysisResult, initialMessageSent, session]);
+
+  // Handle auto-start with transcription
+  const handleAutoStart = async () => {
+    if (!analysisResult || !user?.id) {
+      showError('No analysis result available or user not logged in.');
       return;
     }
 
-    setShowNotification(false);
     setIsLoading(true);
+    setInitialMessageSent(true);
+
+    // Show temporary message about processing transcription
+    const processingMessage: Message = {
+      id: 'processing',
+      content: 'Processing your speech analysis...',
+      isUser: false,
+      timestamp: new Date(),
+    };
+    setMessages([processingMessage]);
 
     try {
       // Check availability first
       const availability = await speechApi.checkEmoBuddyAvailability();
       if (!availability.available) {
         showError('Emo Buddy is currently unavailable. Please try again later.');
+        setIsLoading(false);
         return;
       }
 
       // Start session
       const sessionData = await speechApi.startEmoBuddySession(analysisResult, user.id);
+      
+      // Validate session data
+      if (!sessionData.session_id || !sessionData.response) {
+        showError('Failed to start Emo Buddy session. Invalid response.');
+        setIsLoading(false);
+        return;
+      }
+      
       setSession(sessionData);
       
-      // Add initial message
-      const initialMessage: Message = {
+      // Add transcription as first user message
+      const transcriptionMessage: Message = {
         id: Date.now().toString(),
+        content: analysisResult.transcribed_text || "I just completed a speech analysis.",
+        isUser: true,
+        timestamp: new Date(),
+      };
+      
+      // Add initial bot response
+      const initialBotMessage: Message = {
+        id: (Date.now() + 1).toString(),
         content: sessionData.response,
         isUser: false,
         timestamp: new Date(),
       };
-      setMessages([initialMessage]);
-      setShowChatWindow(true);
-      showSuccess('Emo Buddy session started! 🤖');
+      
+      // Replace processing message with actual conversation
+      setMessages([transcriptionMessage, initialBotMessage]);
+      showSuccess('Emo Buddy has analyzed your speech and is ready to help! 🤖');
     } catch (error) {
       console.error('Failed to start Emo Buddy session:', error);
       showError('Failed to start Emo Buddy session. Please try again.');
+      setMessages([]); // Clear processing message on error
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle notification click (legacy - now used for manual restart)
+  const handleNotificationClick = async () => {
+    // Reset and restart
+    setMessages([]);
+    setSession(null);
+    setInitialMessageSent(false);
+    await handleAutoStart();
   };
 
   // Handle sending message
@@ -350,12 +391,27 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
             <>
               {/* Messages */}
               <ChatMessages>
+                {/* Show loading state when first starting */}
+                {messages.length === 0 && isLoading && (
+                  <>
+                    <MessageBubble isUser={false}>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <CircularProgress size={16} />
+                        <Typography variant="body2">Starting Emo Buddy session...</Typography>
+                      </Stack>
+                    </MessageBubble>
+                  </>
+                )}
+                
+                {/* Show messages */}
                 {messages.map((message) => (
                   <MessageBubble key={message.id} isUser={message.isUser}>
                     <Typography variant="body2">{message.content}</Typography>
                   </MessageBubble>
                 ))}
-                {isLoading && (
+                
+                {/* Show typing indicator when continuing conversation */}
+                {messages.length > 0 && isLoading && (
                   <MessageBubble isUser={false}>
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <CircularProgress size={16} />
@@ -363,6 +419,7 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
                     </Stack>
                   </MessageBubble>
                 )}
+                
                 <div ref={messagesEndRef} />
               </ChatMessages>
 
@@ -371,7 +428,7 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
                 <TextField
                   ref={inputRef}
                   fullWidth
-                  placeholder="Type your message..."
+                  placeholder={isLoading && messages.length === 0 ? "Starting session..." : "Type your message..."}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -385,7 +442,7 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
                 />
                 <IconButton 
                   onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isLoading}
+                  disabled={!inputValue.trim() || isLoading || !session}
                   color="primary"
                 >
                   <SendIcon />
@@ -397,16 +454,23 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
       </Slide>
 
       {/* End Session Dialog */}
-      <Dialog open={showEndDialog} onClose={() => setShowEndDialog(false)}>
-        <DialogTitle>End Emo Buddy Session?</DialogTitle>
+      <Dialog 
+        open={showEndDialog} 
+        onClose={() => setShowEndDialog(false)}
+        aria-labelledby="end-session-dialog-title"
+        aria-describedby="end-session-dialog-description"
+        disableRestoreFocus={false}
+        keepMounted={false}
+      >
+        <DialogTitle id="end-session-dialog-title">End Emo Buddy Session?</DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography id="end-session-dialog-description">
             Are you sure you want to end your therapeutic session with Emo Buddy? 
             Your conversation will be summarized and saved for your records.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowEndDialog(false)}>Continue Chat</Button>
+          <Button onClick={() => setShowEndDialog(false)} autoFocus>Continue Chat</Button>
           <Button onClick={handleEndSession} variant="contained" color="primary">
             End Session
           </Button>

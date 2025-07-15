@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Form, Body, Request, HTTPException, Depends, Header
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 import requests
@@ -1270,8 +1271,48 @@ async def start_emo_buddy_session(request: Request, token: Optional[str] = Depen
         'Content-Type': 'application/json'
     }
     
-    async with session.post(f"{EMO_BUDDY_BACKEND_URL}/start", json=body, headers=headers) as resp:
-        return JSONResponse(content=await resp.json(), status_code=resp.status)
+    upstream = await session.post(f"{EMO_BUDDY_BACKEND_URL}/start", json=body, headers=headers)
+    
+    # Check if the response is SSE (Server-Sent Events)
+    content_type = upstream.headers.get("content-type", "")
+    if content_type.startswith("text/event-stream"):
+        # Stream the SSE response back to the client
+        async def stream_generator(resp):
+            try:
+                # resp is an aiohttp.ClientResponse
+                async for chunk in resp.content.iter_chunked(1024):
+                    yield chunk
+            except aiohttp.ClientPayloadError:
+                # Upstream closed early—just end the generator
+                return
+            finally:
+                await resp.release()
+        
+        return StreamingResponse(
+            stream_generator(upstream),
+            media_type="text/event-stream",
+            status_code=upstream.status,
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+        )
+    else:
+        # Handle regular JSON responses
+        try:
+            data = await upstream.json()
+            return JSONResponse(content=data, status_code=upstream.status)
+        except aiohttp.ClientPayloadError as e:
+            logger.error(f"Upstream response was incomplete: {e}")
+            raise HTTPException(status_code=502, detail="Upstream service error")
+        except Exception as e:
+            logger.error(f"Error parsing upstream response: {e}")
+            # Try to read as text with fallback
+            try:
+                body_text = await upstream.text(errors='ignore')
+                logger.error(f"Upstream response body: {body_text}")
+            except:
+                pass
+            raise HTTPException(status_code=502, detail="Invalid response from upstream service")
+        finally:
+            await upstream.release()
 
 @app.post("/emo-buddy/continue")
 async def continue_emo_buddy_conversation(request: Request, token: Optional[str] = Depends(get_token)):
@@ -1293,8 +1334,48 @@ async def continue_emo_buddy_conversation(request: Request, token: Optional[str]
         'Content-Type': 'application/json'
     }
     
-    async with session.post(f"{EMO_BUDDY_BACKEND_URL}/continue", json=body, headers=headers) as resp:
-        return JSONResponse(content=await resp.json(), status_code=resp.status)
+    upstream = await session.post(f"{EMO_BUDDY_BACKEND_URL}/continue", json=body, headers=headers)
+    
+    # Check if the response is SSE (Server-Sent Events)
+    content_type = upstream.headers.get("content-type", "")
+    if content_type.startswith("text/event-stream"):
+        # Stream the SSE response back to the client
+        async def stream_generator(resp):
+            try:
+                # resp is an aiohttp.ClientResponse
+                async for chunk in resp.content.iter_chunked(1024):
+                    yield chunk
+            except aiohttp.ClientPayloadError:
+                # Upstream closed early—just end the generator
+                return
+            finally:
+                await resp.release()
+        
+        return StreamingResponse(
+            stream_generator(upstream),
+            media_type="text/event-stream",
+            status_code=upstream.status,
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+        )
+    else:
+        # Handle regular JSON responses
+        try:
+            data = await upstream.json()
+            return JSONResponse(content=data, status_code=upstream.status)
+        except aiohttp.ClientPayloadError as e:
+            logger.error(f"Upstream response was incomplete: {e}")
+            raise HTTPException(status_code=502, detail="Upstream service error")
+        except Exception as e:
+            logger.error(f"Error parsing upstream response: {e}")
+            # Try to read as text with fallback
+            try:
+                body_text = await upstream.text(errors='ignore')
+                logger.error(f"Upstream response body: {body_text}")
+            except:
+                pass
+            raise HTTPException(status_code=502, detail="Invalid response from upstream service")
+        finally:
+            await upstream.release()
 
 @app.post("/emo-buddy/end")
 async def end_emo_buddy_session(request: Request, token: Optional[str] = Depends(get_token)):

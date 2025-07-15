@@ -688,8 +688,16 @@ const AdminPage: React.FC = () => {
       </TabPanel>
 
       {/* Edit User Dialog */}
-      <Dialog open={editUserDialog} onClose={() => setEditUserDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Edit User</DialogTitle>
+      <Dialog 
+        open={editUserDialog} 
+        onClose={() => setEditUserDialog(false)} 
+        maxWidth="md" 
+        fullWidth
+        aria-labelledby="edit-user-dialog-title"
+        disableRestoreFocus={false}
+        keepMounted={false}
+      >
+        <DialogTitle id="edit-user-dialog-title">Edit User</DialogTitle>
         <DialogContent>
           {selectedUser && (
             <Box sx={{ pt: 2 }}>
@@ -770,8 +778,16 @@ const AdminPage: React.FC = () => {
       </Dialog>
 
       {/* Create Department Dialog */}
-      <Dialog open={createDepartmentDialog} onClose={() => setCreateDepartmentDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Department</DialogTitle>
+      <Dialog 
+        open={createDepartmentDialog} 
+        onClose={() => setCreateDepartmentDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+        aria-labelledby="create-department-dialog-title"
+        disableRestoreFocus={false}
+        keepMounted={false}
+      >
+        <DialogTitle id="create-department-dialog-title">Create Department</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <TextField

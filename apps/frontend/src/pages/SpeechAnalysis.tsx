@@ -524,6 +524,23 @@ const SpeechAnalysis: React.FC = () => {
           >
             Audio Settings
           </Button>
+          
+          {/* EmoBuddy Access Button */}
+          <GradientButton
+            startIcon={<EmojiEmotionsIcon />}
+            onClick={() => {
+              if (analysis) {
+                setEmoBuddyAnalysis(analysis);
+                setShowEmoBuddy(true);
+              } else {
+                showError("Please analyze some audio first to get EmoBuddy's insights.");
+              }
+            }}
+            fullWidth
+            disabled={isRecording || isLoading}
+          >
+            Chat with EmoBuddy
+          </GradientButton>
         </Stack>
 
         {/* Settings Panel */}
@@ -631,7 +648,7 @@ const SpeechAnalysis: React.FC = () => {
         </Typography>
         
         {/* Quick Stats */}
-        <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 3 }}>
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
           <Chip 
             icon={<AnalyticsIcon />}
             label={`${history.length} Analyses`}
@@ -643,6 +660,21 @@ const SpeechAnalysis: React.FC = () => {
             label="Real-time AI"
             color="secondary"
             variant="outlined"
+          />
+          <Chip 
+            icon={<EmojiEmotionsIcon />}
+            label="EmoBuddy Support"
+            color="success"
+            variant="outlined"
+            onClick={() => {
+              if (analysis) {
+                setEmoBuddyAnalysis(analysis);
+                setShowEmoBuddy(true);
+              } else {
+                showError("Please analyze some audio first to get EmoBuddy's insights.");
+              }
+            }}
+            sx={{ cursor: 'pointer' }}
           />
           <Chip 
             icon={<StarIcon />}
@@ -1039,7 +1071,7 @@ const SpeechAnalysis: React.FC = () => {
         </Fade>
       )}
 
-      {/* Floating Action Button */}
+      {/* 🎯 Floating Speed Dial for Quick Actions */}
       <SpeedDial
         ariaLabel="Quick Actions"
         sx={{ position: 'fixed', bottom: 24, right: 24 }}
@@ -1055,26 +1087,46 @@ const SpeechAnalysis: React.FC = () => {
             clearHistory();
           }}
         />
-                 <SpeedDialAction
-           icon={<SaveIcon />}
-           tooltipTitle="Share Analysis"
-           onClick={() => {
-             if (analysis) {
-               navigator.clipboard.writeText(JSON.stringify(analysis, null, 2));
-               showSuccess('Analysis copied to clipboard! 📋');
-             }
-           }}
-         />
-         <SpeedDialAction
-           icon={<TimerIcon />}
-           tooltipTitle="View History"
-           onClick={() => setTab('history')}
-         />
+        <SpeedDialAction
+          icon={<SaveIcon />}
+          tooltipTitle="Share Analysis"
+          onClick={() => {
+            if (analysis) {
+              navigator.clipboard.writeText(JSON.stringify(analysis, null, 2));
+              showSuccess('Analysis copied to clipboard! 📋');
+            }
+          }}
+        />
+        <SpeedDialAction
+          icon={<EmojiEmotionsIcon />}
+          tooltipTitle="Ask EmoBuddy"
+          onClick={() => {
+            if (analysis) {
+              setEmoBuddyAnalysis(analysis);
+              setShowEmoBuddy(true);
+            } else {
+              showError("Please analyze some audio first to get EmoBuddy's insights.");
+            }
+          }}
+        />
+        <SpeedDialAction
+          icon={<TimerIcon />}
+          tooltipTitle="View History"
+          onClick={() => setTab('history')}
+        />
       </SpeedDial>
 
       {/* Emo Buddy Popup */}
       {showEmoBuddy && (
-        <Dialog open={showEmoBuddy} onClose={() => { setShowEmoBuddy(false); setEmoBuddyAnalysis(null); }} maxWidth="sm" fullWidth>
+        <Dialog 
+          open={showEmoBuddy} 
+          onClose={() => { setShowEmoBuddy(false); setEmoBuddyAnalysis(null); }} 
+          maxWidth="sm" 
+          fullWidth
+          aria-labelledby="emo-buddy-dialog-title"
+          disableRestoreFocus={false}
+          keepMounted={false}
+        >
           <DialogContent sx={{ p: 0 }}>
             <EmoBuddyPopup
               analysisResult={emoBuddyAnalysis}

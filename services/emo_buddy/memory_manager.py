@@ -25,6 +25,7 @@ class EnhancedChatMessageHistory:
         self._chat_history = ChatMessageHistory()
         self.emotion_patterns = {}
         self.context_history = []
+        self.stored_sessions = []  # Store session summaries
         
     @property
     def messages(self):
@@ -44,6 +45,38 @@ class EnhancedChatMessageHistory:
         self._chat_history.clear()
         self.emotion_patterns.clear()
         self.context_history.clear()
+        
+    def store_session(self, session_data: Dict, summary: str):
+        """
+        Store a completed session with its summary
+        
+        Args:
+            session_data: Dictionary containing session information
+            summary: Generated session summary
+        """
+        try:
+            stored_session = {
+                "session_id": str(uuid.uuid4()),
+                "timestamp": datetime.now().isoformat(),
+                "summary": summary,
+                "duration": session_data.get("start_time", datetime.now()),
+                "message_count": len(session_data.get("messages", [])),
+                "emotions_tracked": session_data.get("emotions_tracked", []),
+                "techniques_used": session_data.get("techniques_used", []),
+                "crisis_flags": session_data.get("crisis_flags", []),
+                "user_id": session_data.get("user_id")
+            }
+            
+            self.stored_sessions.append(stored_session)
+            
+            # Keep only last 10 sessions to prevent memory bloat
+            if len(self.stored_sessions) > 10:
+                self.stored_sessions = self.stored_sessions[-10:]
+                
+            logger.info(f"Stored session summary for user {session_data.get('user_id', 'unknown')}")
+            
+        except Exception as e:
+            logger.error(f"Error storing session: {e}")
         
     def get_relevant_context(self, query: str) -> List[Dict]:
         """

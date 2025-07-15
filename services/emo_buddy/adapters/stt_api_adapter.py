@@ -33,6 +33,116 @@ class STTEmoBuddyAdapter:
     def __init__(self):
         self.unified_api = get_unified_api()
         
+    async def start_session(self, user_id: str, analysis_report: Dict[str, Any], session_id: str, token: str) -> Dict[str, Any]:
+        """
+        Start a new EmoBuddy session from STT service
+        
+        Args:
+            user_id: User UUID
+            analysis_report: Speech analysis data
+            session_id: Session identifier
+            token: User authentication token
+            
+        Returns:
+            Dictionary with session response
+        """
+        try:
+            logger.info(f"Starting EmoBuddy session for STT user {user_id}")
+            
+            # Start speech-integrated session
+            response = await self.start_speech_integrated_session(user_id, token, analysis_report)
+            
+            # Format response for STT service compatibility
+            return {
+                "success": True,
+                "session_id": response.get("session_id"),
+                "response": response.get("emo_buddy_response"),
+                "core_session_uuid": response.get("core_session_uuid"),
+                "timestamp": response.get("timestamp")
+            }
+            
+        except Exception as e:
+            logger.error(f"Error starting EmoBuddy session for STT: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "session_id": session_id,
+                "response": "I'm experiencing technical difficulties right now, but your speech analysis was completed successfully."
+            }
+    
+    async def continue_session(self, session_id: str, user_id: str, user_input: str, token: str) -> Dict[str, Any]:
+        """
+        Continue an EmoBuddy session from STT service
+        
+        Args:
+            session_id: Session identifier
+            user_id: User UUID
+            user_input: User's message
+            token: User authentication token
+            
+        Returns:
+            Dictionary with continue response
+        """
+        try:
+            logger.info(f"Continuing EmoBuddy session {session_id} for STT user {user_id}")
+            
+            # Continue speech session
+            response = await self.continue_speech_session(session_id, user_id, token, user_input)
+            
+            # Format response for STT service compatibility
+            return {
+                "success": True,
+                "session_id": response.get("session_id"),
+                "response": response.get("response"),
+                "should_continue": response.get("should_continue", True),
+                "timestamp": response.get("timestamp")
+            }
+            
+        except Exception as e:
+            logger.error(f"Error continuing EmoBuddy session for STT: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "session_id": session_id,
+                "response": "I'm having trouble processing your message right now. Please try again."
+            }
+    
+    async def end_session(self, session_id: str, user_id: str, token: str) -> Dict[str, Any]:
+        """
+        End an EmoBuddy session from STT service
+        
+        Args:
+            session_id: Session identifier
+            user_id: User UUID
+            token: User authentication token
+            
+        Returns:
+            Dictionary with end response
+        """
+        try:
+            logger.info(f"Ending EmoBuddy session {session_id} for STT user {user_id}")
+            
+            # End speech session
+            response = await self.end_speech_session(session_id, user_id, token)
+            
+            # Format response for STT service compatibility
+            return {
+                "success": True,
+                "session_id": response.get("session_id"),
+                "summary": response.get("summary"),
+                "total_messages": response.get("total_messages"),
+                "timestamp": response.get("timestamp")
+            }
+            
+        except Exception as e:
+            logger.error(f"Error ending EmoBuddy session for STT: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "session_id": session_id,
+                "summary": "Session ended due to technical difficulties."
+            }
+        
     async def start_speech_integrated_session(self, user_id: str, user_token: str, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Start a speech-integrated EmoBuddy session

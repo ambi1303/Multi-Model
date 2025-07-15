@@ -903,8 +903,16 @@ const SettingsPage: React.FC = () => {
       </TabPanel>
 
       {/* Change Password Dialog */}
-      <Dialog open={changePasswordDialog} onClose={() => setChangePasswordDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Change Password</DialogTitle>
+      <Dialog 
+        open={changePasswordDialog} 
+        onClose={() => setChangePasswordDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+        aria-labelledby="change-password-dialog-title"
+        disableRestoreFocus={false}
+        keepMounted={false}
+      >
+        <DialogTitle id="change-password-dialog-title">Change Password</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <TextField

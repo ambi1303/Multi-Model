@@ -117,25 +117,78 @@ export const speechApi = {
       headers: {
         'X-Session-Mode': 'SPEECH_INTEGRATED' // Indicate this is from speech analysis
       },
-      timeout: 30000 // 30 seconds timeout for EmoBuddy session start
+      timeout: 30000, // 30 seconds timeout for EmoBuddy session start
+      responseType: 'text' // Handle as text to parse the streaming response
     });
     
-    return response.data;
+    // Handle streaming response format
+    const responseText = response.data;
+    let sessionId = '';
+    let botResponse = '';
+    
+    if (typeof responseText === 'string') {
+      // Extract session_id and response from streaming format
+      const lines = responseText.split('\n');
+      const sessionIdLine = lines.find(line => line.startsWith('session_id:'));
+      if (sessionIdLine) {
+        sessionId = sessionIdLine.split(':')[1].trim();
+      }
+      // Get the response content (everything after session_id line)
+      botResponse = lines.filter(line => !line.startsWith('session_id:')).join('\n').trim();
+    } else {
+      // Fallback for JSON response
+      sessionId = responseText.session_id || '';
+      botResponse = responseText.response || '';
+    }
+    
+    return {
+      session_id: sessionId,
+      response: botResponse,
+      should_continue: true, // Default to true for new sessions
+      timestamp: new Date().toISOString()
+    };
   },
 
   continueEmoBuddyConversation: async (sessionId: string, userInput: string, userId: string): Promise<EmoBuddyConversation> => {
     const response = await api.post('/emo-buddy/continue', {
       session_id: sessionId,
       user_id: userId,
-      user_input: userInput
+      user_message: userInput  // Changed from user_input to user_message
     }, {
       headers: {
         'X-Session-Mode': 'CONTINUATION' // Indicate this is a continuation
       },
-      timeout: 25000 // 25 seconds timeout for EmoBuddy conversation
+      timeout: 25000, // 25 seconds timeout for EmoBuddy conversation
+      responseType: 'text' // Handle as text to parse the streaming response
     });
     
-    return response.data;
+    // Handle streaming response format
+    const responseText = response.data;
+    let botResponse = '';
+    let shouldContinue = true;
+    
+    if (typeof responseText === 'string') {
+      // Parse streaming response - no session_id in continue responses
+      botResponse = responseText.trim();
+      
+      // Check if response indicates session should end
+      if (botResponse.toLowerCase().includes('session ended') || 
+          botResponse.toLowerCase().includes('goodbye') ||
+          botResponse.toLowerCase().includes('take care')) {
+        shouldContinue = false;
+      }
+    } else {
+      // Fallback for JSON response
+      botResponse = responseText.response || responseText.message || '';
+      shouldContinue = responseText.should_continue !== false;
+    }
+    
+    return {
+      session_id: sessionId,
+      response: botResponse,
+      should_continue: shouldContinue,
+      timestamp: new Date().toISOString()
+    };
   },
 
   endEmoBuddySession: async (sessionId: string, userId: string): Promise<EmoBuddyEndSession> => {

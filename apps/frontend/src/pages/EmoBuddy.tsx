@@ -19,7 +19,7 @@ import {  SendIcon, EmojiEmotionsIcon, CheckCircleIcon, InfoIcon, WarningIcon } 
 import api from '../services/api'; // Use the centralized, secure api service
 import { useAppStore } from '../store/useAppStore';
 
-const EMO_BUDDY_API_PREFIX = '/api/emo-buddy';
+const EMO_BUDDY_API_PREFIX = '/emo-buddy';
 
 interface Message {
   id: string;
@@ -109,45 +109,37 @@ export const EmoBuddy: React.FC = () => {
     setMessages((prev) => [...prev, botMessage]);
 
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      if (!response.body) return;
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let streamedText = '';
-      let isFirstChunk = true;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        let chunk = decoder.decode(value, { stream: true });
-
-        if (isFirstChunk && !sessionId) {
-          const lines = chunk.split('\n');
+      const response = await api.post(endpoint, body);
+      
+      if (response.data) {
+        let responseContent = '';
+        
+        // Handle different response formats
+        if (typeof response.data === 'string') {
+          responseContent = response.data;
+        } else if (response.data.response) {
+          responseContent = response.data.response;
+        } else if (response.data.message) {
+          responseContent = response.data.message;
+        } else {
+          responseContent = JSON.stringify(response.data);
+        }
+        
+        // Extract session_id if present
+        if (responseContent.includes('session_id:') && !sessionId) {
+          const lines = responseContent.split('\n');
           const sessionIdLine = lines.find(line => line.startsWith('session_id:'));
           if (sessionIdLine) {
-            const newSessionId = sessionIdLine.split(':')[1];
+            const newSessionId = sessionIdLine.split(':')[1].trim();
             setSessionId(newSessionId);
-            // The rest of the chunk is part of the message
-            chunk = lines.filter(line => !line.startsWith('session_id:')).join('\n');
           }
-          isFirstChunk = false;
+          responseContent = lines.filter(line => !line.startsWith('session_id:')).join('\n').trim();
         }
-
-        streamedText += chunk;
+        
+        // Update the bot message with the response
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === botMessage.id ? { ...m, content: streamedText } : m
+            m.id === botMessage.id ? { ...m, content: responseContent } : m
           )
         );
       }
