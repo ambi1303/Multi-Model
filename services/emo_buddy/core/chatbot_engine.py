@@ -65,28 +65,29 @@ class EmoBuddyChatbotEngine:
         self.agents: Dict[str, EmoBuddyAgent] = {}  # session_id -> agent
         self.crisis_detector = CrisisDetector()
         
-    def start_session(self, session: EmoBuddySession, analysis_data: Optional[Dict[str, Any]] = None) -> str:
-        """Start a new chatbot session"""
+    def start_session(self, session: EmoBuddySession, analysis_data: Optional[Dict[str, Any]] = None):
+        """Start a new chatbot session and return a response stream."""
         try:
-            # Create new agent for this session
             agent = EmoBuddyAgent(user_id=session.user_id)
             self.agents[session.session_id] = agent
             
-            # Generate initial response based on session mode
             if session.mode == SessionMode.SPEECH_INTEGRATED and analysis_data:
-                response = self._generate_speech_integrated_response(agent, analysis_data)
+                response_stream = agent.start_session(analysis_data)
             else:
-                response = self._generate_welcome_response(agent)
+                minimal_analysis = {
+                    "transcription": "Starting new therapeutic session",
+                    "sentiment": {"label": "neutral", "confidence": 0.5},
+                    "emotions": [{"emotion": "neutral", "confidence": 0.5}]
+                }
+                response_stream = agent.start_session(minimal_analysis)
             
-            # Track initial emotion state if available
-            if analysis_data:
-                self._track_emotion_state(session, analysis_data)
-            
-            return response
+            return response_stream
             
         except Exception as e:
             log_error(e, {"operation": "start_session", "session_id": session.session_id})
-            return self._get_fallback_response()
+            def fallback_stream():
+                yield self._get_fallback_response()
+            return fallback_stream()
     
     def continue_conversation(self, session: EmoBuddySession, user_message: str) -> tuple[str, bool]:
         """Continue an existing conversation"""
@@ -117,7 +118,31 @@ class EmoBuddyChatbotEngine:
         except Exception as e:
             log_error(e, {"operation": "continue_conversation", "session_id": session.session_id})
             return self._get_fallback_response(), True
-    
+            
+    def continue_conversation_stream(self, session: EmoBuddySession, user_message: str) -> tuple[Any, bool]:
+        """Continue a conversation and stream the response."""
+        try:
+            agent = self.agents.get(session.session_id)
+            if not agent:
+                agent = EmoBuddyAgent(user_id=session.user_id)
+                self.agents[session.session_id] = agent
+            
+            # The agent's continue_conversation method now needs to be adapted to return a stream
+            # For now, let's assume it returns a stream and a boolean
+            response_stream, should_continue = agent.continue_conversation(user_message)
+            
+            # We are not logging the full response here as it's a stream
+            # This would need to be handled differently if full logging is required
+            
+            return response_stream, should_continue
+            
+        except Exception as e:
+            log_error(e, {"operation": "continue_conversation_stream", "session_id": session.session_id})
+            # Return a fallback stream
+            def fallback_stream():
+                yield self._get_fallback_response()
+            return fallback_stream(), True
+
     def end_session(self, session: EmoBuddySession) -> str:
         """End a chatbot session"""
         try:
@@ -154,7 +179,7 @@ class EmoBuddyChatbotEngine:
         try:
             # Create minimal analysis data for the agent
             minimal_analysis = {
-                "transcribed_text": "Starting new therapeutic session",  # Fixed field name to match agent expectations
+                "transcription": "Starting new therapeutic session",
                 "sentiment": {"label": "neutral", "confidence": 0.5},
                 "emotions": [{"emotion": "neutral", "confidence": 0.5}]
             }

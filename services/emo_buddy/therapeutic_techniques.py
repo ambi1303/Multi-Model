@@ -24,25 +24,36 @@ class TherapeuticTechniques:
         Select the most appropriate therapeutic technique based on context
         """
         user_lower = user_input.lower()
-        
+
         # Check for crisis indicators first
         if self._matches_crisis_patterns(user_lower):
             return "crisis_support"
-        
-        # Analyze predominant emotions
-        recent_emotions = self._get_recent_emotions(emotions_tracked)
-        
-        # Check for specific technique indicators
-        if self._matches_cbt_patterns(user_lower, recent_emotions):
-            return "cbt"
-        elif self._matches_dbt_patterns(user_lower, recent_emotions):
-            return "dbt"
-        elif self._matches_act_patterns(user_lower, recent_emotions):
-            return "act"
-        
+
+        scores = self._calculate_scores(user_lower, emotions_tracked)
+
+        # Select the technique with the highest score
+        if scores:
+            # Prioritize techniques in a specific order if scores are tied
+            sorted_techniques = sorted(scores.items(), key=lambda item: (-item[1], ["dbt", "cbt", "act"].index(item[0])))
+            return sorted_techniques[0][0]
+
         # Default to validation for unclear situations
         return "validation"
-    
+
+    def _calculate_scores(self, text: str, emotions_tracked: List[Dict]) -> Dict[str, int]:
+        """Calculates scores for each therapeutic technique."""
+        scores = {"cbt": 0, "dbt": 0, "act": 0}
+        recent_emotions = self._get_recent_emotions(emotions_tracked)
+
+        # Score CBT
+        scores["cbt"] += self._matches_cbt_patterns(text, recent_emotions)
+        # Score DBT
+        scores["dbt"] += self._matches_dbt_patterns(text, recent_emotions)
+        # Score ACT
+        scores["act"] += self._matches_act_patterns(text, recent_emotions)
+            
+        return scores
+
     def _load_cbt_patterns(self) -> Dict:
         """Load CBT technique patterns and indicators"""
         return {
@@ -58,7 +69,6 @@ class TherapeuticTechniques:
                 r"thinking.*about", r"can't stop.*thinking", r"thoughts.*racing",
                 r"worried.*about", r"keep.*thinking"
             ],
-            "emotions": ["anxiety", "worry", "fear", "guilt", "shame", "anger"]
         }
     
     def _load_dbt_patterns(self) -> Dict:
@@ -75,7 +85,6 @@ class TherapeuticTechniques:
             "self_harm_indicators": [
                 r"hurt.*myself", r"self.*harm", r"cutting", r"burning"
             ],
-            "emotions": ["anger", "rage", "sadness", "fear", "disgust", "love", "joy"]
         }
     
     def _load_act_patterns(self) -> Dict:
@@ -92,7 +101,6 @@ class TherapeuticTechniques:
             "acceptance_needed": [
                 r"accept.*", r"can't change", r"stuck.*with", r"have to live"
             ],
-            "emotions": ["disappointment", "grief", "confusion", "emptiness"]
         }
     
     def _load_crisis_patterns(self) -> List[str]:
@@ -103,44 +111,47 @@ class TherapeuticTechniques:
             r"everyone.*better.*without", r"plan.*hurt"
         ]
     
-    def _matches_cbt_patterns(self, text: str, emotions: List[str]) -> bool:
-        """Check if CBT approach is appropriate"""
+    def _matches_cbt_patterns(self, text: str, emotions: List[str]) -> int:
+        """Check if CBT approach is appropriate and return a score."""
+        score = 0
         # Check for cognitive patterns
-        for pattern_type, patterns in self.cbt_patterns.items():
-            if pattern_type == "emotions":
-                if any(emotion in emotions for emotion in patterns):
-                    return True
-            else:
-                for pattern in patterns:
-                    if re.search(pattern, text):
-                        return True
-        return False
+        for patterns in self.cbt_patterns.values():
+            for pattern in patterns:
+                if re.search(pattern, text):
+                    score += 1
+        # Emotion-based scoring
+        for emotion in emotions:
+            if emotion in ["anxiety", "worry", "fear", "guilt", "shame", "anger"]:
+                score += 1
+        return score
     
-    def _matches_dbt_patterns(self, text: str, emotions: List[str]) -> bool:
-        """Check if DBT approach is appropriate"""
+    def _matches_dbt_patterns(self, text: str, emotions: List[str]) -> int:
+        """Check if DBT approach is appropriate and return a score."""
+        score = 0
         # Check for emotional dysregulation patterns
-        for pattern_type, patterns in self.dbt_patterns.items():
-            if pattern_type == "emotions":
-                if any(emotion in emotions for emotion in patterns):
-                    return True
-            else:
-                for pattern in patterns:
-                    if re.search(pattern, text):
-                        return True
-        return False
+        for patterns in self.dbt_patterns.values():
+            for pattern in patterns:
+                if re.search(pattern, text):
+                    score += 1
+        # Emotion-based scoring
+        for emotion in emotions:
+            if emotion in ["anger", "rage", "sadness", "fear", "disgust", "love", "joy"]:
+                score += 1
+        return score
     
-    def _matches_act_patterns(self, text: str, emotions: List[str]) -> bool:
-        """Check if ACT approach is appropriate"""
+    def _matches_act_patterns(self, text: str, emotions: List[str]) -> int:
+        """Check if ACT approach is appropriate and return a score."""
+        score = 0
         # Check for acceptance and values patterns
-        for pattern_type, patterns in self.act_patterns.items():
-            if pattern_type == "emotions":
-                if any(emotion in emotions for emotion in patterns):
-                    return True
-            else:
-                for pattern in patterns:
-                    if re.search(pattern, text):
-                        return True
-        return False
+        for patterns in self.act_patterns.values():
+            for pattern in patterns:
+                if re.search(pattern, text):
+                    score += 1
+        # Emotion-based scoring
+        for emotion in emotions:
+            if emotion in ["disappointment", "grief", "confusion", "emptiness"]:
+                score += 1
+        return score
     
     def _matches_crisis_patterns(self, text: str) -> bool:
         """Check for crisis indicators"""

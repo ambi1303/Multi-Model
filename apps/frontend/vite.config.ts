@@ -64,13 +64,21 @@ export default defineConfig({
   },
 
   server: {
-    port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://localhost:8000', // Default target for core service
         changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
-    },
+      '/api/emo-buddy': {
+        target: 'http://localhost:8005', // EmoBuddy service
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/emo-buddy/, ''),
+      },
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
+      },
+    }
   },
 });

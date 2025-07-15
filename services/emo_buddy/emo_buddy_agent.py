@@ -23,9 +23,10 @@ class EmoBuddyAgent:
     using evidence-based therapy techniques like CBT, DBT, and ACT.
     """
     
-    def __init__(self):
+    def __init__(self, user_id: str = None):
+        self.user_id = user_id
         self.setup_gemini()
-        self.memory = get_memory_manager()
+        self.memory = get_memory_manager(user_id=self.user_id)
         self.therapeutic_techniques = get_technique()
         self.crisis_detector = CrisisDetector()
         self.corporate_analyzer = get_corporate_context()
@@ -39,7 +40,7 @@ class EmoBuddyAgent:
             "workplace_context": {},
             "quick_remedies_given": [],
             "solution_oriented": True,
-            "user_id": None # Add user_id to session
+            "user_id": self.user_id
         }
         
     def setup_gemini(self):
@@ -52,23 +53,17 @@ class EmoBuddyAgent:
         self.model = genai.GenerativeModel('gemini-2.0-flash')
         logger.info("Gemini API initialized successfully")
     
-    def start_session(self, analysis_report: Dict) -> str:
+    def start_session(self, analysis_report: Dict):
         """
-        Start a new Emo Buddy session with the initial analysis report
+        Start a new Emo Buddy session with the initial analysis report, yielding the response.
         """
         logger.info("Starting Emo Buddy session...")
         
-        # --- Store user_id in the session ---
-        user_id = analysis_report.get("user_id")
-        if user_id:
-            self.current_session["user_id"] = user_id
-            # Also add it to the initial analysis for the memory manager
-            analysis_report["user_id"] = user_id
+        if self.user_id:
+            analysis_report["user_id"] = self.user_id
         else:
-            logger.warning("No user_id provided in analysis_report for Emo Buddy session.")
-        # --- End change ---
+            logger.warning("No user_id provided for Emo Buddy session.")
 
-        # Extract key information from the technical analysis
         transcript = analysis_report["transcription"]
         sentiment = analysis_report["sentiment"]
         emotions = analysis_report["emotions"]
@@ -114,22 +109,33 @@ class EmoBuddyAgent:
         past_context = self.memory.get_relevant_context(transcript + " " + " ".join([e["emotion"] for e in emotions[:3]]))
         emotion_patterns = self.memory.get_emotion_patterns()
         
-        # Check if user needs immediate solutions vs deeper exploration
-        if (workplace_context.get('requires_immediate_action', False) or 
-            workplace_context.get('detected_contexts', [])):
-            response = self._provide_quick_workplace_solutions(transcript, workplace_context, sentiment, emotions)
-        else:
-            initial_prompt = self._create_initial_prompt(transcript, sentiment, emotions, past_context, crisis_level, emotion_patterns)
-            response = self._generate_response(initial_prompt)
-        
-        self._log_interaction("assistant", "session_start", response)
-        
-        return response
+        def response_generator():
+            # Check if user needs immediate solutions vs deeper exploration
+            if (workplace_context.get('requires_immediate_action', False) or 
+                workplace_context.get('detected_contexts', [])):
+                response_stream = self._provide_quick_workplace_solutions(transcript, workplace_context, sentiment, emotions)
+                response_chunks = []
+                for chunk in response_stream:
+                    response_chunks.append(chunk.text)
+                response = "".join(response_chunks)
+
+            else:
+                initial_prompt = self._create_initial_prompt(transcript, sentiment, emotions, past_context, crisis_level, emotion_patterns)
+                response_stream = self._generate_response(initial_prompt)
+                response_chunks = []
+                for chunk in response_stream:
+                    response_chunks.append(chunk.text)
+                response = "".join(response_chunks)
+            
+            self._log_interaction("assistant", "session_start", response)
+            yield response
+
+        return response_generator()
     
     def continue_conversation(self, user_input: str) -> Tuple[str, bool]:
         """
-        Continue the therapeutic conversation
-        Returns: (response, should_continue)
+        Continue the therapeutic conversation, yielding the response as a stream.
+        Returns: (response_generator, should_continue_flag)
         """
         self._log_interaction("user", user_input, "")
         self._update_user_context(user_input)
@@ -169,19 +175,28 @@ class EmoBuddyAgent:
             response = self._provide_targeted_solutions(user_input)
             should_continue = self._should_continue_conversation(user_input, response)
         else:
-            therapeutic_prompt = self._create_therapeutic_prompt(
-                user_input, 
-                conversation_history, 
-                past_context, 
-                technique, 
-                crisis_level
-            )
-            response = self._generate_response(therapeutic_prompt)
-            should_continue = self._should_continue_conversation(user_input, response)
+            def response_generator():
+                therapeutic_prompt = self._create_therapeutic_prompt(
+                    user_input, 
+                    conversation_history, 
+                    past_context, 
+                    technique, 
+                    crisis_level
+                )
+
+                response_stream = self._generate_response(therapeutic_prompt)
+                
+                response_chunks = []
+                for chunk in response_stream:
+                    response_chunks.append(chunk.text)
+                    yield chunk.text
+                
+                full_response = "".join(response_chunks)
+                self._log_interaction("assistant", "therapeutic_response", full_response)
+
+            should_continue = self._should_continue_conversation(user_input, "") # Placeholder
         
-        self._log_interaction("assistant", "therapeutic_response", response)
-        
-        return response, should_continue
+        return response_generator(), should_continue
     
     def end_session(self) -> str:
         """
@@ -337,40 +352,55 @@ Respond as Emo Buddy with deep therapeutic understanding and genuine human conne
 """
     
     def _generate_response(self, prompt: str) -> str:
-        """Generate response using Gemini"""
+        """Generate a response using the Gemini model"""
         try:
-            response = self.model.generate_content(prompt)
-            return response.text
+            # Generate content using the model with streaming enabled
+            response = self.model.generate_content(
+                prompt,
+                stream=True,
+                safety_settings={
+                    'HATE': 'BLOCK_NONE',
+                    'HARASSMENT': 'BLOCK_NONE',
+                    'SEXUAL': 'BLOCK_NONE',
+                    'DANGEROUS': 'BLOCK_NONE'
+                }
+            )
+            return response
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            return "I'm having trouble processing right now. Could you share a bit more about how you're feeling?"
+            logger.error(f"Error generating response from Gemini: {e}")
+            # In case of error, yield a fallback message
+            yield "I'm having a little trouble formulating a response right now. Could you please rephrase or tell me more?"
     
     def _log_interaction(self, role: str, content: str, response: str):
-        """Log conversation interaction"""
-        self.current_session["messages"].append({
-            "timestamp": datetime.now().isoformat(),
-            "role": role,
-            "content": content,
-            "response": response
-        })
+        """Logs a single interaction to the session's message history."""
         
-        # Also store in conversation format for enhanced summary
-        if "conversation_messages" not in self.current_session:
-            self.current_session["conversation_messages"] = []
-            
+        timestamp = datetime.now().isoformat()
+        
         if role == "user":
-            self.current_session["conversation_messages"].append({
+            # Log the user's message
+            message = {
                 "role": "user",
-                "content": content
-            })
+                "content": content,
+                "timestamp": timestamp
+            }
+            self.current_session["messages"].append(message)
+            self.current_session["conversation_messages"].append(message)
+            
         elif role == "assistant":
-            self.current_session["conversation_messages"].append({
-                "role": "assistant", 
-                "content": response
-            })
+            # Log the assistant's response
+            message = {
+                "role": "assistant",
+                "content": response,
+                "timestamp": timestamp,
+                "context": content  # e.g., "session_start", "therapeutic_response"
+            }
+            self.current_session["messages"].append(message)
+            self.current_session["conversation_messages"].append(message)
     
     def _get_conversation_history(self) -> List[Dict]:
-        """Get formatted conversation history"""
+        """
+        Get the formatted conversation history for the prompt
+        """
         return [
             {
                 "role": msg["role"],

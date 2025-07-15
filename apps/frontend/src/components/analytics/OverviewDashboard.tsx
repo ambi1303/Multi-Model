@@ -6,6 +6,16 @@ import {
   Card,
   CardContent,
   Avatar,
+  Alert,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  LinearProgress,
 } from '@mui/material';
 import {
   TrendingUpIcon,
@@ -13,6 +23,11 @@ import {
   PeopleIcon,
   AssignmentIcon,
   CheckCircleIcon,
+  WarningIcon,
+  TimelineIcon,
+  PsychologyIcon,
+  BarChartIcon,
+  SecurityIcon,
 } from '../../utils/icons';
 import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
@@ -23,17 +38,66 @@ interface OverviewDashboardProps {
   filters: AnalyticsFilters;
 }
 
-export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => {
-  const getTrendIcon = (trend: 'positive' | 'negative' | 'neutral') => {
-    switch (trend) {
-      case 'positive': return <Box sx={{ color: 'success.main' }}><TrendingUpIcon /></Box>;
-      case 'negative': return <Box sx={{ color: 'error.main' }}><TrendingDownIcon /></Box>;
-      default: return <Box sx={{ color: 'warning.main' }}><TrendingUpIcon /></Box>;
-    }
+export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filters }) => {
+  // Add null safety - provide default values if data is undefined
+  const safeData = data || {
+    totalSessions: 0,
+    totalUsers: 0,
+    averageSessionDuration: 0,
+    totalAnalyses: 0,
+    sessionTrends: [],
+    riskDistribution: [],
+    modalityPerformance: [],
+    mentalStateDistribution: [],
+    recentActivity: [],
+    fallback: false
   };
+
+  // Calculate high risk count from risk distribution
+  const highRiskCount = safeData.riskDistribution.find(item => item.level === 'high')?.count || 0;
+
+  // Calculate overall average confidence from modality performance
+  const overallAvgConfidence = safeData.modalityPerformance.length > 0 
+    ? safeData.modalityPerformance.reduce((sum, item) => sum + item.avgConfidence, 0) / safeData.modalityPerformance.length
+    : 0;
+
+  // Check for empty data and show appropriate message
+  if (!data || safeData.totalSessions === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          No analytics data available
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Start using the system to see overview insights here.
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Show warning for potential data issues
+  const showDataWarning = safeData.totalUsers === 0 || safeData.averageSessionDuration === 0;
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* System Status Banner */}
+      {safeData.fallback && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            System is running in fallback mode – limited accuracy may be experienced.
+          </Typography>
+        </Alert>
+      )}
+
+      {/* Data Quality Warning */}
+      {showDataWarning && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            User tracking or session duration data may be missing or not enabled.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Key Metrics Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
@@ -50,17 +114,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
                       Total Sessions
                     </Typography>
                     <Typography variant="h4">
-                      {data.totalSessions.toLocaleString()}
+                      {safeData.totalSessions.toLocaleString()}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      {getTrendIcon('positive')}
-                      <Typography variant="body2" sx={{ ml: 1 }}>
-                        {data.sessionGrowth}% from last period
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Active sessions tracked
+                    </Typography>
                   </Box>
                   <Avatar sx={{ backgroundColor: 'primary.main' }}>
-                    <PeopleIcon />
+                    <TimelineIcon />
                   </Avatar>
                 </Box>
               </CardContent>
@@ -79,20 +140,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography color="textSecondary" gutterBottom variant="body2">
-                      Avg Confidence
+                      Total Users
                     </Typography>
                     <Typography variant="h4">
-                      {(data.averageConfidence * 100).toFixed(1)}%
+                      {safeData.totalUsers.toLocaleString()}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      {getTrendIcon('positive')}
-                      <Typography variant="body2" sx={{ ml: 1 }}>
-                        {data.confidenceChange}% from last period
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {safeData.totalUsers === 0 ? 'Anonymous tracking' : 'Registered users'}
+                    </Typography>
                   </Box>
-                  <Avatar sx={{ backgroundColor: 'success.main' }}>
-                    <CheckCircleIcon />
+                  <Avatar sx={{ backgroundColor: 'info.main' }}>
+                    <PeopleIcon />
                   </Avatar>
                 </Box>
               </CardContent>
@@ -111,19 +169,16 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography color="textSecondary" gutterBottom variant="body2">
-                      High Risk Sessions
+                      Total Analyses
                     </Typography>
                     <Typography variant="h4">
-                      {data.highRiskSessions}
+                      {safeData.totalAnalyses.toLocaleString()}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      {getTrendIcon('negative')}
-                      <Typography variant="body2" sx={{ ml: 1 }}>
-                        {data.riskChange}% from last period
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Completed analyses
+                    </Typography>
                   </Box>
-                  <Avatar sx={{ backgroundColor: 'info.main' }}>
+                  <Avatar sx={{ backgroundColor: 'success.main' }}>
                     <AssignmentIcon />
                   </Avatar>
                 </Box>
@@ -143,20 +198,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography color="textSecondary" gutterBottom variant="body2">
-                      Mental States Tracked
+                      High Risk Cases
                     </Typography>
-                    <Typography variant="h4">
-                      {data.mentalStateDistribution.length}
+                    <Typography variant="h4" color="error.main">
+                      {highRiskCount.toLocaleString()}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      {getTrendIcon('positive')}
-                      <Typography variant="body2" sx={{ ml: 1 }}>
-                        +2.3% from last period
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Require attention
+                    </Typography>
                   </Box>
-                  <Avatar sx={{ backgroundColor: 'warning.main' }}>
-                    <TrendingUpIcon />
+                  <Avatar sx={{ backgroundColor: 'error.main' }}>
+                    <SecurityIcon />
                   </Avatar>
                 </Box>
               </CardContent>
@@ -165,73 +217,200 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data}) => 
         </Grid>
       </Grid>
 
-      {/* Charts */}
-      <Grid container spacing={3}>
+      {/* Additional Metrics Row */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="body2">
+                    Avg Session Duration
+                  </Typography>
+                  <Typography variant="h5">
+                    {safeData.averageSessionDuration === 0 ? 'N/A' : `${safeData.averageSessionDuration.toFixed(1)}m`}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ backgroundColor: 'warning.main' }}>
+                  <TimelineIcon />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={4}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="body2">
+                    Overall Avg Confidence
+                  </Typography>
+                  <Typography variant="h5">
+                    {overallAvgConfidence > 0 ? `${(overallAvgConfidence * 100).toFixed(1)}%` : 'N/A'}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ backgroundColor: 'info.main' }}>
+                  <CheckCircleIcon />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={4}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="body2">
+                    System Status
+                  </Typography>
+                  <Chip 
+                    label={safeData.fallback ? 'Fallback Mode' : 'Normal Operation'}
+                    color={safeData.fallback ? 'warning' : 'success'}
+                    variant="outlined"
+                  />
+                </Box>
+                <Avatar sx={{ backgroundColor: safeData.fallback ? 'warning.main' : 'success.main' }}>
+                  <BarChartIcon />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Charts Section */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Session Trends Chart */}
         <Grid item xs={12} lg={8}>
           <Card sx={{ p: 3, height: 400 }}>
             <Typography variant="h6" gutterBottom>
-              Session Trends Over Time
+              Session & Risk Trends Over Time
             </Typography>
             <SimpleChartFallback
-              data={data.sessionTrends?.map(item => ({
+              data={safeData.sessionTrends.map(item => ({
                 name: item.date,
-                value: item.sessions,
-                color: '#8884d8'
-              })) || []}
+                value: item.sessions
+              }))}
               type="line"
-              height={300}
+              title="Session Trends"
             />
           </Card>
         </Grid>
 
+        {/* Risk Distribution Pie Chart */}
         <Grid item xs={12} lg={4}>
           <Card sx={{ p: 3, height: 400 }}>
             <Typography variant="h6" gutterBottom>
               Risk Level Distribution
             </Typography>
             <SimpleChartFallback
-              data={data.riskDistribution?.map(item => ({
-                name: item.level,
-                value: item.count,
-                color: '#8884d8'
-              })) || []}
+              data={safeData.riskDistribution.map(item => ({
+                name: item.level.charAt(0).toUpperCase() + item.level.slice(1),
+                value: item.count
+              }))}
               type="pie"
-              height={300}
+              title="Risk Distribution"
             />
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
-          <Card sx={{ p: 3, height: 400 }}>
-            <Typography variant="h6" gutterBottom>
-              Performance by Modality
-            </Typography>
-            <SimpleChartFallback
-              data={data.modalityPerformance?.map(item => ({
-                name: item.modality,
-                value: item.avgConfidence,
-                color: '#82ca9d'
-              })) || []}
-              type="bar"
-              height={300}
-            />
-          </Card>
-        </Grid>
-
+        {/* Mental State Distribution */}
         <Grid item xs={12} md={6}>
           <Card sx={{ p: 3, height: 400 }}>
             <Typography variant="h6" gutterBottom>
               Mental State Distribution
             </Typography>
             <SimpleChartFallback
-              data={data.mentalStateDistribution?.map(item => ({
+              data={safeData.mentalStateDistribution.map(item => ({
                 name: item.state,
-                value: item.count,
-                color: '#ff7c7c'
-              })) || []}
-              type="pie"
-              height={300}
+                value: item.count
+              }))}
+              type="bar"
+              title="Mental State Distribution"
             />
+          </Card>
+        </Grid>
+
+        {/* Modality Performance */}
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Modality Usage & Confidence
+            </Typography>
+            <Box sx={{ height: 300 }}>
+              {safeData.modalityPerformance.map((item, index) => (
+                <Box key={item.modality} sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                      {item.modality}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {item.usage} uses • {item.avgConfidence > 0 ? `${(item.avgConfidence * 100).toFixed(1)}%` : 'N/A'} confidence
+                    </Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={item.avgConfidence * 100} 
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Recent Activity Section */}
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Card sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Recent Activity
+            </Typography>
+            {safeData.recentActivity.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No recent activity to display
+                </Typography>
+              </Box>
+            ) : (
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Timestamp</TableCell>
+                      <TableCell>User</TableCell>
+                      <TableCell>Action</TableCell>
+                      <TableCell>Risk Level</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {safeData.recentActivity.map((activity, index) => (
+                      <TableRow key={activity.id || index}>
+                        <TableCell>{activity.timestamp || 'N/A'}</TableCell>
+                        <TableCell>{activity.user || 'Anonymous'}</TableCell>
+                        <TableCell>{activity.action || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={activity.riskLevel || 'Unknown'}
+                            color={
+                              activity.riskLevel === 'high' ? 'error' :
+                              activity.riskLevel === 'medium' ? 'warning' :
+                              activity.riskLevel === 'low' ? 'success' : 'default'
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </Card>
         </Grid>
       </Grid>

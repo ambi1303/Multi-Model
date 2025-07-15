@@ -234,7 +234,7 @@ class EmoBuddySessionManager:
                 response = await client.post(
                     f"{self.core_service_url}/emo-buddy/sessions",
                     headers=headers,
-                    json={"user_id": str(user_uuid)},
+                    params={"user_id": str(user_uuid)},
                     timeout=10.0
                 )
                 

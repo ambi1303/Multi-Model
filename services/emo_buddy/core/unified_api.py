@@ -35,53 +35,33 @@ class UnifiedEmoBuddyAPI:
         
     # === Core API Methods ===
     
-    async def start_session(self, user_id: str, user_token: str, mode: SessionMode = SessionMode.STANDALONE, 
-                           analysis_data: Optional[Dict[str, Any]] = None) -> EmoBuddyResponse:
-        """
-        Start a new EmoBuddy session
+    async def start_session(self, user_id: str, user_token: str, mode: SessionMode, analysis_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Start a new session and return the initial state and response."""
+        # Create session request
+        from .models import SessionStartRequest
+        request = SessionStartRequest(
+            user_id=user_id,
+            mode=mode,
+            triggering_analysis=analysis_data
+        )
         
-        Args:
-            user_id: User UUID
-            user_token: User authentication token
-            mode: Session mode (STANDALONE or SPEECH_INTEGRATED)
-            analysis_data: Optional analysis data for speech-integrated sessions
-            
-        Returns:
-            EmoBuddyResponse with session details and initial response
-        """
-        try:
-            # Create session request
-            request = SessionStartRequest(
-                user_id=user_id,
-                mode=mode,
-                triggering_analysis=analysis_data
-            )
-            
-            # Start session via session manager
-            response = await self.session_manager.start_session(request, user_token)
-            
-            # Get session object for chatbot engine
-            session = self.session_manager.get_session(response.session_id)
-            if not session:
-                raise EmoBuddyError(f"Session {response.session_id} not found after creation")
-            
-            # Generate initial chatbot response
-            initial_response = self.chatbot_engine.start_session(session, analysis_data)
-            
-            # Update response with chatbot-generated content
-            response.response = initial_response
-            
-            log_session_event(response.session_id, "api_session_started", {
-                "user_id": user_id,
-                "mode": mode.value,
-                "has_analysis": bool(analysis_data)
-            })
-            
-            return EmoBuddyResponse(session, initial_response)
-            
-        except Exception as e:
-            log_error(e, {"operation": "start_session", "user_id": user_id, "mode": mode.value})
-            raise EmoBuddyError(f"Failed to start EmoBuddy session: {str(e)}")
+        # Start session via session manager
+        response = await self.session_manager.start_session(request, user_token)
+        
+        return {
+            "session_id": response.session_id,
+            "user_id": user_id,
+        }
+
+    async def start_session_stream(self, session_id: str, analysis_data: Optional[Dict[str, Any]] = None):
+        """Get the initial streamed response for a new session."""
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            logger.error(f"Stream start failed: Session {session_id} not found.")
+            return None
+        
+        response_stream = self.chatbot_engine.start_session(session, analysis_data)
+        return response_stream
     
     async def continue_session(self, session_id: str, user_id: str, user_token: str, 
                               user_message: str) -> EmoBuddyResponse:
@@ -136,6 +116,18 @@ class UnifiedEmoBuddyAPI:
         except Exception as e:
             log_error(e, {"operation": "continue_session", "session_id": session_id, "user_id": user_id})
             raise EmoBuddyError(f"Failed to continue EmoBuddy session: {str(e)}")
+    
+    async def continue_session_stream(self, session_id: str, user_message: str) -> Optional[Any]:
+        """
+        Continue a session and get a stream of response chunks.
+        """
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            logger.error(f"Stream continuation failed: Session {session_id} not found.")
+            return None
+
+        response_stream, _ = self.chatbot_engine.continue_conversation_stream(session, user_message)
+        return response_stream
     
     async def end_session(self, session_id: str, user_id: str, user_token: str) -> SessionEndResponse:
         """

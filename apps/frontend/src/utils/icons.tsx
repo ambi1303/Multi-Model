@@ -67,6 +67,12 @@ import {
   Twitter,
   Linkedin,
   LogOut,
+  Shield,
+  ArrowUpDown,
+  ChevronDown,
+  Target,
+  Gauge,
+  Clock,
 } from 'lucide-react';
 
 // Icon size configuration
@@ -127,7 +133,6 @@ export const RefreshIcon: React.FC = () => <RefreshCw size={ICON_SIZE} />;
 
 // Chart and data icons
 export const TrendingUpIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => <TrendingUp {...props} />;
-export const TrendingDownIcon: React.FC = () => <TrendingDown size={ICON_SIZE} />;
 export const TimelineIcon: React.FC = () => <Activity size={ICON_SIZE} />;
 export const BarChartIcon: React.FC = () => <BarChart3 size={ICON_SIZE} />;
 export const PieChartIcon: React.FC = () => <PieChart size={ICON_SIZE} />;
@@ -153,6 +158,14 @@ export const StarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => <Sta
 export const TimerIcon: React.FC = () => <Timer size={ICON_SIZE} />;
 export const CloudUploadIcon: React.FC = () => <Cloud size={ICON_SIZE} />;
 export const SendIcon: React.FC = () => <Send size={ICON_SIZE} />;
+export const SecurityIcon: React.FC = () => <Shield size={ICON_SIZE} />;
+export const SortIcon: React.FC = () => <ArrowUpDown size={ICON_SIZE} />;
+export const FaceIcon: React.FC = () => <User size={ICON_SIZE} />;
+export const ExpandMoreIcon: React.FC = () => <ChevronDown size={ICON_SIZE} />;
+export const TargetIcon: React.FC = () => <Target size={ICON_SIZE} />;
+export const GaugeIcon: React.FC = () => <Gauge size={ICON_SIZE} />;
+export const ClockIcon: React.FC = () => <Clock size={ICON_SIZE} />;
+export const TrendingDownIcon: React.FC = () => <TrendingDown size={ICON_SIZE} />;
 
 // Social media icons
 export const GitHub: React.FC = () => <Github size={ICON_SIZE} />;

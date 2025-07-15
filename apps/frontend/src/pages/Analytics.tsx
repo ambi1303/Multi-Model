@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -37,10 +37,11 @@ import {
   SpeechAnalyticsDashboard, 
   ChatAnalyticsDashboard 
 } from '../components/LazyComponents';
-import { EmoBuddyAnalyticsDashboard } from '../components/analytics/EmoBuddyAnalyticsDashboard';
 import { SurveyAnalyticsDashboard } from '../components/analytics/SurveyAnalyticsDashboard';
 import SentimentTrendChart from '../components/charts/SentimentTrendChart';
 import SimpleChartFallback from '../components/charts/SimpleChartFallback';
+import { useAppStore } from '../store/useAppStore';
+import { socketService } from '../services/socket';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -63,7 +64,6 @@ const tabs = [
   { label: 'Video Analysis', value: 'video', icon: <AnalyticsIcon /> },
   { label: 'Speech Analysis', value: 'speech', icon: <AnalyticsIcon /> },
   { label: 'Chat Analysis', value: 'chat', icon: <AnalyticsIcon /> },
-  { label: 'EmoBuddy', value: 'emobuddy', icon: <AnalyticsIcon /> },
   { label: 'Survey', value: 'survey', icon: <AnalyticsIcon /> },
 ];
 
@@ -80,6 +80,8 @@ const Analytics: React.FC = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const { showSuccess, showError } = useNotification();
+  const { overviewData, setOverviewData, isSocketConnected } = useAppStore();
+  const [loading, setLoading] = useState(true);
 
   const { data, error, isLoading, isSuccess, isError, refetch } = useQuery<AnalyticsData, Error>({
     queryKey: ['analytics', filters],
@@ -88,6 +90,28 @@ const Analytics: React.FC = () => {
   });
 
   const notificationSent = React.useRef({ success: false, error: false });
+
+  useEffect(() => {
+    socketService.connect();
+
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        const data = await getAnalyticsData(filters);
+        setOverviewData(data.overview);
+      } catch (error) {
+        console.error("Failed to fetch initial analytics data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+
+    return () => {
+      socketService.disconnect();
+    };
+  }, [filters, setOverviewData]);
 
   useEffect(() => {
     if (isSuccess && !notificationSent.current.success) {
@@ -132,10 +156,9 @@ const Analytics: React.FC = () => {
   };
 
   const getAlertLevel = () => {
-    if (!data) return null;
-    
-    const highRiskSessions = data.overview.riskDistribution.find(r => r.level === 'High')?.count || 0;
-    const totalSessions = data.overview.totalSessions;
+    if (!data || !data.overview || !data.overview.riskDistribution) return null;
+    const highRiskSessions = data.overview.riskDistribution.find(r => r.level === 'high')?.count || 0;
+    const totalSessions = data.overview.totalSessions || 0;
     const riskPercentage = totalSessions > 0 ? (highRiskSessions / totalSessions) * 100 : 0;
     
     if (riskPercentage > 20) return 'error';
@@ -143,11 +166,15 @@ const Analytics: React.FC = () => {
     return 'info';
   };
 
+  if (loading && !overviewData) {
+    return <OptimizedLoadingSpinner />;
+  }
+
   return (
     <Box>
       <SEO
         title="Analytics Dashboard"
-        description="Dive deep into emotion analytics. Explore comprehensive dashboards for video, speech, text analysis, EmoBuddy sessions, and survey results to gain actionable insights."
+        description="Dive deep into emotion analytics. Explore comprehensive dashboards for video, speech, text analysis, and survey results to gain actionable insights."
       />
       {/* Header */}
       <motion.div
@@ -245,7 +272,6 @@ const Analytics: React.FC = () => {
                       <MenuItem value="video">Video Analysis</MenuItem>
                       <MenuItem value="speech">Speech Analysis</MenuItem>
                       <MenuItem value="chat">Chat Analysis</MenuItem>
-                      <MenuItem value="emobuddy">EmoBuddy Sessions</MenuItem>
                       <MenuItem value="survey">Survey Results</MenuItem>
                     </Select>
                   </FormControl>
@@ -303,22 +329,19 @@ const Analytics: React.FC = () => {
           </Tabs>
           <CardContent>
             <TabPanel value={activeTab} index={0}>
-              {data?.overview && <OverviewDashboard data={data.overview} filters={filters} />}
+              {data && data.overview ? <OverviewDashboard data={data.overview} filters={filters} /> : <SimpleChartFallback data={[]} title="Overview" />}
             </TabPanel>
             <TabPanel value={activeTab} index={1}>
-              {data?.video && <VideoAnalyticsDashboard data={data.video} />}
+              {data && data.video ? <VideoAnalyticsDashboard data={data.video} /> : <SimpleChartFallback data={[]} title="Video Analysis" />}
             </TabPanel>
             <TabPanel value={activeTab} index={2}>
-              {data?.speech && <SpeechAnalyticsDashboard data={data.speech} filters={filters} />}
+              {data && data.speech ? <SpeechAnalyticsDashboard data={data.speech} filters={filters} /> : <SimpleChartFallback data={[]} title="Speech Analysis" />}
             </TabPanel>
             <TabPanel value={activeTab} index={3}>
-              {data?.chat && <ChatAnalyticsDashboard data={data.chat} filters={filters} />}
+              {data && data.chat ? <ChatAnalyticsDashboard data={data.chat} filters={filters} /> : <SimpleChartFallback data={[]} title="Chat Analysis" />}
             </TabPanel>
             <TabPanel value={activeTab} index={4}>
-              {data?.emobuddy && <EmoBuddyAnalyticsDashboard data={data.emobuddy} />}
-            </TabPanel>
-            <TabPanel value={activeTab} index={5}>
-              {data?.survey && <SurveyAnalyticsDashboard data={data.survey} />}
+              {data && data.survey ? <SurveyAnalyticsDashboard data={data.survey} /> : <SimpleChartFallback data={[]} title="Survey" />}
             </TabPanel>
           </CardContent>
         </Card>

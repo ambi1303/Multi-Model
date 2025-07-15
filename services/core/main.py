@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, status, Query, BackgroundTasks, File, UploadFile, Request, Body
+from fastapi import FastAPI, Depends, HTTPException, status, Query, BackgroundTasks, File, UploadFile, Request, Body, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +34,23 @@ logger = logging.getLogger(__name__)
 
 # Security
 security = HTTPBearer()
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+manager = ConnectionManager()
 
 
 @asynccontextmanager
@@ -123,6 +140,20 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+@app.websocket("/ws/analytics")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # For now, we can just log or echo messages
+            logger.info(f"Received message from client: {data}")
+            await websocket.send_text(f"Message text was: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        logger.info("Client disconnected from analytics websocket.")
+
 
 # Add FastAPI's built-in CORS middleware (most permissive for development)
 app.add_middleware(
@@ -451,12 +482,18 @@ async def store_chat_analysis(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Store chat analysis results"""
-    # Ensure user can only store their own analysis
-    if current_user.id != analysis_data.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only store own analysis")
+    """Store new chat analysis and broadcast update"""
+    analysis = await services.chat_analysis.store(db, obj_in=analysis_data)
     
-    return await services.analysis.store_chat_analysis(db, analysis_data)
+    # After storing, fetch updated analytics and broadcast
+    updated_analytics = await services.analytics.get_overview_analytics(
+        db, 
+        current_user.id,
+        schemas.AnalyticsFilter() # Default filters
+    )
+    await manager.broadcast(updated_analytics.model_dump_json())
+    
+    return analysis
 
 
 @app.get("/analyses/chat/{analysis_id}", response_model=schemas.ChatAnalysisResponse, tags=["Analysis"])
@@ -604,11 +641,18 @@ async def store_speech_analysis(
     current_user: Optional[User] = Depends(get_current_user_or_service),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Store speech analysis results"""
-    if current_user.id != analysis_data.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only store own analysis")
+    """Store new speech analysis and broadcast update"""
+    analysis = await services.speech_analysis.store(db, obj_in=analysis_data)
     
-    return await services.analysis.store_speech_analysis(db, analysis_data)
+    if current_user:
+        updated_analytics = await services.analytics.get_overview_analytics(
+            db, 
+            current_user.id,
+            schemas.AnalyticsFilter() # Default filters
+        )
+        await manager.broadcast(updated_analytics.model_dump_json())
+    
+    return analysis
 
 
 @app.get("/analyses/speech/{analysis_id}", response_model=schemas.SpeechAnalysisResponse, tags=["Analysis"])
@@ -692,11 +736,17 @@ async def store_video_analysis(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Store video analysis results"""
-    if current_user.id != analysis_data.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only store own analysis")
+    """Store new video analysis and broadcast update"""
+    analysis = await services.video_analysis.store(db, obj_in=analysis_data)
     
-    return await services.analysis.store_video_analysis(db, analysis_data)
+    updated_analytics = await services.analytics.get_overview_analytics(
+        db, 
+        current_user.id,
+        schemas.AnalyticsFilter() # Default filters
+    )
+    await manager.broadcast(updated_analytics.model_dump_json())
+    
+    return analysis
 
 
 @app.get("/analyses/video/{analysis_id}", response_model=schemas.VideoAnalysisResponse, tags=["Analysis"])
@@ -1174,11 +1224,17 @@ async def store_survey_response(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Store survey response"""
-    if current_user.id != response_data.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only store own survey response")
+    """Store new survey response and broadcast update"""
+    response = await services.survey.store_response(db, obj_in=response_data)
     
-    return await services.survey.store_survey_response(db, response_data)
+    updated_analytics = await services.analytics.get_overview_analytics(
+        db, 
+        current_user.id,
+        schemas.AnalyticsFilter() # Default filters
+    )
+    await manager.broadcast(updated_analytics.model_dump_json())
+    
+    return response
 
 
 @app.get("/surveys/responses/user/{user_id}/burnout-trend", response_model=List[schemas.AnalyticsTrend], tags=["Surveys"])
@@ -1197,6 +1253,147 @@ async def get_burnout_trend(
 
 
 # Metrics endpoint (if Prometheus is available)
+# New comprehensive analytics endpoints
+@app.get("/analytics/overview", response_model=schemas.OverviewAnalyticsData, tags=["Analytics"])
+async def get_analytics_overview(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get overview analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_overview_analytics(db, current_user.id, filters)
+
+
+@app.get("/analytics/video", response_model=schemas.VideoAnalyticsData, tags=["Analytics"])
+async def get_analytics_video(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get video analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_video_analytics(db, current_user.id, filters)
+
+
+@app.get("/analytics/speech", response_model=schemas.SpeechAnalyticsData, tags=["Analytics"])
+async def get_analytics_speech(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get speech analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_speech_analytics(db, current_user.id, filters)
+
+
+@app.get("/analytics/chat", response_model=schemas.ChatAnalyticsData, tags=["Analytics"])
+async def get_analytics_chat(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get chat analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_chat_analytics(db, current_user.id, filters)
+
+
+@app.get("/analytics/emobuddy", response_model=schemas.EmoBuddyAnalyticsData, tags=["Analytics"])
+async def get_analytics_emobuddy(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get EmoBuddy analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_emobuddy_analytics(db, current_user.id, filters)
+
+
+@app.get("/analytics/survey", response_model=schemas.SurveyAnalyticsData, tags=["Analytics"])
+async def get_analytics_survey(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get survey analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_survey_analytics(db, current_user.id, filters)
+
+
+@app.get("/analytics/department", response_model=schemas.DepartmentAnalyticsData, tags=["Analytics"])
+async def get_analytics_department(
+    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    modality: str = Query("all"),
+    sessionType: str = Query("all"),
+    riskLevel: str = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get department analytics data for the current user"""
+    filters = schemas.AnalyticsFilter(
+        dateRange={"start": start_date, "end": end_date},
+        modality=modality,
+        sessionType=sessionType,
+        riskLevel=riskLevel
+    )
+    return await services.analytics.get_department_analytics(db, current_user.id, filters)
+
+
 try:
     from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     

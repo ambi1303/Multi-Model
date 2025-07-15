@@ -3,7 +3,7 @@ export interface AnalyticsFilters {
     start: Date;
     end: Date;
   };
-  modality: 'all' | 'video' | 'speech' | 'chat' | 'survey' | 'emobuddy';
+  modality: 'all' | 'video' | 'speech' | 'chat' | 'survey';
   sessionType: 'all' | 'individual' | 'group';
   riskLevel: 'all' | 'low' | 'moderate' | 'high' | 'severe';
   departmentId?: number;
@@ -12,11 +12,9 @@ export interface AnalyticsFilters {
 
 export interface OverviewData {
   totalSessions: number;
-  sessionGrowth: number;
-  averageConfidence: number;
-  confidenceChange: number;
-  highRiskSessions: number;
-  riskChange: number;
+  totalUsers: number;
+  averageSessionDuration: number;
+  totalAnalyses: number;
   sessionTrends: Array<{
     date: string;
     sessions: number;
@@ -31,16 +29,18 @@ export interface OverviewData {
     usage: number;
     avgConfidence: number;
   }>;
-  topEmotions: Array<{
-    emotion: string;
-    count: number;
-    percentage: number;
-  }>;
   mentalStateDistribution: Array<{
     state: string;
     count: number;
-    percentage: number;
   }>;
+  recentActivity: Array<{
+    id?: string;
+    timestamp?: string;
+    action?: string;
+    user?: string;
+    riskLevel?: string;
+  }>;
+  fallback: boolean;
 }
 
 export interface VideoAnalyticsData {
@@ -82,96 +82,90 @@ export interface SpeechAnalyticsData {
     negative: number;
     averageScore: number;
   }>;
-  durationAnalysis: Array<{
-    duration: string;
-    count: number;
-  }>;
-  languageDistribution: Array<{
-    language: string;
+  transcriptionAccuracy: Array<{
+    confidence: string;
     count: number;
     percentage: number;
   }>;
-  speakingRateAnalysis: Array<{
-    range: string;
+  voiceStressIndicators: Array<{
+    indicator: string;
+    normal: number;
+    elevated: number;
+    high: number;
+  }>;
+  emotionDistribution: Array<{
+    emotion: string | null;
     count: number;
-    avgPauses: number;
+    percentage: number;
   }>;
-  emotionSpeechCorrelation: Array<{
-    emotion: string;
-    avgSpeakingRate: number;
-    avgPauseCount: number;
-    confidence: number;
-  }>;
-  processingTimeStats: {
+  processingMetrics: {
     avgProcessingTime: number;
-    minProcessingTime: number;
-    maxProcessingTime: number;
+    avgAudioLength: number;
+    successRate: number;
+    totalSessions: number;
   };
 }
 
 export interface ChatAnalyticsData {
-  messageVolumeTrends: Array<{
+  messageTrends: Array<{
     date: string;
-    messageCount: number;
-    averageSentiment: number;
-  }>;
-  mentalStateDistribution: Array<{
-    state: string;
-    count: number;
-    percentage: number;
+    total: number;
+    positive: number;
+    neutral: number;
+    negative: number;
+    avgSentimentScore: number;
+    avgConfidence: number;
   }>;
   sentimentDistribution: Array<{
     sentiment: string;
     count: number;
     percentage: number;
+    avgScore: number;
   }>;
-  sessionLengthAnalysis: Array<{
-    messageCount: number;
-    sessionCount: number;
-    avgSentiment: number;
+  emotionDistribution: Array<{
+    emotion: string;
+    count: number;
+    percentage: number;
+  }>;
+  mentalStateDistribution: Array<{
+    mentalState: string;
+    count: number;
+    percentage: number;
+    avgConfidence: number;
+  }>;
+  sentimentEmotionCorrelation: Array<{
+    sentiment: string;
+    emotion: string;
+    count: number;
+    avgSentimentScore: number;
   }>;
   confidenceAnalysis: Array<{
     range: string;
     count: number;
+    percentage: number;
   }>;
-}
-
-export interface EmoBuddyAnalyticsData {
-  sessionStats: {
+  sessionMetrics: {
     totalSessions: number;
-    activeSessions: number;
-    avgSessionDuration: number;
     avgMessagesPerSession: number;
+    avgSentimentPerSession: number;
+    avgConfidencePerSession: number;
+    avgSessionDurationMinutes: number;
   };
-  responseTimeAnalysis: Array<{
-    timeRange: string;
-    count: number;
-  }>;
-  techniquesUsed: Array<{
-    technique: string;
-    count: number;
-    effectivenessScore: number;
-  }>;
-  crisisDetection: {
-    totalCrisisFlags: number;
-    crisisSessionsToday: number;
-    crisisTrends: Array<{
-      date: string;
-      crisisCount: number;
-    }>;
+  analysisDurationStats: Array<any>;
+  summary: {
+    totalAnalyses: number;
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    filters: {
+      departmentId: string | null;
+      userId: string | null;
+      modality: string;
+      sessionType: string;
+      riskLevel: string;
+    };
   };
-  userSatisfaction: {
-    avgScore: number;
-    distribution: Array<{
-      score: number;
-      count: number;
-    }>;
-  };
-  therapeuticProgress: Array<{
-    indicator: string;
-    improvement: number;
-    sessionCount: number;
-  }>;
 }
 
 export interface SurveyAnalyticsData {
@@ -179,6 +173,7 @@ export interface SurveyAnalyticsData {
     date: string;
     avgBurnoutScore: number;
     highRiskCount: number;
+    totalResponses: number;
   }>;
   stressLevelDistribution: Array<{
     level: string;
@@ -193,17 +188,20 @@ export interface SurveyAnalyticsData {
   completionTimeAnalysis: Array<{
     timeRange: string;
     count: number;
+    avgTimeSeconds: number;
+  }>;
+  recommendationStats: Array<{
+    recommendation: string;
+    frequency: number;
+    avgBurnoutScore: number;
+    followUpSuggested: number;
   }>;
   predictionAccuracy: {
     avgConfidence: number;
     highConfidencePredictions: number;
     totalPredictions: number;
+    predictionsWithConfidence: number;
   };
-  recommendationStats: Array<{
-    recommendation: string;
-    frequency: number;
-    effectiveness: number;
-  }>;
 }
 
 export interface DepartmentAnalyticsData {
@@ -235,7 +233,6 @@ export interface AnalyticsData {
   video: VideoAnalyticsData;
   speech: SpeechAnalyticsData;
   chat: ChatAnalyticsData;
-  emobuddy: EmoBuddyAnalyticsData;
   survey: SurveyAnalyticsData;
   department: DepartmentAnalyticsData;
 }

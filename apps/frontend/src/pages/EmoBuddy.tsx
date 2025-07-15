@@ -19,7 +19,7 @@ import {  SendIcon, EmojiEmotionsIcon, CheckCircleIcon, InfoIcon, WarningIcon } 
 import api from '../services/api'; // Use the centralized, secure api service
 import { useAppStore } from '../store/useAppStore';
 
-const EMO_BUDDY_API_PREFIX = '/emo-buddy';
+const EMO_BUDDY_API_PREFIX = '/api/emo-buddy';
 
 interface Message {
   id: string;
@@ -74,81 +74,99 @@ export const EmoBuddy: React.FC = () => {
   
   // Get user info from store
   const user = useAppStore((state) => state.user);
+  const token = useAppStore((state) => state.token);
 
   // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!inputValue.trim()) return;
-    if (!user?.id) {
-      setError('User authentication required');
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
+  const handleSendMessage = async () => {
+    if (inputValue.trim() === '' || !user?.id) return;
+
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue.trim(),
+      content: inputValue,
       isUser: true,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
+    setIsLoading(true);
+
+    const endpoint = sessionId ? `${EMO_BUDDY_API_PREFIX}/continue` : `${EMO_BUDDY_API_PREFIX}/start`;
+    const body = sessionId
+      ? { session_id: sessionId, user_message: currentInput }
+      : { user_id: user.id, analysis_report: { transcription: currentInput, sentiment: { label: 'neutral', confidence: 0.5 }, emotions: [] } };
+
+    const botMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      content: '',
+      isUser: false,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, botMessage]);
+
     try {
-      if (!firstMessageSent) {
-        // First message: start session using unified core format
-        const res = await api.post(`${EMO_BUDDY_API_PREFIX}/start`, {
-          user_id: user.id,
-          analysis_report: {
-            transcribed_text: userMessage.content,
-            sentiment: { label: 'neutral', confidence: 0.5 },
-            emotions: [],
-            timestamp: Date.now()
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.body) return;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let streamedText = '';
+      let isFirstChunk = true;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        let chunk = decoder.decode(value, { stream: true });
+
+        if (isFirstChunk && !sessionId) {
+          const lines = chunk.split('\n');
+          const sessionIdLine = lines.find(line => line.startsWith('session_id:'));
+          if (sessionIdLine) {
+            const newSessionId = sessionIdLine.split(':')[1];
+            setSessionId(newSessionId);
+            // The rest of the chunk is part of the message
+            chunk = lines.filter(line => !line.startsWith('session_id:')).join('\n');
           }
-        }, {
-          headers: {
-            'X-Session-Mode': 'STANDALONE' // Indicate this is a standalone session
-          }
-        });
-        const data = res.data;
-        setSessionId(data.session_id);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            content: data.response,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
-        setFirstMessageSent(true);
-      } else if (sessionId) {
-        // Continue session using unified core format
-        const res = await api.post(`${EMO_BUDDY_API_PREFIX}/continue`, {
-          session_id: sessionId,
-          user_id: user.id,
-          user_input: userMessage.content
-        }, {
-          headers: {
-            'X-Session-Mode': 'CONTINUATION' // Indicate this is a continuation
-          }
-        });
-        const data = res.data;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            content: data.response,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
+          isFirstChunk = false;
+        }
+
+        streamedText += chunk;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMessage.id ? { ...m, content: streamedText } : m
+          )
+        );
       }
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong.');
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      const errorBotMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: 'Sorry, I encountered an error. Please try again.',
+        isUser: false,
+        timestamp: new Date(),
+      };
+      // Check if the last message is a typing indicator, if so replace it
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && !lastMessage.isUser && lastMessage.content === '') {
+          return [...prev.slice(0, -1), errorBotMessage];
+        }
+        return [...prev, errorBotMessage];
+      });
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +175,7 @@ export const EmoBuddy: React.FC = () => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      handleSendMessage();
     }
   };
 
@@ -263,7 +281,7 @@ export const EmoBuddy: React.FC = () => {
           />
           <IconButton
             color="primary"
-            onClick={handleSend}
+            onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
             sx={{ borderRadius: 2 }}
           >

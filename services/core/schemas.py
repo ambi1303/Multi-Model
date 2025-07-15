@@ -597,3 +597,144 @@ class SystemHealthUpdate(BaseModel):
     error_rate_percent: Optional[float] = None
     active_connections: Optional[int] = None
     uptime_seconds: Optional[int] = None 
+
+# Analytics response schemas
+class AnalyticsFilter(BaseModel):
+    """Analytics filter parameters"""
+    dateRange: Dict[str, datetime] = Field(default_factory=lambda: {
+        "start": datetime.utcnow() - timedelta(days=30),
+        "end": datetime.utcnow()
+    })
+    modality: str = "all"
+    sessionType: str = "all"
+    riskLevel: str = "all"
+
+
+class MetricData(BaseModel):
+    """Base metric data structure"""
+    value: float
+    change: Optional[float] = None
+    trend: Optional[str] = None  # "up", "down", "stable"
+
+
+class ChartDataPoint(BaseModel):
+    """Chart data point structure"""
+    name: str
+    value: float
+    color: Optional[str] = None
+    percentage: Optional[float] = None
+
+
+class OverviewAnalyticsData(BaseModel):
+    """Overview analytics data structure"""
+    totalSessions: MetricData
+    avgConfidence: MetricData
+    riskDistribution: MetricData
+    mentalStatesTracked: MetricData
+    
+    # Chart data
+    confidenceChart: List[ChartDataPoint]
+    riskChart: List[ChartDataPoint]
+    mentalStateChart: List[ChartDataPoint]
+    weeklyTrend: List[ChartDataPoint]
+
+
+class VideoAnalyticsData(BaseModel):
+    """Video analytics data structure"""
+    totalAnalyses: MetricData
+    avgConfidence: MetricData
+    facesDetected: MetricData
+    processingTime: MetricData
+    
+    # Chart data
+    confidenceDistribution: List[ChartDataPoint]
+    emotionDistribution: List[ChartDataPoint]
+    processingTimeChart: List[ChartDataPoint]
+    faceDetectionChart: List[ChartDataPoint]
+
+
+class SpeechAnalyticsData(BaseModel):
+    """Speech analytics data structure"""
+    totalAnalyses: MetricData
+    avgDuration: MetricData
+    avgSentiment: MetricData
+    avgSpeakingRate: MetricData
+    
+    # Chart data
+    sentimentTrend: List[ChartDataPoint]
+    durationDistribution: List[ChartDataPoint]
+    languageDistribution: List[ChartDataPoint]
+    speakingRateChart: List[ChartDataPoint]
+
+
+class ChatAnalyticsData(BaseModel):
+    """Chat analytics data structure"""
+    totalMessages: MetricData
+    avgSentiment: MetricData
+    avgSessionLength: MetricData
+    uniqueSessions: MetricData
+    
+    # Chart data
+    messageVolume: List[ChartDataPoint]
+    sentimentDistribution: List[ChartDataPoint]
+    mentalStateDistribution: List[ChartDataPoint]
+    sessionLengthChart: List[ChartDataPoint]
+
+
+class EmoBuddyAnalyticsData(BaseModel):
+    """EmoBuddy analytics data structure"""
+    totalSessions: MetricData
+    avgDuration: MetricData
+    crisisFlags: MetricData
+    avgSatisfaction: MetricData
+    
+    # Chart data
+    sessionTrend: List[ChartDataPoint]
+    crisisDetection: List[ChartDataPoint]
+    therapeuticTechniques: List[ChartDataPoint]
+    satisfactionChart: List[ChartDataPoint]
+
+
+class SurveyAnalyticsData(BaseModel):
+    """Survey analytics data structure"""
+    totalResponses: MetricData
+    avgBurnoutScore: MetricData
+    avgStressLevel: MetricData
+    riskCategories: MetricData
+    
+    # Chart data
+    burnoutTrend: List[ChartDataPoint]
+    stressDistribution: List[ChartDataPoint]
+    riskCategoryChart: List[ChartDataPoint]
+    predictionAccuracy: List[ChartDataPoint]
+
+
+class DepartmentAnalyticsData(BaseModel):
+    """Department analytics data structure"""
+    totalEmployees: MetricData
+    participationRate: MetricData
+    avgWellnessScore: MetricData
+    riskAlerts: MetricData
+    
+    # Chart data
+    participationChart: List[ChartDataPoint]
+    wellnessChart: List[ChartDataPoint]
+    departmentComparison: List[ChartDataPoint]
+    riskDistribution: List[ChartDataPoint]
+
+
+class AnalyticsResponse(BaseModel):
+    """Complete analytics response structure"""
+    overview: OverviewAnalyticsData
+    video: VideoAnalyticsData
+    speech: SpeechAnalyticsData
+    chat: ChatAnalyticsData
+    emobuddy: EmoBuddyAnalyticsData
+    survey: SurveyAnalyticsData
+    department: DepartmentAnalyticsData
+    
+    # Metadata
+    filters: AnalyticsFilter
+    generatedAt: datetime = Field(default_factory=datetime.utcnow)
+    dataPoints: int = 0
+    coverage: float = 0.0 

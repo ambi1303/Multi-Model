@@ -3,6 +3,14 @@ import { persist, devtools } from 'zustand/middleware';
 import { Notification, User } from '../types';
 import api from '../services/api'; // Import the unified api
 import axios from 'axios';
+import {
+  OverviewData,
+  VideoAnalyticsData,
+  SpeechAnalyticsData,
+  ChatAnalyticsData,
+  SurveyAnalyticsData,
+  DepartmentAnalyticsData,
+} from '../types/analytics';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
 
@@ -22,7 +30,7 @@ const logoutApi = axios.create({
   },
 });
 
-interface AppState {
+export interface AppState {
   // UI State
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -66,6 +74,11 @@ interface AppState {
   setShowLogoutDialog: (show: boolean) => void;
   notifications: Notification[];
   addNotification: (notification: Omit<Notification, 'id'>) => void;
+
+  isSocketConnected: boolean;
+  overviewData: OverviewData | null;
+  setSocketConnected: (isConnected: boolean) => void;
+  setOverviewData: (data: OverviewData) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -198,6 +211,11 @@ export const useAppStore = create<AppState>()(
           set((state) => ({
             notifications: [...state.notifications, { ...notification, id: Date.now() }],
           })),
+
+        isSocketConnected: false,
+        overviewData: null,
+        setSocketConnected: (isConnected) => set({ isSocketConnected: isConnected }),
+        setOverviewData: (data) => set({ overviewData: data }),
       }),
       {
         name: 'app-storage',

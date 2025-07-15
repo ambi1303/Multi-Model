@@ -25,7 +25,7 @@ from core import (
 
 logger = logging.getLogger(__name__)
 
-class STTAPIAdapter:
+class STTEmoBuddyAdapter:
     """
     Adapter for the STT API that integrates speech analysis with the unified EmoBuddy core
     """
@@ -178,7 +178,7 @@ class STTAPIAdapter:
                 analysis_data.get('transcription') or 
                 analysis_data.get('text', '')
             )
-            processed['transcribed_text'] = transcription
+            processed['transcription'] = transcription
             
             # Handle sentiment data
             sentiment = analysis_data.get('sentiment', {})
@@ -206,6 +206,7 @@ class STTAPIAdapter:
                 processed['emotions'] = []
             
             # Add additional metadata
+            processed['user_id'] = analysis_data.get('user_id')
             processed['audio_duration_seconds'] = analysis_data.get('audio_duration_seconds', 0.0)
             processed['session_id'] = analysis_data.get('session_id')
             processed['timestamp'] = analysis_data.get('timestamp', datetime.now().isoformat())
@@ -328,7 +329,7 @@ class STTAPIAdapter:
 # Global instance
 _stt_adapter = None
 
-def get_stt_adapter() -> STTAPIAdapter:
+def get_stt_adapter() -> STTEmoBuddyAdapter:
     """
     Get singleton STT adapter instance
     
@@ -337,7 +338,7 @@ def get_stt_adapter() -> STTAPIAdapter:
     """
     global _stt_adapter
     if _stt_adapter is None:
-        _stt_adapter = STTAPIAdapter()
+        _stt_adapter = STTEmoBuddyAdapter()
     return _stt_adapter
 
 # === Integration Functions for STT Service ===

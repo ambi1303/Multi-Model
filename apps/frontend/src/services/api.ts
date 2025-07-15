@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 40000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -469,7 +469,7 @@ export const analyzeProgressively = async (
 // Health check function for survey service
 export const checkSurveyApiHealth = async (): Promise<{ status: string; message: string }> => {
   try {
-    const response = await axios.get(`${SURVEY_API_URL}/health`, { timeout: 10000 });
+    const response = await axios.get(`${SURVEY_API_URL}/health`, { timeout: 40000 });
     return response.data;
   } catch (error) {
     console.error('Survey API health check failed:', error);
