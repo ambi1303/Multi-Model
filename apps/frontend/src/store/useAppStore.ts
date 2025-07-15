@@ -144,15 +144,22 @@ export const useAppStore = create<AppState>()(
             try {
               const token = get().token;
               if (token) {
-                await logoutApi.post('/auth/logout', {}, {
-                  headers: { Authorization: `Bearer ${token}` }
+                // Use a shorter timeout and don't wait for the response
+                const logoutPromise = logoutApi.post('/auth/logout', {}, {
+                  headers: { Authorization: `Bearer ${token}` },
+                  timeout: 2000, // Reduced timeout to 2 seconds
+                });
+                
+                // Don't await the logout API call - let it happen in background
+                logoutPromise.catch(error => {
+                  console.warn('Backend logout failed (this is non-critical):', error.message);
                 });
               }
             } catch (error) {
-              console.error('Logout error:', error);
+              console.warn('Logout API call failed (this is non-critical):', error);
               // Don't throw error - we want logout to always succeed locally
             } finally {
-              // Complete cleanup of all user data
+              // Always complete cleanup regardless of backend response
               sessionStorage.removeItem('auth_token');
               localStorage.removeItem('auth_token'); // Also clear from localStorage if it exists
               

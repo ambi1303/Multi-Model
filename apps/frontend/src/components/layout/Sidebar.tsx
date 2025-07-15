@@ -26,13 +26,11 @@ import {
   TrendingUpIcon,
   StarIcon,
   AssignmentIcon,
-  DashboardIcon,
 } from '../../utils/icons';
 
 // --- Prefetching Logic ---
 const lazyLoadMap: { [key: string]: () => Promise<any> } = {
   '/': () => import('../../pages/Home'),
-  '/dashboard': () => import('../../pages/Dashboard'),
   '/analytics': () => import('../../pages/Analytics'),
   '/video': () => import('../../pages/VideoAnalysis'),
   '/speech': () => import('../../pages/SpeechAnalysis'),
@@ -79,7 +77,6 @@ const navSections: NavSection[] = [
   {
     items: [
       { text: 'Home', icon: HomeIcon, path: '/', description: 'Welcome & Overview' },
-      { text: 'Dashboard', icon: DashboardIcon, path: '/dashboard', description: 'Key metrics at a glance' },
       { text: 'Analytics', icon: BarChartIcon, path: '/analytics', description: 'Real-time insights & metrics', live: true },
     ],
   },

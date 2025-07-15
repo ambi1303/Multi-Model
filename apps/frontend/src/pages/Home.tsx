@@ -24,7 +24,7 @@ const Home: React.FC = () => {
   const handleGetStarted = () => {
     if (isAuthenticated) {
       setSidebarOpen(true); // Show sidebar (and header)
-      navigate('/dashboard');
+      navigate('/analytics');
     } else {
       navigate('/login');
     }

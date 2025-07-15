@@ -30,7 +30,7 @@ export const WelcomeModal = () => {
 
   const handleContinue = () => {
     setShowWelcomeModal(false);
-    navigate('/dashboard');
+    navigate('/analytics');
   };
 
   return (
@@ -48,7 +48,7 @@ export const WelcomeModal = () => {
           You have successfully logged in.
         </Typography>
         <Button onClick={handleContinue} sx={{ mt: 2 }} variant="contained">
-          Continue to Dashboard
+          Continue to Analytics
         </Button>
       </Box>
     </Modal>

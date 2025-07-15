@@ -34,6 +34,12 @@ api.interceptors.response.use(
       endpoint.includes('/auth/register')
     );
     
+    // Handle timeout errors for logout endpoint gracefully
+    if (endpoint && endpoint.includes('/auth/logout') && error.code === 'ECONNABORTED') {
+      console.warn('Logout request timed out - this is non-critical as logout will complete locally');
+      return Promise.resolve({ data: { message: 'Logout completed locally' } });
+    }
+    
     if (error.response?.status === 401 && !isAuthEndpoint) {
       // Use the store action to handle unauthorized state
       const store = useAppStore.getState();

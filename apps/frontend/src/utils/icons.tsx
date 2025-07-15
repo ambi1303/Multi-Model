@@ -82,7 +82,7 @@ const ICON_SIZE = 20;
 export const MenuIcon: React.FC = () => <Menu size={ICON_SIZE} />;
 export const CloseIcon: React.FC = () => <X size={ICON_SIZE} />;
 export const HomeIcon: React.FC = () => <Home size={ICON_SIZE} />;
-export const DashboardIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => <BarChart3 {...props} />;
+
 export const AnalyticsIcon: React.FC = () => <TrendingUp size={ICON_SIZE} />;
 export const VideoCallIcon: React.FC = () => <Video size={ICON_SIZE} />;
 export const MicIcon: React.FC = () => <Mic size={ICON_SIZE} />;

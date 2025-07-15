@@ -120,18 +120,25 @@ class AuthService:
         if existing_user:
             raise ValueError("User with this email already exists")
         
-        # Check employee ID uniqueness if provided
-        if user_data.employee_id:
-            existing_employee = await repositories.user.get_by_employee_id(db, user_data.employee_id)
-            if existing_employee:
-                raise ValueError("User with this employee ID already exists")
+        # Validate department exists
+        if not user_data.department_id:
+            raise ValueError("Department selection is required")
+        
+        department = await repositories.department.get(db, user_data.department_id)
+        if not department:
+            raise ValueError("Selected department does not exist")
+        
+        # Generate employee ID automatically based on department
+        employee_id = await services.department.generate_employee_id(db, user_data.department_id)
         
         # Hash password
         hashed_password = self.get_password_hash(user_data.password)
         
-        # Create user
+        # Create user with auto-generated employee ID and default role
         user_dict = user_data.model_dump() if hasattr(user_data, 'model_dump') else user_data.dict()
         user_dict['password_hash'] = hashed_password
+        user_dict['employee_id'] = employee_id  # Auto-generated
+        user_dict['role'] = schemas.UserRole.EMPLOYEE  # Always default to employee
         del user_dict['password']
         
         user = await repositories.user.create(db, obj_in=user_dict)
@@ -280,6 +287,49 @@ class DepartmentService:
         if not dept:
             return None
         return schemas.Department.model_validate(dept)
+    
+    async def get_by_id(self, db: AsyncSession, dept_id: int) -> Optional[schemas.Department]:
+        """Get department by ID"""
+        dept = await repositories.department.get(db, dept_id)
+        if not dept:
+            return None
+        return schemas.Department.model_validate(dept)
+    
+    async def generate_employee_id(self, db: AsyncSession, department_id: int) -> str:
+        """Generate department-wise employee ID"""
+        # Get department info
+        dept = await repositories.department.get(db, department_id)
+        if not dept:
+            raise ValueError(f"Department with ID {department_id} not found")
+        
+        # Create department prefix based on department name
+        dept_prefixes = {
+            "Engineering": "ENG",
+            "Human Resources": "HR",
+            "Sales": "SAL",
+            "Marketing": "MKT",
+            "IT Department": "IT"
+        }
+        
+        prefix = dept_prefixes.get(dept.name, "EMP")
+        
+        # Get count of users in this department to generate next ID
+        user_count = await repositories.department.get_user_count(db, department_id)
+        next_id = user_count + 1
+        
+        # Generate employee ID: PREFIX + 3-digit number (e.g., ENG001, HR002)
+        employee_id = f"{prefix}{next_id:03d}"
+        
+        # Check if this employee ID already exists (rare edge case)
+        existing_user = await repositories.user.get_by_employee_id(db, employee_id)
+        if existing_user:
+            # If it exists, increment until we find a unique one
+            while existing_user:
+                next_id += 1
+                employee_id = f"{prefix}{next_id:03d}"
+                existing_user = await repositories.user.get_by_employee_id(db, employee_id)
+        
+        return employee_id
 
 
 class AnalysisService:
@@ -506,7 +556,8 @@ class EmoBuddyService:
             raise ValueError("Session not found")
         
         # Calculate session duration
-        session_end = datetime.utcnow()
+        from datetime import timezone
+        session_end = datetime.now(timezone.utc)
         duration = session_end - session.session_start
         
         # Update session
@@ -544,7 +595,14 @@ class SurveyService:
         response_data: schemas.SurveyResponseCreate
     ) -> schemas.SurveyResponseResponse:
         """Store survey response"""
-        response = await repositories.survey_response.create(db, obj_in=response_data)
+        # Create a copy of the data to avoid modifying the original
+        data_dict = response_data.model_dump() if hasattr(response_data, 'model_dump') else response_data.dict()
+        
+        # Handle completion_time_seconds = 0 by converting to None
+        if data_dict.get('completion_time_seconds') == 0:
+            data_dict['completion_time_seconds'] = None
+        
+        response = await repositories.survey_response.create(db, obj_in=data_dict)
         
         # Log audit event
         audit_data = schemas.AuditLogCreate(
@@ -559,6 +617,15 @@ class SurveyService:
         await repositories.audit_log.create(db, obj_in=audit_data)
         
         return schemas.SurveyResponseResponse.model_validate(response)
+    
+    # Alias for backward compatibility
+    async def store(
+        self, 
+        db: AsyncSession, 
+        response_data: schemas.SurveyResponseCreate
+    ) -> schemas.SurveyResponseResponse:
+        """Alias for store_survey_response for backward compatibility"""
+        return await self.store_survey_response(db, response_data)
     
     async def get_burnout_trend(
         self, 

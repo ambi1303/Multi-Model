@@ -1,13 +1,18 @@
 """
 Comprehensive Pydantic schemas for request/response validation and DTOs
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Union
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator, ConfigDict
 from enum import Enum
 
 from models import UserRole, EmotionType, SentimentType, MentalState, AnalysisStatus
+
+# Utility function for timezone-aware datetime
+def utc_now() -> datetime:
+    """Get current UTC datetime with timezone info"""
+    return datetime.now(timezone.utc)
 
 
 # Base schemas
@@ -49,10 +54,9 @@ class UserRegister(BaseModel):
     password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    employee_id: Optional[str] = Field(None, max_length=50)
-    department_id: Optional[int] = None
-    role: UserRole = UserRole.EMPLOYEE
+    department_id: int = Field(..., description="Department ID is required")
     phone_number: Optional[str] = Field(None, max_length=20)
+    # employee_id and role are auto-generated, not provided by user
     
     @field_validator('password')
     @classmethod
@@ -276,7 +280,7 @@ class SurveyResponseCreate(BaseModel):
     survey_type: str = Field(..., min_length=1, max_length=100)
     survey_version: str = "1.0"
     responses: Dict[str, Any] = Field(..., description="Question ID to response mapping")
-    completion_time_seconds: Optional[int] = Field(None, gt=0)
+    completion_time_seconds: Optional[int] = Field(None, ge=0)  # Allow 0, will be mapped to None in service
     burnout_score: Optional[float] = Field(None, ge=0, le=1)
     stress_level: Optional[str] = None
     risk_categories: Optional[Dict[str, Any]] = {}

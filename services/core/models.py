@@ -470,7 +470,7 @@ class SurveyResponse(BaseModel):
     __table_args__ = (
         CheckConstraint('burnout_score >= 0 AND burnout_score <= 1', name='check_burnout_score_range'),
         CheckConstraint('prediction_confidence >= 0 AND prediction_confidence <= 1', name='check_prediction_confidence_range'),
-        CheckConstraint('completion_time_seconds > 0', name='check_completion_time_positive'),
+        CheckConstraint('completion_time_seconds IS NULL OR completion_time_seconds > 0', name='check_completion_time_positive'),
         Index('ix_survey_responses_user_type', 'user_id', 'survey_type'),
         Index('ix_survey_responses_burnout_score', 'burnout_score'),
     )

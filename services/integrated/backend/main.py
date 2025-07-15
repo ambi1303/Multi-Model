@@ -15,7 +15,7 @@ from typing import Literal, Dict, Any, Optional, List, AsyncGenerator
 import pandas as pd
 import json
 import aiohttp
-from aiohttp import ClientSession, FormData
+from aiohttp import ClientSession, FormData, ClientTimeout
 import asyncio
 from functools import lru_cache
 from cachetools import TTLCache, cached
@@ -659,6 +659,19 @@ async def proxy_register(request: Request):
         logger.error(f"Error proxying register request: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+@app.get("/departments")
+async def proxy_departments(request: Request):
+    """Proxy departments requests to core service (public endpoint)"""
+    try:
+        # Forward to core service without authentication (public endpoint)
+        async with session.get(f"{CORE_SERVICE_URL}/departments") as resp:
+            data = await resp.json()
+            return JSONResponse(content=data, status_code=resp.status)
+                
+    except Exception as e:
+        logger.error(f"Error proxying departments request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 @app.get("/auth/me")
 async def proxy_user_profile(request: Request):
     """Proxy user profile requests to core service"""
@@ -711,15 +724,30 @@ async def proxy_logout(request: Request):
         
         logger.info("Proxying logout request to core service")
         
-        # Forward to core service with the same headers
+        # Forward to core service with the same headers and timeout
         headers = {"Authorization": authorization}
-        async with session.post(f"{CORE_SERVICE_URL}/auth/logout", headers=headers) as resp:
-            data = await resp.json()
-            return JSONResponse(content=data, status_code=resp.status)
+        timeout = aiohttp.ClientTimeout(total=10.0)  # 3 second timeout
+        
+        try:
+            async with session.post(f"{CORE_SERVICE_URL}/auth/logout", headers=headers, timeout=timeout) as resp:
+                data = await resp.json()
+                return JSONResponse(content=data, status_code=resp.status)
+        except asyncio.TimeoutError:
+            logger.warning("Core service logout request timed out - returning success anyway")
+            return JSONResponse(content={
+                "message": "Logged out (core service timeout)",
+                "success": True,
+                "timestamp": datetime.utcnow().isoformat()
+            }, status_code=200)
                 
     except Exception as e:
         logger.error(f"Error proxying logout request: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        # Return success even on error to ensure frontend logout always works
+        return JSONResponse(content={
+            "message": "Logged out (with errors)",
+            "success": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }, status_code=200)
 
 
 @app.get("/metrics")
@@ -1586,38 +1614,53 @@ async def video_analytics():
 # Analytics endpoints
 @app.get("/analytics/overview")
 async def get_overview_analytics(
+    request: Request,
     dateRange: Dict[str, str] = None,
     modality: str = 'all',
     sessionType: str = 'all',
     riskLevel: str = 'all',
     departmentId: int = None,
-    userId: str = None
+    userId: str = None,
+    token: Optional[str] = Depends(get_token)
 ):
     logger.debug(f"get_overview_analytics: dateRange={dateRange}, modality={modality}, sessionType={sessionType}, riskLevel={riskLevel}, departmentId={departmentId}, userId={userId}")
     try:
+        # Import role-based analytics
+        from role_based_analytics import authenticate_and_authorize, get_role_analytics
+        
+        # Authenticate user and get role-based filters
+        user = await authenticate_and_authorize(token, CORE_SERVICE_URL)
+        role_analytics = get_role_analytics(CORE_SERVICE_URL)
+        
+        # Get role-based filters (this will override departmentId and userId based on role)
+        role_user_filter, role_dept_filter = role_analytics.get_analytics_filters(user)
+        
+        # Apply role-based overrides
+        if role_user_filter:
+            userId = role_user_filter
+        if role_dept_filter:
+            departmentId = role_dept_filter
+        
+        logger.info(f"Role-based analytics access: User {user.get('email')} (Role: {user.get('role')}) - UserFilter: {userId}, DeptFilter: {departmentId}")
+        
+        # For employees, ensure they can only see their own data
+        if user.get('role', '').upper() == 'EMPLOYEE':
+            if not userId or userId != user.get('id'):
+                logger.warning(f"Employee {user.get('email')} attempted to access data outside their scope. Forcing user filter.")
+                userId = user.get('id')
+            logger.info(f"Employee access restricted to user_id: {userId}")
+        
         async with get_db() as db:
-            # if not db:
-            #     logger.error("get_overview_analytics: Database connection not available - returning fallback data")
-            #     return {
-            #         "totalSessions": 0,
-            #         "totalUsers": 0,
-            #         "averageSessionDuration": 0.0,
-            #         "totalAnalyses": 0,
-            #         "sessionTrends": [],
-            #         "riskDistribution": [],
-            #         "modalityPerformance": [],
-            #         "mentalStateDistribution": [],
-            #         "recentActivity": [],
-            #         "error": "Database connection not available",
-            #         "fallback": True
-            #     }
-            
             start_date, end_date = await get_date_range_filter(dateRange)
             logger.debug(f"get_overview_analytics: start_date={start_date}, end_date={end_date}")
             overview_data = await get_overview_data(db, start_date, end_date, departmentId, userId)
             logger.debug(f"get_overview_analytics: overview_data={overview_data}")
             session_trends = await get_session_trends(db, start_date, end_date, departmentId)
             logger.debug(f"get_overview_analytics: session_trends={session_trends}")
+            
+            # Add access info to response
+            access_info = role_analytics.get_access_summary(user)
+            
             response = {
                 "totalSessions": overview_data["total_sessions"],
                 "totalUsers": len(set()), # Will be populated later
@@ -1637,7 +1680,8 @@ async def get_overview_analytics(
                     {"state": "EXCITED", "count": int(overview_data["total_sessions"] * 0.1)}
                 ],
                 "recentActivity": [], # Will be populated later
-                "fallback": False
+                "fallback": False,
+                "access_info": access_info
             }
             logger.debug(f"get_overview_analytics: response={response}")
             return response
@@ -1661,24 +1705,53 @@ async def get_overview_analytics(
 
 @app.get("/analytics/video")
 async def get_video_analytics(
+    request: Request,
     dateRange: Dict[str, str] = None,
     modality: str = 'all',
     sessionType: str = 'all',
     riskLevel: str = 'all',
     departmentId: int = None,
-    userId: str = None
+    userId: str = None,
+    token: Optional[str] = Depends(get_token)
 ):
     """Get video analytics data"""
     REQUESTS.labels(endpoint='analytics-video').inc()
     
-   
-    
     try:
+        # Import role-based analytics
+        from role_based_analytics import authenticate_and_authorize, get_role_analytics
+        
+        # Authenticate user and get role-based filters
+        user = await authenticate_and_authorize(token, CORE_SERVICE_URL)
+        role_analytics = get_role_analytics(CORE_SERVICE_URL)
+        
+        # Get role-based filters
+        role_user_filter, role_dept_filter = role_analytics.get_analytics_filters(user)
+        
+        # Apply role-based overrides
+        if role_user_filter:
+            userId = role_user_filter
+        if role_dept_filter:
+            departmentId = role_dept_filter
+        
+        logger.info(f"Video analytics access: User {user.get('email')} (Role: {user.get('role')}) - UserFilter: {userId}, DeptFilter: {departmentId}")
+        
+        # For employees, ensure they can only see their own data
+        if user.get('role', '').upper() == 'EMPLOYEE':
+            if not userId or userId != user.get('id'):
+                logger.warning(f"Employee {user.get('email')} attempted to access video analytics outside their scope. Forcing user filter.")
+                userId = user.get('id')
+            logger.info(f"Employee video analytics access restricted to user_id: {userId}")
+        
         async with get_db() as db:
             start_date, end_date = await get_date_range_filter(dateRange)
             
+            # Build role-based filter clauses
+            user_filter = "AND u.id = :user_id" if userId else ""
+            dept_filter = "AND u.department_id = :dept_id" if departmentId else ""
+            
             # Get confidence distribution
-            confidence_query = """
+            confidence_query = f"""
                 SELECT 
                     CASE 
                         WHEN average_confidence >= 0.9 THEN '0.9-1.0'
@@ -1691,26 +1764,29 @@ async def get_video_analytics(
                     COUNT(*) as count
                 FROM video_analyses va 
                 JOIN users u ON va.user_id = u.id
-                WHERE va.created_at BETWEEN :start_date AND :end_date
+                WHERE va.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
                 GROUP BY confidence_range
                 ORDER BY confidence_range DESC
             """
             
             # Get emotion distribution
-            emotion_query = """
+            subquery_user_filter = user_filter.replace('u.', 'u2.') if user_filter else ""
+            subquery_dept_filter = dept_filter.replace('u.', 'u2.') if dept_filter else ""
+            
+            emotion_query = f"""
                 SELECT 
                     dominant_emotion as emotion,
                     COUNT(*) as count,
-                    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM video_analyses WHERE created_at BETWEEN :start_date AND :end_date), 1) as percentage
+                    ROUND(COUNT(*) * 100.0 / GREATEST((SELECT COUNT(*) FROM video_analyses va2 JOIN users u2 ON va2.user_id = u2.id WHERE va2.created_at BETWEEN :start_date AND :end_date {subquery_user_filter} {subquery_dept_filter}), 1), 1) as percentage
                 FROM video_analyses va
                 JOIN users u ON va.user_id = u.id
-                WHERE va.created_at BETWEEN :start_date AND :end_date
+                WHERE va.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
                 GROUP BY dominant_emotion
                 ORDER BY count DESC
             """
                 
             # Get recent sessions
-            recent_query = """
+            recent_query = f"""
                 SELECT 
                     va.id,
                     va.created_at as timestamp,
@@ -1720,12 +1796,16 @@ async def get_video_analytics(
                     EXTRACT(EPOCH FROM (NOW() - va.created_at)) AS duration
                 FROM video_analyses va
                 JOIN users u ON va.user_id = u.id
-                WHERE va.created_at BETWEEN :start_date AND :end_date
+                WHERE va.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
                 ORDER BY va.created_at DESC
                 LIMIT 10
             """
             
             params = {'start_date': start_date, 'end_date': end_date}
+            if userId:
+                params['user_id'] = userId
+            if departmentId:
+                params['dept_id'] = departmentId
             
             # Execute queries
             confidence_result = await db.execute(text(confidence_query), params)
@@ -1753,7 +1833,7 @@ async def get_video_analytics(
                 })
             
             # Calculate face detection stats
-            face_stats_query = """
+            face_stats_query = f"""
                 SELECT 
                     AVG(faces_detected) as avg_faces,
                     AVG(average_confidence) as avg_quality,
@@ -1761,7 +1841,7 @@ async def get_video_analytics(
                     COUNT(*) as total_sessions
                 FROM video_analyses va
                 JOIN users u ON va.user_id = u.id
-                WHERE va.created_at BETWEEN :start_date AND :end_date
+                WHERE va.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
             """
             
             face_result = await db.execute(text(face_stats_query), params)
@@ -1796,18 +1876,48 @@ async def get_speech_analytics(
     sessionType: str = 'all',
     riskLevel: str = 'all',
     departmentId: int = None,
-    userId: str = None
+    userId: str = None,
+    token: Optional[str] = Depends(get_token)
 ):
     """Get speech analytics data"""
     REQUESTS.labels(endpoint='analytics-speech').inc()
- 
     
     try:
+        # Import role-based analytics
+        from role_based_analytics import authenticate_and_authorize, get_role_analytics
+        
+        # Authenticate user and get role-based filters
+        user = await authenticate_and_authorize(token, CORE_SERVICE_URL)
+        role_analytics = get_role_analytics(CORE_SERVICE_URL)
+        
+        # Get role-based filters
+        role_user_filter, role_dept_filter = role_analytics.get_analytics_filters(user)
+        
+        # Apply role-based overrides
+        if role_user_filter:
+            userId = role_user_filter
+        if role_dept_filter:
+            departmentId = role_dept_filter
+        
+        logger.info(f"Speech analytics access: User {user.get('email')} (Role: {user.get('role')}) - UserFilter: {userId}, DeptFilter: {departmentId}")
+        
+        # For employees, ensure they can only see their own data
+        if user.get('role', '').upper() == 'EMPLOYEE':
+            if not userId or userId != user.get('id'):
+                logger.warning(f"Employee {user.get('email')} attempted to access speech analytics outside their scope. Forcing user filter.")
+                userId = user.get('id')
+            logger.info(f"Employee speech analytics access restricted to user_id: {userId}")
+        
+        # Continue with the analytics logic
         async with get_db() as db:
             start_date, end_date = await get_date_range_filter(dateRange)
             
+            # Build role-based filter clauses
+            user_filter = "AND u.id = :user_id" if userId else ""
+            dept_filter = "AND u.department_id = :dept_id" if departmentId else ""
+            
             # Get sentiment trends
-            sentiment_query = """
+            sentiment_query = f"""
                 SELECT 
                     DATE(sa.created_at) as date,
                     COUNT(CASE WHEN mental_state::text = 'CALM' THEN 1 END) as positive,
@@ -1816,13 +1926,16 @@ async def get_speech_analytics(
                     AVG(transcription_confidence) as "averageScore"
                 FROM speech_analyses sa
                 JOIN users u ON sa.user_id = u.id
-                WHERE sa.created_at BETWEEN :start_date AND :end_date
+                WHERE sa.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
                 GROUP BY DATE(sa.created_at)
                 ORDER BY date
             """
             
             # Get transcription accuracy
-            accuracy_query = """
+            subquery_user_filter = user_filter.replace('u.', 'u2.') if user_filter else ""
+            subquery_dept_filter = dept_filter.replace('u.', 'u2.') if dept_filter else ""
+            
+            accuracy_query = f"""
                 SELECT 
                     CASE 
                         WHEN transcription_confidence >= 0.9 THEN '0.9-1.0'
@@ -1832,40 +1945,50 @@ async def get_speech_analytics(
                         ELSE '0.0-0.6'
                     END as confidence,
                     COUNT(*) as count,
-                    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM speech_analyses WHERE created_at BETWEEN :start_date AND :end_date), 1) as percentage
+                    ROUND(COUNT(*) * 100.0 / GREATEST((SELECT COUNT(*) FROM speech_analyses sa2 JOIN users u2 ON sa2.user_id = u2.id WHERE sa2.created_at BETWEEN :start_date AND :end_date {subquery_user_filter} {subquery_dept_filter}), 1), 1) as percentage
                 FROM speech_analyses sa
                 JOIN users u ON sa.user_id = u.id
-                WHERE sa.created_at BETWEEN :start_date AND :end_date
+                WHERE sa.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
                 GROUP BY confidence
                 ORDER BY confidence DESC
             """
             
             # Get emotion distribution
-            emotion_query = """
+            subquery_user_filter = user_filter.replace('u.', 'u2.') if user_filter else ""
+            subquery_dept_filter = dept_filter.replace('u.', 'u2.') if dept_filter else ""
+            
+            emotion_query = f"""
                 SELECT 
                     mental_state as emotion,
                     COUNT(*) as count,
-                    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM speech_analyses WHERE created_at BETWEEN :start_date AND :end_date), 1) as percentage
+                    ROUND(COUNT(*) * 100.0 / GREATEST((SELECT COUNT(*) FROM speech_analyses sa2 JOIN users u2 ON sa2.user_id = u2.id WHERE sa2.created_at BETWEEN :start_date AND :end_date {subquery_user_filter} {subquery_dept_filter}), 1), 1) as percentage
                 FROM speech_analyses sa
                 JOIN users u ON sa.user_id = u.id
-                WHERE sa.created_at BETWEEN :start_date AND :end_date
+                WHERE sa.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
                 GROUP BY mental_state
                 ORDER BY count DESC
             """
             
             # Get processing metrics
-            metrics_query = """
+            metrics_query = f"""
                 SELECT 
                     AVG(processing_time_ms) as avg_processing_time,
                     AVG(audio_duration_seconds * 1000) as avg_audio_length,
                     COUNT(*) as total_sessions,
-                    COUNT(CASE WHEN transcription_confidence > 0.7 THEN 1 END) * 1.0 / COUNT(*) as success_rate
+                    CASE 
+                        WHEN COUNT(*) = 0 THEN 0 
+                        ELSE COUNT(CASE WHEN transcription_confidence > 0.7 THEN 1 END) * 1.0 / COUNT(*) 
+                    END as success_rate
                 FROM speech_analyses sa
                 JOIN users u ON sa.user_id = u.id
-                WHERE sa.created_at BETWEEN :start_date AND :end_date
+                WHERE sa.created_at BETWEEN :start_date AND :end_date {user_filter} {dept_filter}
             """
             
             params = {'start_date': start_date, 'end_date': end_date}
+            if userId:
+                params['user_id'] = userId
+            if departmentId:
+                params['dept_id'] = departmentId
             
             # Execute queries
             sentiment_result = await db.execute(text(sentiment_query), params)
@@ -1935,7 +2058,8 @@ async def get_chat_analytics(
     sessionType: str = Query('all', description="Filter by session type"),
     riskLevel: str = Query('all', description="Filter by risk level"),
     departmentId: Optional[int] = Query(None, description="Filter by department ID"),
-    userId: Optional[str] = Query(None, description="Filter by user ID")
+    userId: Optional[str] = Query(None, description="Filter by user ID"),
+    token: Optional[str] = Depends(get_token)
 ):
     """
     Get comprehensive chat analytics data including message trends, sentiment analysis,
@@ -1955,6 +2079,32 @@ async def get_chat_analytics(
     REQUESTS.labels(endpoint='analytics-chat').inc()
     
     try:
+        # Import role-based analytics
+        from role_based_analytics import authenticate_and_authorize, get_role_analytics
+        
+        # Authenticate user and get role-based filters
+        user = await authenticate_and_authorize(token, CORE_SERVICE_URL)
+        role_analytics = get_role_analytics(CORE_SERVICE_URL)
+        
+        # Get role-based filters
+        role_user_filter, role_dept_filter = role_analytics.get_analytics_filters(user)
+        
+        # Apply role-based overrides
+        if role_user_filter:
+            userId = role_user_filter
+        if role_dept_filter:
+            departmentId = role_dept_filter
+        
+        logger.info(f"Chat analytics access: User {user.get('email')} (Role: {user.get('role')}) - UserFilter: {userId}, DeptFilter: {departmentId}")
+        
+        # For employees, ensure they can only see their own data
+        if user.get('role', '').upper() == 'EMPLOYEE':
+            if not userId or userId != user.get('id'):
+                logger.warning(f"Employee {user.get('email')} attempted to access chat analytics outside their scope. Forcing user filter.")
+                userId = user.get('id')
+            logger.info(f"Employee chat analytics access restricted to user_id: {userId}")
+        
+        # Continue with analytics logic
         async with get_db() as db:
             start_date, end_date = await get_date_range_filter(dateRange)
             
@@ -2296,12 +2446,39 @@ async def get_survey_analytics(
     sessionType: str = 'all',
     riskLevel: str = 'all',
     departmentId: int = None,
-    userId: str = None
+    userId: str = None,
+    token: Optional[str] = Depends(get_token)
 ):
     """Get survey analytics data"""
     REQUESTS.labels(endpoint='analytics-survey').inc()
     
     try:
+        # Import role-based analytics
+        from role_based_analytics import authenticate_and_authorize, get_role_analytics
+        
+        # Authenticate user and get role-based filters
+        user = await authenticate_and_authorize(token, CORE_SERVICE_URL)
+        role_analytics = get_role_analytics(CORE_SERVICE_URL)
+        
+        # Get role-based filters
+        role_user_filter, role_dept_filter = role_analytics.get_analytics_filters(user)
+        
+        # Apply role-based overrides
+        if role_user_filter:
+            userId = role_user_filter
+        if role_dept_filter:
+            departmentId = role_dept_filter
+        
+        logger.info(f"Survey analytics access: User {user.get('email')} (Role: {user.get('role')}) - UserFilter: {userId}, DeptFilter: {departmentId}")
+        
+        # For employees, ensure they can only see their own data
+        if user.get('role', '').upper() == 'EMPLOYEE':
+            if not userId or userId != user.get('id'):
+                logger.warning(f"Employee {user.get('email')} attempted to access survey analytics outside their scope. Forcing user filter.")
+                userId = user.get('id')
+            logger.info(f"Employee survey analytics access restricted to user_id: {userId}")
+        
+        # Continue with analytics logic
         async with get_db() as db:
             start_date, end_date = await get_date_range_filter(dateRange)
             

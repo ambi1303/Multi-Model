@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
 
 from config import get_config
 from database import get_async_db, db_manager
@@ -86,19 +87,28 @@ async def create_default_data():
             return
         
         async with db_manager.get_async_session() as db:
-            # Create default department
-            logger.info("Checking for existing IT Department...")
-            existing_dept = await services.department.get_by_name(db, "IT Department")
-            if not existing_dept:
-                logger.info("Creating default IT Department...")
-                dept_data = schemas.DepartmentCreate(
-                    name="IT Department",
-                    description="Information Technology Department"
-                )
-                await services.department.create(db, obj_in=dept_data)
-                logger.info("✅ Created default IT Department")
-            else:
-                logger.info("IT Department already exists")
+            # Create default departments
+            default_departments = [
+                {"name": "Engineering", "description": "Engineering and Development Department"},
+                {"name": "Human Resources", "description": "Human Resources Department"},
+                {"name": "Sales", "description": "Sales and Business Development Department"},
+                {"name": "Marketing", "description": "Marketing and Communications Department"},
+                {"name": "IT Department", "description": "Information Technology Department"},
+            ]
+            
+            for dept_info in default_departments:
+                logger.info(f"Checking for existing {dept_info['name']}...")
+                existing_dept = await services.department.get_by_name(db, dept_info['name'])
+                if not existing_dept:
+                    logger.info(f"Creating default {dept_info['name']}...")
+                    dept_data = schemas.DepartmentCreate(
+                        name=dept_info['name'],
+                        description=dept_info['description']
+                    )
+                    await services.department.create(db, obj_in=dept_data)
+                    logger.info(f"✅ Created default {dept_info['name']}")
+                else:
+                    logger.info(f"{dept_info['name']} already exists")
             
             # Create admin user if it doesn't exist
             admin_email = "admin@company.com"
@@ -106,16 +116,27 @@ async def create_default_data():
             existing_admin = await services.user.get_by_email(db, admin_email)
             if not existing_admin:
                 logger.info("Creating default admin user...")
-                admin_data = schemas.UserRegister(
-                    email=admin_email,
-                    password="AdminPass123!",
-                    first_name="System",
-                    last_name="Administrator",
-                    employee_id="ADMIN001",
-                    role=schemas.UserRole.ADMIN
-                )
-                await services.auth.register_user(db, admin_data)
-                logger.info("✅ Created default admin user")
+                # Get the IT Department ID for admin user
+                it_dept = await services.department.get_by_name(db, "IT Department")
+                if it_dept:
+                    admin_data = schemas.UserRegister(
+                        email=admin_email,
+                        password="AdminPass123!",
+                        first_name="System",
+                        last_name="Administrator",
+                        department_id=it_dept.id,
+                        phone_number="+1234567890"
+                    )
+                    # Create admin user with employee role first, then update role
+                    user, access_token, refresh_token = await services.auth.register_user(db, admin_data)
+                    # Update role to admin
+                    await db.execute(
+                        update(User).where(User.id == user.id).values(role=schemas.UserRole.ADMIN)
+                    )
+                    await db.commit()
+                    logger.info("✅ Created default admin user")
+                else:
+                    logger.warning("Could not create admin user - IT Department not found")
             else:
                 logger.info("Admin user already exists")
                 
@@ -453,10 +474,9 @@ async def update_user(
 async def get_departments(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Get departments"""
+    """Get departments (public endpoint for registration)"""
     departments = await services.department.get_multi(db, skip=skip, limit=limit)
     return [schemas.Department.model_validate(dept) for dept in departments]
 
@@ -483,7 +503,7 @@ async def store_chat_analysis(
     db: AsyncSession = Depends(get_async_db)
 ):
     """Store new chat analysis and broadcast update"""
-    analysis = await services.chat_analysis.store(db, obj_in=analysis_data)
+    analysis = await services.analysis.store_chat_analysis(db, analysis_data)
     
     # After storing, fetch updated analytics and broadcast
     updated_analytics = await services.analytics.get_overview_analytics(
@@ -642,7 +662,7 @@ async def store_speech_analysis(
     db: AsyncSession = Depends(get_async_db)
 ):
     """Store new speech analysis and broadcast update"""
-    analysis = await services.speech_analysis.store(db, obj_in=analysis_data)
+    analysis = await services.analysis.store_speech_analysis(db, analysis_data)
     
     if current_user:
         updated_analytics = await services.analytics.get_overview_analytics(
@@ -737,7 +757,7 @@ async def store_video_analysis(
     db: AsyncSession = Depends(get_async_db)
 ):
     """Store new video analysis and broadcast update"""
-    analysis = await services.video_analysis.store(db, obj_in=analysis_data)
+    analysis = await services.analysis.store_video_analysis(db, analysis_data)
     
     updated_analytics = await services.analytics.get_overview_analytics(
         db, 
@@ -1225,7 +1245,7 @@ async def store_survey_response(
     db: AsyncSession = Depends(get_async_db)
 ):
     """Store new survey response and broadcast update"""
-    response = await services.survey.store_response(db, obj_in=response_data)
+    response = await services.survey.store_survey_response(db, response_data)
     
     updated_analytics = await services.analytics.get_overview_analytics(
         db, 

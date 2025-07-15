@@ -25,7 +25,6 @@ function App() {
               {/* AppShell now acts as the protected layout route */}
               <Route element={<AppShell />}>
                 <Route index element={lazyLoad(() => import('./pages/Home'))} />
-                <Route path="dashboard" element={lazyLoad(() => import('./pages/Dashboard'))} />
                 <Route path="video" element={lazyLoad(() => import('./pages/VideoAnalysis'))} />
                 <Route path="speech" element={lazyLoad(() => import('./pages/SpeechAnalysis'))} />
                 <Route path="chat" element={lazyLoad(() => import('./pages/ChatAnalysis'))} />

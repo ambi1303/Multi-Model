@@ -3,13 +3,18 @@ Repository layer implementing the repository pattern for all data access operati
 """
 from typing import Optional, List, Dict, Any, Type
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, desc, asc, update, delete
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 
 from database import BaseRepository
+
+# Utility function for timezone-aware datetime
+def utc_now() -> datetime:
+    """Get current UTC datetime with timezone info"""
+    return datetime.now(timezone.utc)
 from models import (
     User, Department, ChatAnalysis, SpeechAnalysis, VideoAnalysis,
     EmoBuddySession, EmoBuddyMessage, SurveyResponse, AuditLog, SystemHealth,
@@ -201,7 +206,7 @@ class ChatAnalysisRepository(BaseRepository[ChatAnalysis, schemas.ChatAnalysisCr
         days: int = 30
     ) -> List[Dict[str, Any]]:
         """Get sentiment trend for user over specified days"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(
@@ -234,7 +239,7 @@ class ChatAnalysisRepository(BaseRepository[ChatAnalysis, schemas.ChatAnalysisCr
         days: int = 30
     ) -> List[Dict[str, Any]]:
         """Get emotion distribution for user"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(
@@ -288,7 +293,7 @@ class SpeechAnalysisRepository(BaseRepository[SpeechAnalysis, schemas.SpeechAnal
         days: int = 30
     ) -> Dict[str, Any]:
         """Get speaking patterns for user"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(
@@ -343,7 +348,7 @@ class VideoAnalysisRepository(BaseRepository[VideoAnalysis, schemas.VideoAnalysi
         days: int = 30
     ) -> List[Dict[str, Any]]:
         """Get emotion timeline summary for user"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(
@@ -433,7 +438,7 @@ class EmoBuddySessionRepository(BaseRepository[EmoBuddySession, schemas.EmoBuddy
         days: int = 30
     ) -> Dict[str, Any]:
         """Get session statistics for user"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(
@@ -521,7 +526,7 @@ class SurveyResponseRepository(BaseRepository[SurveyResponse, schemas.SurveyResp
         days: int = 90
     ) -> List[Dict[str, Any]]:
         """Get burnout trend for user"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(
@@ -597,7 +602,7 @@ class AuditLogRepository(BaseRepository[AuditLog, schemas.AuditLogCreate, None])
         limit: int = 100
     ) -> List[AuditLog]:
         """Get audit logs by action"""
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(AuditLog)
@@ -740,7 +745,7 @@ class AggregatedMetricRepository(BaseRepository[AggregatedMetric, schemas.Aggreg
     async def get_trend_data(self, db: AsyncSession, dept_id: int, metric_type: str, days: int = 30) -> List[AggregatedMetric]:
         """Get trend data for specified time period"""
         from datetime import datetime, timedelta
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = utc_now() - timedelta(days=days)
         
         result = await db.execute(
             select(AggregatedMetric)

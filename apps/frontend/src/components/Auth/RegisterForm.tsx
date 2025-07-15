@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -20,7 +20,7 @@ import {
   FormControl,
   InputLabel
 } from '@mui/material';
-import { Eye, EyeOff, Mail, Lock, User as UserIcon, Building, Phone, Briefcase } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User as UserIcon, Building, Phone } from 'lucide-react';
 import { UserRegister } from '../../types';
 import api from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
@@ -32,9 +32,9 @@ const schema = yup.object().shape({
   confirmPassword: yup.string().oneOf([yup.ref('password')], 'Passwords must match').required('Confirm Password is required'),
   firstName: yup.string().required('First name is required'),
   lastName: yup.string().required('Last name is required'),
-  employeeId: yup.string().required('Employee ID is required'),
-  departmentId: yup.number().min(1, 'Please select a department').required('Department is required'),
-  role: yup.string().oneOf(['employee', 'manager', 'admin']).default('employee'),
+  departmentId: yup.number().transform((value, originalValue) => 
+    originalValue === '' ? undefined : value
+  ).min(1, 'Please select a department').required('Department is required'),
   phoneNumber: yup.string().required('Phone number is required'),
 });
 
@@ -42,6 +42,12 @@ const registerUser = async (userData: any) => {
   const response = await api.post('/auth/register', userData);
   return response.data;
 };
+
+interface Department {
+  id: number;
+  name: string;
+  description?: string;
+}
 
 export const RegisterForm = () => {
   const {
@@ -54,6 +60,8 @@ export const RegisterForm = () => {
   });
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
   const addNotification = useAppStore((state) => state.addNotification);
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(1);
@@ -65,26 +73,53 @@ export const RegisterForm = () => {
     }
   };
 
+  // Fetch departments on component mount
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        setLoadingDepartments(true);
+        const response = await api.get('/departments');
+        setDepartments(response.data);
+      } catch (error) {
+        console.error('Failed to fetch departments:', error);
+        addNotification({
+          message: 'Failed to load departments. Please refresh the page.',
+          type: 'error',
+        });
+        // Fallback to hardcoded departments if API fails
+        setDepartments([
+          { id: 13, name: 'Engineering' },
+          { id: 14, name: 'Human Resources' },
+          { id: 15, name: 'Sales' },
+          { id: 16, name: 'Marketing' },
+          { id: 17, name: 'IT Department' },
+        ]);
+      } finally {
+        setLoadingDepartments(false);
+      }
+    };
+
+    fetchDepartments();
+  }, [addNotification]);
+
   const onSubmit = async (data: UserRegister) => {
     try {
       setServerError(null);
       const { confirmPassword, ...registerData } = data;
       
-      // Sanitize data before sending
+      // Sanitize data before sending (employee_id and role are auto-generated)
       const payload = {
         first_name: registerData.firstName,
         last_name: registerData.lastName,
         email: registerData.email,
         password: registerData.password,
-        employee_id: registerData.employeeId,
         phone_number: registerData.phoneNumber,
         department_id: Number(registerData.departmentId),
-        role: registerData.role || 'employee',
       };
       
       await registerUser(payload);
       addNotification({
-        message: 'Registration successful! Please log in with your new account.',
+        message: 'Registration successful! Your employee ID has been automatically generated. Please log in with your new account.',
         type: 'success',
       });
       navigate('/login');
@@ -104,13 +139,6 @@ export const RegisterForm = () => {
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
-
-  const departments = [
-    { id: 1, name: 'Engineering' },
-    { id: 2, name: 'Human Resources' },
-    { id: 3, name: 'Sales' },
-    { id: 4, name: 'Marketing' },
-  ];
 
   return (
     <Box>
@@ -232,24 +260,7 @@ export const RegisterForm = () => {
               )}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <Controller
-              name="employeeId"
-              control={control}
-              defaultValue=""
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Employee ID"
-                  fullWidth
-                  error={!!errors.employeeId}
-                  helperText={errors.employeeId?.message}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><Briefcase size={20} /></InputAdornment> }}
-                />
-              )}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12}>
             <Controller
               name="phoneNumber"
               control={control}
@@ -269,18 +280,22 @@ export const RegisterForm = () => {
           <Grid item xs={12}>
             <FormControl fullWidth error={!!errors.departmentId}>
               <InputLabel id="department-select-label">Department</InputLabel>
-              <Controller
-                name="departmentId"
-                control={control}
-                defaultValue={undefined}
-                render={({ field }) => (
-                  <Select
-                    {...field}
-                    labelId="department-select-label"
-                    label="Department"
-                    startAdornment={<InputAdornment position="start"><Building size={20} /></InputAdornment>}
-                  >
-                    <MenuItem value={0} disabled><em>Select a department...</em></MenuItem>
+                          <Controller
+              name="departmentId"
+              control={control}
+              defaultValue=""
+              render={({ field }) => (
+                                  <Select
+                  {...field}
+                  value={field.value || ''}
+                  labelId="department-select-label"
+                  label="Department"
+                  disabled={loadingDepartments}
+                  startAdornment={<InputAdornment position="start"><Building size={20} /></InputAdornment>}
+                >
+                    <MenuItem value={0} disabled>
+                      <em>{loadingDepartments ? 'Loading departments...' : 'Select a department...'}</em>
+                    </MenuItem>
                     {departments.map((dept) => (
                       <MenuItem key={dept.id} value={dept.id}>
                         {dept.name}
@@ -290,6 +305,11 @@ export const RegisterForm = () => {
                 )}
               />
               {errors.departmentId && <Typography variant="caption" color="error">{errors.departmentId.message}</Typography>}
+              {loadingDepartments && (
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1 }}>
+                  Loading departments...
+                </Typography>
+              )}
             </FormControl>
           </Grid>
         </Grid>
