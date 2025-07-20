@@ -5,3 +5,5 @@ opencv-python
 deepface
 prometheus-client
 httpx 
+tf-keras
+psutil

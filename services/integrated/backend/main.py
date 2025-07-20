@@ -27,12 +27,14 @@ from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
+from fastapi import  Query
+from typing import Dict, Optional, List
+from datetime import datetime, timedelta
+import logging
 
 
 # Add imports for datetime and random for generating mock data
 import random
-from datetime import datetime, timedelta
-
 # Add database imports at the top
 import os
 import sys
@@ -62,7 +64,7 @@ def setup_database():
     
     try:
         # Use the working database connection
-        DATABASE_URL = "postgresql+asyncpg://neondb_owner:npg_HSY7PwQV1arg@ep-wild-fog-a8k8okly-pooler.eastus2.azure.neon.tech/neondb"
+        DATABASE_URL = "postgresql+asyncpg://neondb_owner:npg_9ZuIASjaYV1N@ep-wild-fog-a8k8okly-pooler.eastus2.azure.neon.tech/neondb"
         
         # Create async engine for PostgreSQL
         async_engine = create_async_engine(
@@ -1824,7 +1826,10 @@ async def get_overview_analytics(
         
         # Authenticate user and get role-based filters
         user = await authenticate_and_authorize(token, CORE_SERVICE_URL)
+        print("Token received:", token)
+
         role_analytics = get_role_analytics(CORE_SERVICE_URL)
+        print("CORE_SERVICE_URL:", CORE_SERVICE_URL)
         
         # Get role-based filters (this will override departmentId and userId based on role)
         role_user_filter, role_dept_filter = role_analytics.get_analytics_filters(user)
@@ -2231,17 +2236,11 @@ async def get_speech_analytics(
         logger.error(f"Error in get_speech_analytics: {e}", exc_info=True)
         raise
 
-from fastapi import HTTPException, Query
-from typing import Dict, Optional, List
-from datetime import datetime, timedelta
-import logging
+
 
 logger = logging.getLogger(__name__)
 
-from fastapi import HTTPException, Query
-from typing import Dict, Optional, List
-from datetime import datetime, timedelta
-import logging
+
 
 logger = logging.getLogger(__name__)
 

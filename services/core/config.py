@@ -2,6 +2,7 @@
 Centralized configuration management for all backend services
 """
 import os
+import sys
 from typing import Optional, List
 from pydantic import field_validator, ConfigDict
 from pydantic_settings import BaseSettings
@@ -9,7 +10,9 @@ from functools import lru_cache
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True, dotenv_path=".env")
+print("→ [DEBUG] Loaded DATABASE_URL:", repr(os.getenv("DATABASE_URL")), file=sys.stderr)
+
 
 
 class DatabaseConfig(BaseSettings):
