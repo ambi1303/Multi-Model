@@ -23,13 +23,14 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
   const theme = useTheme();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   
-  // Validate and filter data
+  // Validate and filter data - allow zero values as they can be legitimate data points
   const validData = data?.filter(item => 
     item && 
     typeof item.value === 'number' && 
     !isNaN(item.value) && 
-    item.value > 0 &&
-    item.name
+    item.value >= 0 && // Changed from > 0 to >= 0 to allow zero values
+    item.name &&
+    item.name.trim() !== ''
   ) || [];
   
   if (validData.length === 0) {
@@ -45,8 +46,8 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
   const maxValue = Math.max(...validData.map(d => d.value));
   const minValue = Math.min(...validData.map(d => d.value));
   
-  // Chart dimensions
-  const chartWidth = 400;
+  // Chart dimensions with better responsive sizing
+  const chartWidth = Math.min(500, window.innerWidth * 0.8); // Responsive width
   const chartHeight = height - 80; // Leave space for title and labels
   const padding = { top: 20, right: 20, bottom: 40, left: 60 };
   const innerWidth = chartWidth - padding.left - padding.right;
@@ -497,84 +498,148 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
 
   const renderPieChart = () => {
     const total = validData.reduce((sum, item) => sum + item.value, 0);
-    const centerX = chartWidth * 0.35; // Move pie chart to the left
-    const centerY = chartHeight / 2;
-    const radius = Math.min(chartWidth * 0.25, chartHeight / 2) - 20; // Smaller radius
+    
+    // Handle case where total is 0
+    if (total === 0) {
+      return (
+        <Box sx={{ width: '100%', height, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            No data to display in pie chart
+          </Typography>
+        </Box>
+      );
+    }
+    
+    // Better sizing for pie chart
+    const pieChartWidth = Math.min(chartWidth * 0.6, 300);
+    const pieChartHeight = Math.min(chartHeight, 300);
+    const centerX = pieChartWidth / 2;
+    const centerY = pieChartHeight / 2;
+    const radius = Math.min(centerX, centerY) - 30; // More padding
     
     let currentAngle = -90; // Start from top
 
     return (
       <Box sx={{ width: '100%', height, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {title && (
-          <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ mb: 2, textAlign: 'center', fontWeight: 600 }}>
             {title}
           </Typography>
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, width: '100%' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          gap: 4, 
+          width: '100%',
+          flexWrap: 'wrap'
+        }}>
           {/* Pie Chart */}
-          <svg width={chartWidth * 0.7} height={chartHeight}>
-            {validData.map((item, index) => {
-              const percentage = (item.value / total) * 100;
-              const angle = (item.value / total) * 360;
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <svg width={pieChartWidth} height={pieChartHeight}>
+              {/* Add a subtle background circle */}
+              <circle
+                cx={centerX}
+                cy={centerY}
+                r={radius + 2}
+                fill="none"
+                stroke={theme.palette.divider}
+                strokeWidth="1"
+                opacity="0.3"
+              />
               
-              if (percentage < 1) return null; // Skip very small slices
-              
-              const startAngle = currentAngle;
-              const endAngle = currentAngle + angle;
-              currentAngle += angle;
-              
-              const startAngleRad = (startAngle * Math.PI) / 180;
-              const endAngleRad = (endAngle * Math.PI) / 180;
-              
-              const x1 = centerX + radius * Math.cos(startAngleRad);
-              const y1 = centerY + radius * Math.sin(startAngleRad);
-              const x2 = centerX + radius * Math.cos(endAngleRad);
-              const y2 = centerY + radius * Math.sin(endAngleRad);
-              
-              const largeArcFlag = angle > 180 ? 1 : 0;
-              
-              const pathData = [
-                `M ${centerX} ${centerY}`,
-                `L ${x1} ${y1}`,
-                `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-                'Z'
-              ].join(' ');
-              
-              // Label position inside the slice
-              const labelAngle = (startAngle + endAngle) / 2;
-              const labelAngleRad = (labelAngle * Math.PI) / 180;
-              const labelX = centerX + (radius * 0.7) * Math.cos(labelAngleRad);
-              const labelY = centerY + (radius * 0.7) * Math.sin(labelAngleRad);
-              
-              return (
-                <g key={index}>
-                  <path
-                    d={pathData}
-                    fill={item.color || getDefaultColor(index)}
-                    stroke="#fff"
-                    strokeWidth="3"
-                  />
-                  {percentage > 8 && (
-                    <text
-                      x={labelX}
-                      y={labelY}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fill="#fff"
-                      fontWeight="bold"
-                    >
-                      {percentage.toFixed(0)}%
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
+              {validData.map((item, index) => {
+                const percentage = (item.value / total) * 100;
+                const angle = (item.value / total) * 360;
+                
+                // Show all slices, but handle very small ones differently
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + angle;
+                currentAngle += angle;
+                
+                const startAngleRad = (startAngle * Math.PI) / 180;
+                const endAngleRad = (endAngle * Math.PI) / 180;
+                
+                const x1 = centerX + radius * Math.cos(startAngleRad);
+                const y1 = centerY + radius * Math.sin(startAngleRad);
+                const x2 = centerX + radius * Math.cos(endAngleRad);
+                const y2 = centerY + radius * Math.sin(endAngleRad);
+                
+                const largeArcFlag = angle > 180 ? 1 : 0;
+                
+                const pathData = [
+                  `M ${centerX} ${centerY}`,
+                  `L ${x1} ${y1}`,
+                  `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                  'Z'
+                ].join(' ');
+                
+                // Label position inside the slice (only for larger slices)
+                const labelAngle = (startAngle + endAngle) / 2;
+                const labelAngleRad = (labelAngle * Math.PI) / 180;
+                const labelX = centerX + (radius * 0.7) * Math.cos(labelAngleRad);
+                const labelY = centerY + (radius * 0.7) * Math.sin(labelAngleRad);
+                
+                return (
+                  <g key={index}>
+                    <path
+                      d={pathData}
+                      fill={item.color || getDefaultColor(index)}
+                      stroke={theme.palette.background.paper}
+                      strokeWidth="2"
+                      style={{
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        filter: hoveredIndex === index ? 'brightness(1.1)' : 'none',
+                        transform: hoveredIndex === index ? 'scale(1.02)' : 'scale(1)',
+                        transformOrigin: `${centerX}px ${centerY}px`,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(index)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+                    {percentage > 5 && (
+                      <text
+                        x={labelX}
+                        y={labelY}
+                        textAnchor="middle"
+                        fontSize="11"
+                        fill={theme.palette.getContrastText(item.color || getDefaultColor(index))}
+                        fontWeight="bold"
+                        pointerEvents="none"
+                      >
+                        {percentage.toFixed(0)}%
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </Box>
           
           {/* Legend */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 150 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 1.5, 
+            minWidth: 200,
+            maxWidth: 300
+          }}>
             {validData.map((item, index) => (
-              <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box 
+                key={index} 
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1.5,
+                  p: 1,
+                  borderRadius: 1,
+                  backgroundColor: hoveredIndex === index ? theme.palette.action.hover : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              >
                 <Box
                   sx={{
                     width: 16,
@@ -582,14 +647,19 @@ export const SimpleChartFallback: React.FC<SimpleChartProps> = ({
                     borderRadius: '50%',
                     backgroundColor: item.color || getDefaultColor(index),
                     flexShrink: 0,
+                    boxShadow: hoveredIndex === index ? 2 : 0,
                   }}
                 />
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
-                    {item.name}: {item.value}
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography variant="body2" sx={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: 500,
+                    color: 'text.primary'
+                  }}>
+                    {item.name}: {item.value.toLocaleString()}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    ({((item.value / total) * 100).toFixed(1)}%)
+                    {((item.value / total) * 100).toFixed(1)}%
                   </Typography>
                 </Box>
               </Box>

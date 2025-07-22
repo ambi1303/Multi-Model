@@ -26,7 +26,7 @@ import {
   TimerIcon,
   BarChartIcon,
 } from '../../utils/icons';
-import { SimpleChartFallback } from '../charts/SimpleChartFallback';
+import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';
 import { ChatAnalyticsData, AnalyticsFilters } from '../../types/analytics';
 
@@ -441,15 +441,16 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                   )}
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Daily message volume and sentiment score trends
+                  Daily message volume and sentiment percentage trends (0% = negative, 100% = positive)
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.messageTrends.map(item => ({
                     name: item.date,
-                    value: item.avgSentimentScore
+                    value: Math.round(item.avgSentimentScore * 100 * 100) / 100 // Convert to percentage with 2 decimal places
                   }))}
                   type="line"
-                  title="Sentiment Score Trends"
+                  title="Sentiment Score Trends (%)"
+                  height={350}
                 />
               </CardContent>
             </Card>
@@ -468,7 +469,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                 <Typography variant="h6" gutterBottom>
                   Sentiment Distribution
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.sentimentDistribution.map(item => ({
                     name: item.sentiment,
                     value: item.count,
@@ -476,6 +477,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                   }))}
                   type="pie"
                   title="Sentiment Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>
@@ -494,7 +496,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                 <Typography variant="h6" gutterBottom>
                   Emotion Distribution
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.emotionDistribution.map(item => ({
                     name: `${getEmotionEmoji(item.emotion)} ${item.emotion}`,
                     value: item.count,
@@ -502,6 +504,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                   }))}
                   type="bar"
                   title="Emotion Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>
@@ -520,7 +523,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                 <Typography variant="h6" gutterBottom>
                   Mental State Distribution
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.mentalStateDistribution.map(item => ({
                     name: `${getMentalStateEmoji(item.mentalState)} ${item.mentalState}`,
                     value: item.count,
@@ -528,6 +531,7 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                   }))}
                   type="pie"
                   title="Mental State Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>
@@ -608,13 +612,14 @@ export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ 
                     </Typography>
                   </Alert>
                 )}
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.confidenceAnalysis.map(item => ({
                     name: item.range,
                     value: item.count
                   }))}
                   type="bar"
                   title="Confidence Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>

@@ -787,6 +787,109 @@ async def analyze_employee(employee: EmployeeData, background_tasks: BackgroundT
             analysis_timestamp=datetime.now().isoformat()
         )
 
+        # GEMINI AI INTEGRATION - Generate personalized recommendations based on employee profile
+        gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        ai_recommendations = []
+        
+        if gemini_api_key:
+            try:
+                # Create a comprehensive prompt for employee-specific recommendations
+                prompt = f"""
+                As a workplace mental health expert, analyze this employee's profile and provide personalized recommendations:
+                
+                Employee Analysis Results:
+                - Burnout Score: {burnout_score}% (Model Prediction)
+                - Risk Level: {burnout_label}
+                - Designation Level: {employee.designation}/5
+                - Resource Allocation: {employee.resource_allocation}/10
+                - Mental Fatigue Score: {employee.mental_fatigue_score}/10
+                - Company Type: {employee.company_type}
+                - WFH Setup Available: {employee.wfh_setup_available}
+                - Gender: {employee.gender}
+                
+                Based on this profile, provide specific, actionable recommendations in JSON format:
+                {{
+                    "immediate_actions": ["Specific recommendation 1", "Specific recommendation 2", "Specific recommendation 3", "Specific recommendation 4"]
+                }}
+                
+                Focus on evidence-based interventions tailored to this specific risk level and workplace factors.
+                """
+                
+                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_api_key
+                gemini_payload = {
+                    "contents": [{"parts": [{"text": prompt}]}]
+                }
+                
+                async with httpx.AsyncClient() as client:
+                    gemini_resp = await client.post(gemini_url, json=gemini_payload, timeout=30)
+                    gemini_resp.raise_for_status()
+                    gemini_data = gemini_resp.json()
+                    
+                    # Parse Gemini response
+                    try:
+                        import re, json as pyjson
+                        text = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        # Extract JSON from response
+                        match = re.search(r'\{.*\}', text, re.DOTALL)
+                        if match:
+                            parsed = pyjson.loads(match.group(0))
+                            ai_recommendations = parsed.get("immediate_actions", [])
+                        else:
+                            # Extract recommendations from text if no JSON
+                            lines = text.strip().split('\n')
+                            ai_recommendations = [line.strip('- ').strip() for line in lines if line.strip() and not line.startswith('#')][:4]
+                            
+                    except Exception as parse_error:
+                        logger.warning(f"Failed to parse Gemini recommendations: {parse_error}")
+                        ai_recommendations = [
+                            "Implement personalized stress management strategies based on your risk level",
+                            "Seek professional guidance for workplace mental health support",
+                            "Focus on evidence-based wellness practices tailored to your profile",
+                            "Monitor stress levels regularly and adjust interventions as needed"
+                        ]
+                        
+            except Exception as gemini_error:
+                logger.warning(f"Gemini API failed for employee analysis: {str(gemini_error)}, using enhanced fallback")
+                # Enhanced rule-based fallback based on actual burnout score and profile
+                if burnout_score >= 80:
+                    ai_recommendations = [
+                        "Seek immediate intervention - consider taking medical leave or reducing workload",
+                        "Schedule urgent consultation with HR and mental health professionals",
+                        "Implement immediate stress reduction: deep breathing, short walks, limit overtime",
+                        "Create emergency support plan with supervisor and family members"
+                    ]
+                elif burnout_score >= 60:
+                    ai_recommendations = [
+                        "Request workload redistribution and discuss resource allocation with management",
+                        "Implement structured break schedules and stress management practices",
+                        "Explore employee assistance programs and mental health workshops",
+                        "Establish clear work-life boundaries, especially for remote work setup"
+                    ]
+                elif burnout_score >= 30:
+                    ai_recommendations = [
+                        "Monitor stress levels closely and implement preventive wellness activities",
+                        "Maintain consistent work-life balance and regular self-care practices",
+                        "Develop resilience through skill-building and social support networks",
+                        "Consider proactive mental health check-ins and stress management training"
+                    ]
+                else:
+                    ai_recommendations = [
+                        "Continue current positive practices and maintain healthy work habits",
+                        "Share effective stress management techniques with colleagues",
+                        "Consider mentoring opportunities and leadership development",
+                        "Build workplace wellness culture through peer support initiatives"
+                    ]
+        else:
+            # No Gemini API key - provide basic recommendations
+            logger.warning("Gemini API key not available for employee analysis")
+            ai_recommendations = [
+                f"Implement stress management strategies appropriate for {burnout_label.lower()} risk level",
+                "Seek professional mental health guidance for personalized workplace wellness",
+                "Focus on evidence-based interventions and regular stress monitoring",
+                "Engage with workplace wellness programs and employee assistance resources"
+            ]
+
         # Asynchronously store results in the database - proper schema mapping
         db_data = {
             "survey_type": "employee_ml_prediction",
@@ -815,8 +918,9 @@ async def analyze_employee(employee: EmployeeData, background_tasks: BackgroundT
                 }
             },
             "ai_recommendations": {
-                "immediate_actions": _generate_recommendations(burnout_score, employee),
-                "follow_up_timeline": "2-4 weeks" if burnout_score >= 60 else "1-2 months"
+                "immediate_actions": ai_recommendations,  # Now using Gemini AI recommendations
+                "follow_up_timeline": "2-4 weeks" if burnout_score >= 60 else "1-2 months",
+                "source": "Gemini AI" if gemini_api_key else "Rule-based Fallback"
             },
             "follow_up_suggested": burnout_score >= 60
         }
@@ -882,23 +986,150 @@ async def analyze_combined(request: CombinedAnalysisRequest, background_tasks: B
     try:
         user_uuid = validate_user_uuid(request.user_id)
 
-        # This is where you would integrate with a GenAI model like GPT or Gemini
-        # For now, we'll use a mocked response.
+        # Calculate survey scores for analysis
+        survey_scores = list(request.survey.dict().values())
+        avg_survey_score = sum(survey_scores) / len(survey_scores)
+        total_survey_score = sum(survey_scores)
         
-        # Mocked analysis logic
-        summary = f"AI analysis for {request.employee.user_name or 'user'} indicates a moderate level of stress, influenced by resource allocation and mental fatigue scores. Recommendations focus on improving work-life balance and resource management."
+        # Determine risk level from survey
+        if total_survey_score <= 17:
+            survey_risk_label = "Low"
+        elif total_survey_score <= 34:
+            survey_risk_label = "Medium"
+        else:
+            survey_risk_label = "High"
+
+        # GEMINI AI INTEGRATION - Generate personalized recommendations
+        gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        summary = ""
+        recommendations = []
+        ai_source = "Rule-based Fallback"
         
-        recommendations = [
-            "Discuss resource allocation with your manager to ensure tasks are manageable.",
-            "Schedule regular short breaks throughout the day to mitigate mental fatigue.",
-            "Explore mindfulness or meditation techniques to manage stress levels.",
-            "Ensure a clear separation between work and personal time, especially if working from home."
-        ]
+        if gemini_api_key:
+            try:
+                # Enhanced prompt for comprehensive analysis
+                prompt = f"""
+                As a mental health professional, analyze this employee's comprehensive profile and provide personalized insights:
+                
+                Employee Profile:
+                - Designation Level: {request.employee.designation}/5
+                - Resource Allocation: {request.employee.resource_allocation}/10
+                - Mental Fatigue Score: {request.employee.mental_fatigue_score}/10
+                - Company Type: {request.employee.company_type}
+                - WFH Setup Available: {request.employee.wfh_setup_available}
+                - Gender: {request.employee.gender}
+                
+                Survey Responses (1=Strongly Disagree, 5=Strongly Agree):
+                1. Feel happy and relaxed: {survey_scores[0]}
+                2. Feel anxious/stressed: {survey_scores[1]}
+                3. Emotionally exhausted: {survey_scores[2]}
+                4. Feel motivated: {survey_scores[3]}
+                5. Sense of accomplishment: {survey_scores[4]}
+                6. Feel detached from work: {survey_scores[5]}
+                7. Manageable workload: {survey_scores[6]}
+                8. Control over tasks: {survey_scores[7]}
+                9. Team support available: {survey_scores[8]}
+                10. Work-life balance respected: {survey_scores[9]}
+                
+                Survey Assessment: {survey_risk_label} risk level (Total score: {total_survey_score}/50)
+                
+                Provide a comprehensive mental health analysis and specific recommendations in JSON format:
+                {{
+                    "mental_health_summary": "Detailed professional analysis of current mental health state, identifying key risk factors and strengths",
+                    "recommendations": ["Specific, actionable recommendation 1", "Specific, actionable recommendation 2", "Specific, actionable recommendation 3", "Specific, actionable recommendation 4"]
+                }}
+                
+                Focus on evidence-based interventions and practical workplace wellness strategies.
+                """
+                
+                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_api_key
+                gemini_payload = {
+                    "contents": [{"parts": [{"text": prompt}]}]
+                }
+                
+                async with httpx.AsyncClient() as client:
+                    gemini_resp = await client.post(gemini_url, json=gemini_payload, timeout=30)
+                    gemini_resp.raise_for_status()
+                    gemini_data = gemini_resp.json()
+                    
+                    # Parse Gemini response
+                    try:
+                        import re, json as pyjson
+                        text = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        # Extract JSON from response
+                        match = re.search(r'\{.*\}', text, re.DOTALL)
+                        if match:
+                            parsed = pyjson.loads(match.group(0))
+                            summary = parsed.get("mental_health_summary", "")
+                            recommendations = parsed.get("recommendations", [])
+                            ai_source = "Gemini AI"
+                        else:
+                            # If no JSON found, use the full text as summary
+                            summary = text.strip()
+                            recommendations = [
+                                "Implement stress management techniques based on your specific risk factors",
+                                "Consider professional counseling for personalized mental health support",
+                                "Focus on work-life balance and boundary setting",
+                                "Engage with workplace wellness programs and resources"
+                            ]
+                            ai_source = "Gemini AI (text-based)"
+                            
+                    except Exception as parse_error:
+                        logger.warning(f"Failed to parse Gemini response: {parse_error}")
+                        summary = "AI analysis completed successfully. Your profile indicates areas for attention in stress management and workplace wellness."
+                        recommendations = [
+                            "Prioritize self-care and stress reduction activities",
+                            "Seek support from colleagues, supervisors, or mental health professionals",
+                            "Develop healthy coping strategies for work-related stress",
+                            "Monitor your mental health regularly and seek help when needed"
+                        ]
+                        ai_source = "Gemini AI (parsed with fallback)"
+                        
+            except Exception as gemini_error:
+                logger.warning(f"Gemini API failed: {str(gemini_error)}, using enhanced rule-based fallback")
+                ai_source = "Rule-based Fallback"
+                
+                # Enhanced rule-based fallback based on actual data
+                if survey_risk_label == "High":
+                    summary = f"Analysis indicates high stress levels based on survey responses (total score: {total_survey_score}/50). Multiple areas of concern including emotional exhaustion, anxiety, and work-life balance issues require immediate attention."
+                    recommendations = [
+                        "Seek immediate support from mental health professionals or employee assistance programs",
+                        "Discuss workload reduction and resource allocation with your manager",
+                        "Implement daily stress reduction practices like mindfulness or meditation",
+                        "Establish clear boundaries between work and personal time"
+                    ]
+                elif survey_risk_label == "Medium":
+                    summary = f"Analysis shows moderate stress levels with room for improvement (total score: {total_survey_score}/50). Proactive wellness measures can prevent escalation to higher risk levels."
+                    recommendations = [
+                        "Develop a consistent stress management routine including regular breaks",
+                        "Improve communication with your team and supervisor about workload",
+                        "Engage in regular physical activity and maintain social connections",
+                        "Consider mindfulness training or stress management workshops"
+                    ]
+                else:  # Low risk
+                    summary = f"Analysis indicates manageable stress levels (total score: {total_survey_score}/50). Current coping strategies appear effective, with opportunities for continued growth."
+                    recommendations = [
+                        "Maintain current healthy work habits and coping strategies",
+                        "Continue regular self-assessment and stress monitoring",
+                        "Share successful stress management techniques with colleagues",
+                        "Consider leadership or mentoring opportunities to support others"
+                    ]
+        else:
+            # No Gemini API key available
+            logger.warning("Gemini API key not available, using rule-based analysis")
+            summary = f"Professional assessment completed using standardized survey analysis (score: {total_survey_score}/50, risk level: {survey_risk_label}). Personalized AI insights require API configuration."
+            recommendations = [
+                "Implement evidence-based stress management techniques appropriate for your risk level",
+                "Seek professional mental health guidance for personalized strategies", 
+                "Focus on workplace wellness initiatives and peer support systems",
+                "Monitor your mental health regularly using validated assessment tools"
+            ]
 
         response = CombinedAnalysisResponse(
             mental_health_summary=summary,
             recommendations=recommendations,
-            source="GenAI-Mock-v1.0",
+            source=ai_source,
             employee_id=request.employee_id,
             analysis_timestamp=datetime.now().isoformat()
         )

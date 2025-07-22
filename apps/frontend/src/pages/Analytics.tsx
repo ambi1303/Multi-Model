@@ -39,7 +39,7 @@ import {
 } from '../components/LazyComponents';
 import { SurveyAnalyticsDashboard } from '../components/analytics/SurveyAnalyticsDashboard';
 import SentimentTrendChart from '../components/charts/SentimentTrendChart';
-import SimpleChartFallback from '../components/charts/SimpleChartFallback';
+import ChartWrapper from '../components/charts/ChartWrapper';
 import { useAppStore } from '../store/useAppStore';
 import { socketService } from '../services/socket';
 
@@ -329,19 +329,19 @@ const Analytics: React.FC = () => {
           </Tabs>
           <CardContent>
             <TabPanel value={activeTab} index={0}>
-              {data && data.overview ? <OverviewDashboard data={data.overview} filters={filters} /> : <SimpleChartFallback data={[]} title="Overview" />}
+              {data && data.overview ? <OverviewDashboard data={data.overview} filters={filters} /> : <ChartWrapper data={[]} title="Overview" type="bar" />}
             </TabPanel>
             <TabPanel value={activeTab} index={1}>
-              {data && data.video ? <VideoAnalyticsDashboard data={data.video} /> : <SimpleChartFallback data={[]} title="Video Analysis" />}
+              {data && data.video ? <VideoAnalyticsDashboard data={data.video} /> : <ChartWrapper data={[]} title="Video Analysis" type="bar" />}
             </TabPanel>
             <TabPanel value={activeTab} index={2}>
-              {data && data.speech ? <SpeechAnalyticsDashboard data={data.speech} filters={filters} /> : <SimpleChartFallback data={[]} title="Speech Analysis" />}
+              {data && data.speech ? <SpeechAnalyticsDashboard data={data.speech} filters={filters} /> : <ChartWrapper data={[]} title="Speech Analysis" type="line" />}
             </TabPanel>
             <TabPanel value={activeTab} index={3}>
-              {data && data.chat ? <ChatAnalyticsDashboard data={data.chat} filters={filters} /> : <SimpleChartFallback data={[]} title="Chat Analysis" />}
+              {data && data.chat ? <ChatAnalyticsDashboard data={data.chat} filters={filters} /> : <ChartWrapper data={[]} title="Chat Analysis" type="line" />}
             </TabPanel>
             <TabPanel value={activeTab} index={4}>
-              {data && data.survey ? <SurveyAnalyticsDashboard data={data.survey} /> : <SimpleChartFallback data={[]} title="Survey" />}
+              {data && data.survey ? <SurveyAnalyticsDashboard data={data.survey} /> : <ChartWrapper data={[]} title="Survey" type="bar" />}
             </TabPanel>
           </CardContent>
         </Card>

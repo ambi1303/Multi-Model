@@ -32,7 +32,7 @@ import {
   BarChartIcon,
   SortIcon,
 } from '../../utils/icons';
-import { SimpleChartFallback } from '../charts/SimpleChartFallback';
+import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';
 import { VideoAnalyticsData } from '../../types/analytics';
 
@@ -325,7 +325,7 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" gutterBottom>
                   Emotion Distribution
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.emotionDistribution.map(item => ({
                     name: `${getEmotionEmoji(item.emotion)} ${item.emotion}`,
                     value: item.count,
@@ -333,6 +333,7 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                   }))}
                   type="pie"
                   title="Emotion Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>
@@ -351,13 +352,14 @@ export const VideoAnalyticsDashboard: React.FC<VideoAnalyticsDashboardProps> = (
                 <Typography variant="h6" gutterBottom>
                   Confidence Score Distribution
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.confidenceDistribution.map(item => ({
                     name: item.range,
                     value: item.count
                   }))}
                   type="bar"
                   title="Confidence Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>

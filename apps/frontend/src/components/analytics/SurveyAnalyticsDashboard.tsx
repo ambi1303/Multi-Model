@@ -39,7 +39,7 @@ import {
   BarChartIcon,
   PieChartIcon,
 } from '../../utils/icons';
-import { SimpleChartFallback } from '../charts/SimpleChartFallback';
+import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';
 import { SurveyAnalyticsData } from '../../types/analytics';
 
@@ -380,13 +380,13 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   📈 Burnout Score Over Time
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.burnoutTrends.map(trend => ({
                     name: formatDate(trend.date),
-                    value: trend.avgBurnoutScore * 100,
+                    value: Math.round(trend.avgBurnoutScore * 100 * 100) / 100, // Round to 2 decimal places
                     highRisk: trend.highRiskCount
                   }))}
-                  title="Burnout Trends"
+                  title="Burnout Trends (%)"
                   type="line"
                   height={300}
                 />
@@ -419,7 +419,7 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   🧠 Stress Level Distribution
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.stressLevelDistribution.map(item => ({
                     name: `${getStressLevelEmoji(item.level)} ${item.level}`,
                     value: item.count,
@@ -466,11 +466,11 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   📊 Risk Category Breakdown
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.riskCategoryAnalysis.map(category => ({
                     name: category.category,
                     value: category.count,
-                    avgScore: category.avgScore * 100
+                    avgScore: Math.round(category.avgScore * 100 * 100) / 100 // Round to 2 decimal places
                   }))}
                   title="Risk Category Analysis"
                   type="bar"
@@ -620,7 +620,7 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
                 
                 {safeData.completionTimeAnalysis.length > 0 ? (
                   <>
-                    <SimpleChartFallback
+                    <ChartWrapper
                       data={safeData.completionTimeAnalysis.map(item => ({
                         name: item.timeRange,
                         value: item.count,

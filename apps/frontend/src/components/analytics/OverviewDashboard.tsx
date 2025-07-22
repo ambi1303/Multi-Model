@@ -25,7 +25,7 @@ import {
   BarChartIcon,
   SecurityIcon,
 } from '../../utils/icons';
-import { SimpleChartFallback } from '../charts/SimpleChartFallback';
+import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';
 import { OverviewData, AnalyticsFilters } from '../../types/analytics';
 
@@ -286,7 +286,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
             <Typography variant="h6" gutterBottom>
               Session & Risk Trends Over Time
             </Typography>
-            <SimpleChartFallback
+            <ChartWrapper
              data={safeData.sessionTrends
               .filter(item => typeof item.sessions === 'number' && !isNaN(item.sessions))
               .map(item => ({
@@ -295,6 +295,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
               }))}
             type="line"
             title="Session Trends"
+            height={350}
             />
           </Card>
         </Grid>
@@ -305,7 +306,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
             <Typography variant="h6" gutterBottom>
               Risk Level Distribution
             </Typography>
-            <SimpleChartFallback
+            <ChartWrapper
              data={safeData.riskDistribution
               .filter(item => typeof item.count === 'number' && !isNaN(item.count))
               .map(item => ({
@@ -314,6 +315,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
               }))}
             type="pie"
             title="Risk Distribution"
+            height={350}
             />
           </Card>
         </Grid>
@@ -324,7 +326,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
             <Typography variant="h6" gutterBottom>
               Mental State Distribution
             </Typography>
-            <SimpleChartFallback
+            <ChartWrapper
                 data={safeData.mentalStateDistribution
                   .filter(item => typeof item.count === 'number' && !isNaN(item.count))
                   .map(item => ({
@@ -333,6 +335,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
                   }))}
                 type="bar"
                 title="Mental State Distribution"
+                height={350}
             />
           </Card>
         </Grid>

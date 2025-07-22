@@ -28,7 +28,7 @@ import {
   DownloadIcon,
   EmojiEmotionsIcon,
 } from '../../utils/icons';
-import { SimpleChartFallback } from '../charts/SimpleChartFallback';
+import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';
 import { SpeechAnalyticsData, AnalyticsFilters } from '../../types/analytics';
 
@@ -331,22 +331,23 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                   <Typography variant="h6" gutterBottom>
                     Sentiment Score Trends
                   </Typography>
-                  <Tooltip title="Sentiment score normalized: 0 = neutral, 1 = very positive">
+                  <Tooltip title="Sentiment score as percentage: 0% = very negative, 50% = neutral, 100% = very positive">
                     <IconButton size="small">
                       <InfoIcon />
                     </IconButton>
                   </Tooltip>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Track sentiment changes over time
+                  Track sentiment percentage changes over time (0% = negative, 100% = positive)
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.sentimentTrends.map(item => ({
                     name: item.date,
-                    value: item.averageScore
+                    value: Math.round(item.averageScore * 100 * 100) / 100 // Convert to percentage with 2 decimal places
                   }))}
                   type="line"
-                  title="Sentiment Trends"
+                  title="Sentiment Trends (%)"
+                  height={350}
                 />
               </CardContent>
             </Card>
@@ -368,7 +369,7 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Distribution of confidence levels
                 </Typography>
-                <SimpleChartFallback
+                <ChartWrapper
                   data={safeData.transcriptionAccuracy.map(item => ({
                     name: item.confidence,
                     value: item.count,
@@ -377,6 +378,7 @@ export const SpeechAnalyticsDashboard: React.FC<SpeechAnalyticsDashboardProps> =
                   }))}
                   type="bar"
                   title="Confidence Distribution"
+                  height={350}
                 />
               </CardContent>
             </Card>
