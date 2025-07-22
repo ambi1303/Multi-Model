@@ -5,7 +5,6 @@ import {
   Grid,
   Card,
   CardContent,
-  Chip,
   Avatar,
   Alert,
   LinearProgress,
@@ -17,16 +16,9 @@ import {
   MicIcon,
   TimerIcon,
   CheckCircleIcon,
-  WarningIcon,
   InfoIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
-  BarChartIcon,
-  PsychologyIcon,
-  VolumeUpIcon,
   AssessmentIcon,
   DownloadIcon,
-  EmojiEmotionsIcon,
 } from '../../utils/icons';
 import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';

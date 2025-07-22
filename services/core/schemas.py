@@ -70,6 +70,32 @@ class UserRegister(BaseModel):
         return v
 
 
+class UserCreateAdmin(BaseModel):
+    """Admin-only user creation schema with additional privileges"""
+    email: EmailStr
+    password: Optional[str] = Field(None, min_length=8, description="Password (optional, will generate default if not provided)")
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    department_id: Optional[int] = Field(None, description="Department ID (optional)")
+    phone_number: Optional[str] = Field(None, max_length=20)
+    employee_id: Optional[str] = Field(None, max_length=50, description="Custom employee ID (optional, will auto-generate if not provided)")
+    role: Optional[UserRole] = Field(UserRole.EMPLOYEE, description="User role (defaults to employee)")
+    is_active: Optional[bool] = Field(True, description="Account status (defaults to active)")
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.islower() for c in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
+        return v
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: Optional[str] = None
@@ -103,6 +129,15 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None
     allow_data_collection: Optional[bool] = None
     allow_analysis_sharing: Optional[bool] = None
+
+
+class UserUpdateAdmin(UserUpdate):
+    """Admin-only user update schema with additional privileges"""
+    email: Optional[EmailStr] = None
+    department_id: Optional[int] = Field(None, description="Department ID")
+    employee_id: Optional[str] = Field(None, max_length=50, description="Employee ID")
+    role: Optional[UserRole] = Field(None, description="User role")
+    is_active: Optional[bool] = Field(None, description="Account status")
 
 
 # Department schemas

@@ -30,6 +30,21 @@ from services import services
 from repositories import repositories
 from models import User
 import schemas
+
+# Configure logging first
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Import enhanced security endpoints
+try:
+    from enhanced_security_endpoints import router as enhanced_security_router
+    ENHANCED_SECURITY_AVAILABLE = True
+except ImportError:
+    logger.warning("Enhanced security endpoints not available")
+    ENHANCED_SECURITY_AVAILABLE = False
 import os
 from dotenv import load_dotenv
 
@@ -38,12 +53,7 @@ from dotenv import load_dotenv
 # if not SERVICE_AUTH_TOKEN:
 #     raise ValueError("SERVICE_AUTH_TOKEN environment variable is required")
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Logging already configured above
 
 # Security
 security = HTTPBearer()
@@ -192,7 +202,7 @@ async def websocket_endpoint(websocket: WebSocket):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for development
-    allow_credentials=True,
+    allow_credentials=False,  # Set to False when using allow_origins=["*"]
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
     expose_headers=["*"]  # Expose all headers
@@ -204,6 +214,10 @@ app.add_middleware(ErrorHandlingMiddleware)
 app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 
+# Include enhanced security router if available
+if ENHANCED_SECURITY_AVAILABLE:
+    app.include_router(enhanced_security_router)
+    logger.info("✅ Enhanced security endpoints loaded")
 
 # Dependency to get current user
 async def get_current_user(
@@ -462,23 +476,190 @@ async def get_user(
     return schemas.UserProfile.model_validate(user)
 
 
+@app.post("/users", response_model=schemas.UserProfile, tags=["Users"])
+async def create_user_admin(
+    user_data: schemas.UserCreateAdmin,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Create new user (Admin only)"""
+    if current_user.role not in [schemas.UserRole.ADMIN, schemas.UserRole.MANAGER]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin/Manager access required")
+    
+    try:
+        # Check if user already exists
+        existing_user = await services.user.get_by_email(db, user_data.email)
+        if existing_user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User with this email already exists")
+        
+        # Validate department exists
+        if user_data.department_id:
+            department = await services.department.get(db, user_data.department_id)
+            if not department:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected department does not exist")
+        
+        # Create user through auth service but with admin privileges
+        user_register_data = schemas.UserRegister(
+            email=user_data.email,
+            password=user_data.password or "TempPass123!",  # Default password if not provided
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            department_id=user_data.department_id,
+            phone_number=user_data.phone_number
+        )
+        
+        user, _, _ = await services.auth.register_user(db, user_register_data)
+        
+        # Update role and other admin-settable fields if provided
+        update_data = {}
+        if user_data.role:
+            update_data['role'] = user_data.role
+        if user_data.employee_id:
+            update_data['employee_id'] = user_data.employee_id
+        if user_data.is_active is not None:
+            update_data['is_active'] = user_data.is_active
+            
+        if update_data:
+            user = await repositories.user.update(db, db_obj=user, obj_in=update_data)
+        
+        return schemas.UserProfile.model_validate(user)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create user")
+
+
 @app.put("/users/{user_id}", response_model=schemas.UserProfile, tags=["Users"])
 async def update_user(
     user_id: UUID,
-    update_data: schemas.UserUpdate,
+    update_data: schemas.UserUpdateAdmin,  # Use admin schema to accept all fields
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
     """Update user profile"""
-    # Users can only update their own profile unless they're admin
-    if current_user.role != schemas.UserRole.ADMIN and current_user.id != user_id:
+    # Users can only update their own profile unless they're admin/manager
+    if current_user.role not in [schemas.UserRole.ADMIN, schemas.UserRole.MANAGER] and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     
-    updated_user = await services.user.update_user_profile(db, user_id, update_data)
-    if not updated_user:
+    # Filter update data based on user permissions
+    if current_user.role == schemas.UserRole.ADMIN:
+        # Admin can update all fields
+        filtered_data = update_data
+    elif current_user.role == schemas.UserRole.MANAGER:
+        # Manager can update most fields except role changes to admin
+        filtered_data = update_data
+        if update_data.role == schemas.UserRole.ADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers cannot assign admin role")
+    else:
+        # Regular users can only update basic profile fields
+        filtered_data = schemas.UserUpdate(
+            first_name=update_data.first_name,
+            last_name=update_data.last_name,
+            phone_number=update_data.phone_number,
+            avatar_url=update_data.avatar_url,
+            allow_data_collection=update_data.allow_data_collection,
+            allow_analysis_sharing=update_data.allow_analysis_sharing
+        )
+    
+    # Use the user repository directly for admin updates
+    if current_user.role in [schemas.UserRole.ADMIN, schemas.UserRole.MANAGER]:
+        try:
+            # Get the user first
+            user = await repositories.user.get(db, user_id)
+            if not user:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            
+            # Update with admin privileges
+            update_dict = filtered_data.model_dump(exclude_unset=True)
+            
+            # Validate department_id if provided
+            if update_dict.get('department_id'):
+                department = await repositories.department.get(db, update_dict['department_id'])
+                if not department:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid department ID")
+            
+            updated_user = await repositories.user.update(db, db_obj=user, obj_in=update_dict)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating user {user_id}: {str(e)}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user")
+        
+        # Log the update for audit trail
+        audit_data = {
+            "user_id": current_user.id,
+            "action": "USER_UPDATED",
+            "resource_type": "user",
+            "resource_id": str(user_id),
+            "extra_data": {
+                "updated_fields": list(update_dict.keys()),
+                "target_user_email": user.email
+            }
+        }
+        try:
+            await repositories.audit_log.create(db, obj_in=audit_data)
+        except Exception as audit_error:
+            logger.warning(f"Failed to create audit log: {audit_error}")
+            # Don't fail the whole update for audit issues
+        
+        return schemas.UserProfile.model_validate(updated_user)
+    else:
+        # Use the service for regular user updates
+        updated_user = await services.user.update_user_profile(db, user_id, filtered_data)
+        if not updated_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        return updated_user
+
+
+@app.delete("/users/{user_id}", tags=["Users"])
+async def delete_user(
+    user_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Delete user (Admin only)"""
+    if current_user.role != schemas.UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    # Prevent admin from deleting themselves
+    if current_user.id == user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account")
+    
+    # Check if user exists
+    user = await services.user.get(db, user_id)
+    if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    return updated_user
+    # Soft delete - deactivate user instead of hard delete to preserve data integrity
+    try:
+        await repositories.user.update(db, db_obj=user, obj_in={"is_active": False})
+        
+        # Log the deletion for audit trail
+        audit_data = {
+            "user_id": current_user.id,
+            "action": "USER_DELETED",
+            "resource_type": "user",
+            "resource_id": str(user_id),
+            "ip_address": "127.0.0.1",  # TODO: Get real IP from request
+            "extra_data": {
+                "deleted_user_email": user.email,
+                "reason": "Admin deletion"
+            }
+        }
+        try:
+            await repositories.audit_log.create(db, obj_in=audit_data)
+        except Exception as audit_error:
+            logger.warning(f"Failed to create deletion audit log: {audit_error}")
+            # Don't fail the whole deletion for audit issues
+        
+        return {"message": "User deleted successfully", "user_id": str(user_id)}
+        
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete user")
 
 
 # Department endpoints

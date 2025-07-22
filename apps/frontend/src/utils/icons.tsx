@@ -80,6 +80,12 @@ import {
   EyeOff,
   Ban,
   ShieldCheck,
+  UserPlus,
+  Check,
+  CheckSquare,
+  Monitor,
+  Key,
+  History,
 } from 'lucide-react';
 
 // Icon size configuration
@@ -198,6 +204,16 @@ export const VisibilityIcon: React.FC = () => <Eye size={ICON_SIZE} />;
 export const VisibilityOffIcon: React.FC = () => <EyeOff size={ICON_SIZE} />;
 export const BlockIcon: React.FC = () => <Ban size={ICON_SIZE} />;
 export const PrivacyTipIcon: React.FC = () => <ShieldCheck size={ICON_SIZE} />;
+
+// Admin panel specific icons
+export const PersonAddIcon: React.FC = () => <UserPlus size={ICON_SIZE} />;
+export const GetAppIcon: React.FC = () => <Download size={ICON_SIZE} />;
+export const CheckBoxIcon: React.FC = () => <CheckSquare size={ICON_SIZE} />;
+export const IndeterminateCheckBoxIcon: React.FC = () => <Square size={ICON_SIZE} />;
+export const LockOpenIcon: React.FC = () => <Shield size={ICON_SIZE} />;
+export const DevicesIcon: React.FC = () => <Monitor size={ICON_SIZE} />;
+export const KeyIcon: React.FC = () => <Key size={ICON_SIZE} />;
+export const HistoryIcon: React.FC = () => <History size={ICON_SIZE} />;
 
 // Aliases for backward compatibility
 export const MessageCircleIcon = ChatIcon;

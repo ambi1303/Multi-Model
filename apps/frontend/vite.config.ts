@@ -41,13 +41,38 @@ export default defineConfig({
     viteCompression({
       algorithm: 'brotliCompress',
       ext: '.br',
+      deleteOriginFile: false,
+      threshold: 1024,
     }) as any, // Fix for type incompatibility between viteCompression and Vite's PluginOption
   ],
 
   build: {
     minify: 'terser',
     chunkSizeWarningLimit: 1000,
-    outDir: 'dist', // Changed from 'build' to 'dist' for consistency
+    outDir: 'dist',
+    emptyOutDir: true, // Ensure clean builds by emptying output directory
+    rollupOptions: {
+      output: {
+        // Ensure proper cache busting with hash-based file names
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+        // Manual chunking for better cache optimization
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['@mui/material', '@emotion/react', '@emotion/styled'],
+          charts: ['chart.js', 'react-chartjs-2'],
+          utils: ['lodash', 'axios'],
+        }
+      }
+    },
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console logs in production
+        drop_debugger: true,
+      },
+    },
   },
 
   resolve: {

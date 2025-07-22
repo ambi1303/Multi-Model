@@ -29,6 +29,7 @@ import { motion } from 'framer-motion';
 import { useNotification } from '../contexts/NotificationContext';
 import { OptimizedLoadingSpinner } from '../components/common/OptimizedLoadingSpinner';
 import { getAnalyticsData, exportAnalytics } from '../services/analyticsApi';
+import { getOptimizedAnalyticsData, optimizedAnalyticsService } from '../services/optimizedAnalyticsApi';
 import { AnalyticsFilters, AnalyticsData } from '../types/analytics';
 import SEO from '../components/common/SEO';
 import { 
@@ -83,10 +84,30 @@ const Analytics: React.FC = () => {
   const { overviewData, setOverviewData, isSocketConnected } = useAppStore();
   const [loading, setLoading] = useState(true);
 
+  // State for performance monitoring
+  const [useOptimized, setUseOptimized] = useState(true);
+  const [performanceStats, setPerformanceStats] = useState<any>(null);
+
   const { data, error, isLoading, isSuccess, isError, refetch } = useQuery<AnalyticsData, Error>({
-    queryKey: ['analytics', filters],
-    queryFn: () => getAnalyticsData(filters),
+    queryKey: ['analytics', filters, useOptimized],
+    queryFn: async () => {
+      if (useOptimized) {
+        try {
+          const optimizedData = await getOptimizedAnalyticsData(filters);
+          setPerformanceStats(optimizedData.performance);
+          return optimizedData;
+        } catch (error) {
+          console.warn('📊 Optimized analytics failed, falling back to original API:', error);
+          setUseOptimized(false);
+          return getAnalyticsData(filters);
+        }
+      } else {
+        return getAnalyticsData(filters);
+      }
+    },
     notifyOnChangeProps: ['data', 'error'],
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
   });
 
   const notificationSent = React.useRef({ success: false, error: false });
@@ -97,7 +118,19 @@ const Analytics: React.FC = () => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        const data = await getAnalyticsData(filters);
+        let data;
+        if (useOptimized) {
+          try {
+            data = await getOptimizedAnalyticsData(filters);
+            setPerformanceStats(data.performance);
+          } catch (error) {
+            console.warn('📊 Optimized analytics failed during initial load, falling back:', error);
+            setUseOptimized(false);
+            data = await getAnalyticsData(filters);
+          }
+        } else {
+          data = await getAnalyticsData(filters);
+        }
         setOverviewData(data.overview);
       } catch (error) {
         console.error("Failed to fetch initial analytics data", error);
@@ -303,6 +336,65 @@ const Analytics: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Performance Metrics */}
+      {performanceStats && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                📊 Performance Metrics
+                {performanceStats.cache_hit && (
+                  <Typography variant="caption" sx={{ bgcolor: 'success.light', color: 'success.contrastText', px: 1, py: 0.5, borderRadius: 1 }}>
+                    CACHED
+                  </Typography>
+                )}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Response: {performanceStats.response_time ? `${performanceStats.response_time}ms` : `${(performanceStats.query_time * 1000).toFixed(0)}ms`}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  API Calls: {useOptimized ? '1 (unified)' : '6 (individual)'}
+                </Typography>
+                {performanceStats.endpoints_consolidated > 0 && (
+                  <Typography variant="body2" color="success.main">
+                    {performanceStats.endpoints_consolidated}x faster
+                  </Typography>
+                )}
+                <Tooltip title="Clear Analytics Cache">
+                  <IconButton
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        optimizedAnalyticsService.clearCache();
+                        await optimizedAnalyticsService.clearBackendCache();
+                        showSuccess('Analytics cache cleared');
+                        refetch();
+                      } catch (error) {
+                        showError('Failed to clear cache');
+                      }
+                    }}
+                  >
+                    🗑️
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={useOptimized ? "Switch to Original API" : "Switch to Optimized API"}>
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setUseOptimized(!useOptimized);
+                      showSuccess(`Switched to ${!useOptimized ? 'optimized' : 'original'} API`);
+                    }}
+                  >
+                    {useOptimized ? '🚀' : '🐌'}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Alert Banner */}
       {data && getAlertLevel() && (

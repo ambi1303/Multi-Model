@@ -61,6 +61,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/api';
 import { User } from '../types';
+import { EnhancedUserSettings } from '../components/settings/EnhancedUserSettings';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -345,6 +346,7 @@ const SettingsPage: React.FC = () => {
           <Tab label="Security" icon={<SecurityIcon />} />
           <Tab label="Privacy" icon={<PrivacyTipIcon />} />
           <Tab label="Notifications" icon={<NotificationsIcon />} />
+          <Tab label="⚡ Enhanced" icon={<SettingsIcon />} />
         </Tabs>
       </Paper>
 
@@ -894,6 +896,19 @@ const SettingsPage: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
+      </TabPanel>
+
+      {/* Enhanced Settings Tab */}
+      <TabPanel value={tabValue} index={5}>
+        <EnhancedUserSettings 
+          user={user}
+          onUserUpdate={(updatedUser) => {
+            // Update user in the app store
+            setSnackbarMessage('User updated successfully');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+          }}
+        />
       </TabPanel>
 
       {/* Change Password Dialog */}

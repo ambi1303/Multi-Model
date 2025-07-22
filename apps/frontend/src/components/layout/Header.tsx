@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         open={showLogoutDialog}
         onClose={handleCancelLogout}
         onConfirm={handleConfirmLogout}
-        userName={user?.first_name}
+        userName={user ? `${user.first_name} ${user.last_name}` : undefined}
       />
     </>
   );

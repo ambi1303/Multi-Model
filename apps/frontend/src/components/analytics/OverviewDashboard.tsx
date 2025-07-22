@@ -35,6 +35,16 @@ interface OverviewDashboardProps {
 }
 
 export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) => {
+  // Risk level color mapping for consistent visual representation
+  const getRiskLevelColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case 'high': return '#F44336'; // Red
+      case 'medium': return '#FF9800'; // Orange  
+      case 'low': return '#4CAF50'; // Green
+      default: return '#9E9E9E'; // Gray
+    }
+  };
+
   // Add null safety - provide default values if data is undefined
   const safeData = data || {
     totalSessions: 0,
@@ -311,7 +321,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) =>
               .filter(item => typeof item.count === 'number' && !isNaN(item.count))
               .map(item => ({
                 name: item.level ? item.level.charAt(0).toUpperCase() + item.level.slice(1) : 'Unknown',
-                value: item.count
+                value: item.count,
+                color: getRiskLevelColor(item.level || 'unknown')
               }))}
             type="pie"
             title="Risk Distribution"

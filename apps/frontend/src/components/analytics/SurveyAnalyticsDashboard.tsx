@@ -23,21 +23,13 @@ import {
   Stack,
 } from '@mui/material';
 import {
-  AssessmentIcon,
   TargetIcon,
   WarningIcon,
-  CheckCircleIcon,
-  ScheduleIcon,
   PsychologyIcon,
   LightbulbIcon,
   GaugeIcon,
   ClockIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
   DownloadIcon,
-  InfoIcon,
-  BarChartIcon,
-  PieChartIcon,
 } from '../../utils/icons';
 import ChartWrapper from '../charts/ChartWrapper';
 import { motion } from 'framer-motion';
@@ -49,6 +41,22 @@ interface SurveyAnalyticsDashboardProps {
 
 export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> = ({ data }) => {
   const [showDataWarnings, setShowDataWarnings] = useState(true);
+
+  // Risk category color mapping for charts
+  const getRiskCategoryColor = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'high':
+      case 'severe':
+      case 'critical': return '#F44336'; // Red
+      case 'moderate':
+      case 'medium': return '#FF9800'; // Orange
+      case 'low':
+      case 'minimal':
+      case 'normal': return '#4CAF50'; // Green
+      case 'mild': return '#FFC107'; // Amber
+      default: return '#2196F3'; // Blue for unknown
+    }
+  };
 
   // Add null safety - provide default values if data is undefined
   const safeData = data || {
@@ -120,6 +128,18 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
       case 'high': return 'warning';
       case 'moderate': return 'info';
       default: return 'success';
+    }
+  };
+
+  // Chart-specific color mapping that returns hex colors
+  const getStressLevelChartColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case 'severe': return '#F44336'; // Red
+      case 'high': return '#FF9800'; // Orange
+      case 'moderate': return '#2196F3'; // Blue
+      case 'low': 
+      case 'normal': return '#4CAF50'; // Green
+      default: return '#9E9E9E'; // Gray
     }
   };
 
@@ -423,7 +443,8 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
                   data={safeData.stressLevelDistribution.map(item => ({
                     name: `${getStressLevelEmoji(item.level)} ${item.level}`,
                     value: item.count,
-                    percentage: item.percentage
+                    percentage: item.percentage,
+                    color: getStressLevelChartColor(item.level)
                   }))}
                   title="Stress Level Distribution"
                   type="pie"
@@ -470,7 +491,8 @@ export const SurveyAnalyticsDashboard: React.FC<SurveyAnalyticsDashboardProps> =
                   data={safeData.riskCategoryAnalysis.map(category => ({
                     name: category.category,
                     value: category.count,
-                    avgScore: Math.round(category.avgScore * 100 * 100) / 100 // Round to 2 decimal places
+                    avgScore: Math.round(category.avgScore * 100 * 100) / 100, // Round to 2 decimal places
+                    color: getRiskCategoryColor(category.category)
                   }))}
                   title="Risk Category Analysis"
                   type="bar"

@@ -55,6 +55,7 @@ import {
 import { useAppStore } from '../store/useAppStore';
 import api from '../services/api';
 import { User } from '../types';
+import { EnhancedUserManagement } from '../components/admin/EnhancedUserManagement';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -426,92 +427,13 @@ const AdminPage: React.FC = () => {
         </Tabs>
       </Paper>
 
-      {/* Users Tab */}
+      {/* Users Tab - Enhanced User Management */}
       <TabPanel value={tabValue} index={0}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">User Management</Typography>
-          <Button
-            variant="contained"
-            startIcon={<RefreshIcon />}
-            onClick={loadUsers}
-          >
-            Refresh
-          </Button>
-        </Box>
-        
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>User</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Department</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Avatar sx={{ mr: 2 }}>{user.first_name[0]}</Avatar>
-                      <Box>
-                        <Typography variant="body2">{user.first_name} {user.last_name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {user.employee_id}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={user.role} 
-                      color={getRoleColor(user.role) as any}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {departments.find(d => d.id === user.department_id)?.name || 'Unassigned'}
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={user.is_active ? 'Active' : 'Inactive'}
-                      color={user.is_active ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title="Edit User">
-                      <IconButton onClick={() => handleEditUser(user)} size="small">
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="View Details">
-                      <IconButton size="small">
-                        <VisibilityIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={users.length}
-            rowsPerPage={userRowsPerPage}
-            page={userPage}
-            onPageChange={(event, newPage) => setUserPage(newPage)}
-            onRowsPerPageChange={(event) => {
-              setUserRowsPerPage(parseInt(event.target.value, 10));
-              setUserPage(0);
-            }}
-          />
-        </TableContainer>
+        <EnhancedUserManagement 
+          users={users}
+          onUsersChange={setUsers}
+          loading={loading}
+        />
       </TabPanel>
 
       {/* Departments Tab */}

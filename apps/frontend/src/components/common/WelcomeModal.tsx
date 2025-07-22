@@ -42,7 +42,7 @@ export const WelcomeModal = () => {
     >
       <Box sx={style}>
         <Typography id="welcome-modal-title" variant="h6" component="h2">
-          Welcome, {user?.firstName || 'User'}!
+          Welcome, {user ? `${user.first_name} ${user.last_name}` : 'User'}!
         </Typography>
         <Typography id="welcome-modal-description" sx={{ mt: 2 }}>
           You have successfully logged in.
