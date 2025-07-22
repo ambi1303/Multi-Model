@@ -48,7 +48,7 @@ const createEmployeeData = (data: FormData, user: User | null): Omit<EmployeeDat
   gender: data.gender as 'Male' | 'Female',
   user_id: user?.id,
   user_email: user?.email,
-  user_name: user?.full_name,
+  user_name: user?.first_name,
 });
 
 const createSurveyData = (data: FormData): SurveyData => ({
@@ -65,7 +65,7 @@ const createSurveyData = (data: FormData): SurveyData => ({
 });
 
 const EnhancedBurnoutSurvey: React.FC = () => {
-  const [result, setResult] = useState<any | null>(null);
+  const [result, setResult] = useState<unknown | null>(null);
   const [loading, setLoading] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const { showSuccess, showError } = useNotification();

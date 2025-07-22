@@ -27,7 +27,6 @@ import { VideoAnalysisResult } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAppStore } from '../store/useAppStore';
-import { useAnalysisProgress } from '../hooks/useAnalysisProgress';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -143,6 +142,7 @@ const VideoAnalysis: React.FC = () => {
         emotions: emotionDistribution,
         total_detections: totalDetections,
         duration: duration,
+        timestamp: Date.now(),
         analysis_details: {
           confidence_level: avgConfidence > 0.7 ? 'HIGH' : avgConfidence > 0.4 ? 'MEDIUM' : 'LOW',
           frames_analyzed: frames.length,
@@ -187,6 +187,7 @@ const VideoAnalysis: React.FC = () => {
       setAnalysis(result);
       addAnalysisResult('video', result);
       showSuccess('Image analyzed successfully!');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (_err) {
       showError('Failed to analyze image. Please try again.');
     } finally {

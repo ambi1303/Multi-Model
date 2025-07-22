@@ -138,8 +138,8 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
   const user = useAppStore((state) => state.user);
   
   // State management
-  const [showNotification, setShowNotification] = useState(false); // Start with chat window open
-  const [showChatWindow, setShowChatWindow] = useState(true); // Show chat window immediately
+  const [showNotification, setShowNotification] = useState(false);
+  const [showChatWindow, setShowChatWindow] = useState(true); // Show window immediately
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -147,66 +147,84 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
   const [isMinimized, setIsMinimized] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [initialMessageSent, setInitialMessageSent] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [showStartPrompt, setShowStartPrompt] = useState(true); // NEW: Show start prompt initially
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastSendCall = useRef<number>(0);
   const lastEndCall = useRef<number>(0);
+  const initializationInProgress = useRef<boolean>(false);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Focus input when chat window opens
+  // Focus input when chat window opens and session is active
   useEffect(() => {
-    if (showChatWindow && !isMinimized) {
+    if (showChatWindow && !isMinimized && session) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [showChatWindow, isMinimized]);
+  }, [showChatWindow, isMinimized, session]);
 
   // Auto-start session and send transcription when component mounts
   useEffect(() => {
-    if (analysisResult && !initialMessageSent && !session) {
-      handleAutoStart();
-    }
-  }, [analysisResult, initialMessageSent, session]);
+    // REMOVED: Automatic EmoBuddy initialization
+    // The new flow shows analysis results first, then user can choose to start EmoBuddy
+  }, []);
 
-  // Handle auto-start with transcription
-  const handleAutoStart = async () => {
-    if (!analysisResult || !user?.id) {
-      showError('No analysis result available or user not logged in.');
+  // Handle manual EmoBuddy start from analysis results
+  const handleStartEmoBuddy = async () => {
+    // Prevent duplicate initialization
+    if (initializationInProgress.current || isInitializing || session || !analysisResult || !user?.id) {
       return;
     }
 
-    setIsLoading(true);
-    setInitialMessageSent(true);
+    initializationInProgress.current = true;
+    setIsInitializing(true);
+    setShowStartPrompt(false); // Hide start prompt
 
-    // Show temporary message about processing transcription
-    const processingMessage: Message = {
-      id: 'processing',
-      content: 'Processing your speech analysis...',
+    // Show temporary message about starting EmoBuddy
+    const startingMessage: Message = {
+      id: 'starting-emobuddy',
+      content: 'Starting EmoBuddy session based on your speech analysis...',
       isUser: false,
       timestamp: new Date(),
     };
-    setMessages([processingMessage]);
+    setMessages([startingMessage]);
 
     try {
       // Check availability first
       const availability = await speechApi.checkEmoBuddyAvailability();
       if (!availability.available) {
         showError('Emo Buddy is currently unavailable. Please try again later.');
-        setIsLoading(false);
         return;
       }
 
-      // Start session
-      const sessionData = await speechApi.startEmoBuddySession(analysisResult, user.id);
+      // Start EmoBuddy session using new API method
+      let sessionData: EmoBuddySession | null = null;
+      let retries = 0;
+      const maxRetries = 3;
+      
+      while (!sessionData && retries < maxRetries) {
+        try {
+          sessionData = await speechApi.startEmoBuddyFromAnalysis(analysisResult, user.id);
+          break;
+        } catch (error: any) {
+          retries++;
+          if (retries < maxRetries && error?.response?.status !== 400) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+            continue;
+          } else {
+            throw error;
+          }
+        }
+      }
       
       // Validate session data
-      if (!sessionData.session_id || !sessionData.response) {
+      if (!sessionData?.session_id || !sessionData?.response) {
         showError('Failed to start Emo Buddy session. Invalid response.');
-        setIsLoading(false);
         return;
       }
       
@@ -228,25 +246,38 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
         timestamp: new Date(),
       };
       
-      // Replace processing message with actual conversation
+      // Replace starting message with actual conversation
       setMessages([transcriptionMessage, initialBotMessage]);
-      showSuccess('Emo Buddy has analyzed your speech and is ready to help! 🤖');
+      showSuccess('Emo Buddy is now ready to help you! 🤖');
+      setShowChatWindow(true); // Ensure chat window is visible
     } catch (error) {
       console.error('Failed to start Emo Buddy session:', error);
       showError('Failed to start Emo Buddy session. Please try again.');
-      setMessages([]); // Clear processing message on error
+      setMessages([]); // Clear starting message on error
+      setShowStartPrompt(true); // Show start prompt again on error
     } finally {
-      setIsLoading(false);
+      setIsInitializing(false);
+      initializationInProgress.current = false;
     }
   };
 
-  // Handle notification click (legacy - now used for manual restart)
+  // REMOVED: Old handleAutoStart method - replaced with handleStartEmoBuddy
+
+  // Handle notification click (now starts EmoBuddy manually)
   const handleNotificationClick = async () => {
-    // Reset and restart
-    setMessages([]);
-    setSession(null);
-    setInitialMessageSent(false);
-    await handleAutoStart();
+    // Prevent multiple concurrent starts
+    if (initializationInProgress.current || isInitializing) {
+      return;
+    }
+    
+    // If session already exists, show chat window
+    if (session) {
+      setShowChatWindow(true);
+      return;
+    }
+    
+    // Otherwise start EmoBuddy
+    await handleStartEmoBuddy();
   };
 
   // Handle sending message
@@ -254,7 +285,8 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
     const now = Date.now();
     if (now - lastSendCall.current < 2000) return; // throttle: 2 seconds
     lastSendCall.current = now;
-    if (!inputValue.trim() || !session || isLoading) return;
+    
+    if (!inputValue.trim() || !session || isLoading || isInitializing) return;
     if (!user?.id) {
       showError('You must be logged in to use Emo Buddy.');
       return;
@@ -330,6 +362,46 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
     }
   };
 
+  // Render start prompt for EmoBuddy
+  const renderStartPrompt = () => (
+    <Box sx={{ p: 3, textAlign: 'center' }}>
+      <Avatar sx={{ mx: 'auto', mb: 2, bgcolor: 'primary.main', width: 64, height: 64 }}>
+        <EmojiEmotionsIcon sx={{ fontSize: 32 }} />
+      </Avatar>
+      
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+        Ready to Chat with Emo Buddy?
+      </Typography>
+      
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.6 }}>
+        Based on your speech analysis, Emo Buddy can provide personalized emotional support and therapeutic guidance.
+      </Typography>
+      
+      <Box sx={{ mb: 3, p: 2, bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50', borderRadius: 2 }}>
+        <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+          📝 Your Speech: "{analysisResult?.transcribed_text?.slice(0, 100)}..."
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          😊 Emotion: {analysisResult?.sentiment?.label} • 🎯 Confidence: {Math.round((analysisResult?.sentiment?.confidence || 0) * 100)}%
+        </Typography>
+      </Box>
+      
+      <Button
+        onClick={handleStartEmoBuddy}
+        disabled={isInitializing}
+        startIcon={isInitializing ? <CircularProgress size={20} /> : <EmojiEmotionsIcon />}
+        fullWidth
+        sx={{ mb: 2 }}
+      >
+        {isInitializing ? 'Starting Emo Buddy...' : 'Start Emo Buddy Session'}
+      </Button>
+      
+      <Typography variant="caption" color="text.secondary">
+        💡 Emo Buddy uses evidence-based therapy techniques (CBT, DBT, ACT) to provide personalized support
+      </Typography>
+    </Box>
+  );
+
   return (
     <>
       {/* Notification Bubble */}
@@ -391,8 +463,13 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
             <>
               {/* Messages */}
               <ChatMessages>
+                {/* Show start prompt when no session exists */}
+                {showStartPrompt && !session && messages.length === 0 && (
+                  renderStartPrompt()
+                )}
+                
                 {/* Show loading state when first starting */}
-                {messages.length === 0 && isLoading && (
+                {messages.length === 0 && isLoading && !showStartPrompt && (
                   <>
                     <MessageBubble isUser={false}>
                       <Stack direction="row" alignItems="center" spacing={1}>
@@ -428,11 +505,11 @@ export const EmoBuddyPopup: React.FC<EmoBuddyPopupProps> = ({ analysisResult, on
                 <TextField
                   ref={inputRef}
                   fullWidth
-                  placeholder={isLoading && messages.length === 0 ? "Starting session..." : "Type your message..."}
+                  placeholder={session ? "Type your message..." : "Start Emo Buddy session first..."}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  disabled={isLoading}
+                  disabled={isLoading || !session} // Disable input until session starts
                   size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {

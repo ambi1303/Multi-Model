@@ -20,6 +20,9 @@ from .therapeutic_techniques import TherapeuticTechniques
 from .crisis_detector import CrisisDetector
 from .corporate_context import CorporateContextAnalyzer
 
+from .adapters.chat_api_adapter import ChatAPIAdapter
+from .adapters.stt_api_adapter import STTEmoBuddyAdapter
+
 __version__ = "1.0.0"
 __author__ = "Voice Analysis & Emo Buddy System"
 __email__ = "support@emobuddy.ai"
@@ -29,5 +32,8 @@ __all__ = [
     "ConversationMemory", 
     "TherapeuticTechniques",
     "CrisisDetector",
-    "CorporateContextAnalyzer"
+    "CorporateContextAnalyzer",
+    "ChatAPIAdapter",
+    "STTEmoBuddyAdapter"
+
 ] 

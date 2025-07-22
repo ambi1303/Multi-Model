@@ -4,14 +4,17 @@ Service layer with business logic and orchestration for all operations
 import logging
 from typing import Optional, List, Dict, Any, Tuple
 from uuid import UUID, uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.context import CryptContext
 import jwt
+from sqlalchemy import select, desc
+from sqlalchemy.exc import IntegrityError
+import asyncio
 
 from config import get_config
 from repositories import repositories
-from models import User, UserRole, EmotionType, SentimentType, MentalState
+from models import User, UserRole, EmotionType, SentimentType, MentalState, EmoBuddySession
 import schemas
 
 logger = logging.getLogger(__name__)
@@ -41,20 +44,20 @@ class AuthService:
             "email": email,
             "role": role.value,
             "type": "access",
-            "exp": datetime.utcnow() + timedelta(minutes=self.config.auth_access_token_expire_minutes),
+            "exp": datetime.utcnow() + timedelta(minutes=self.config.auth.access_token_expire_minutes),
             "iat": datetime.utcnow()
         }
-        return jwt.encode(to_encode, self.config.auth_secret_key, algorithm=self.config.auth_algorithm)
+        return jwt.encode(to_encode, self.config.auth.secret_key, algorithm=self.config.auth.algorithm)
     
     def create_refresh_token(self, user_id: UUID) -> str:
         """Create JWT refresh token"""
         to_encode = {
             "sub": str(user_id),
             "type": "refresh",
-            "exp": datetime.utcnow() + timedelta(days=self.config.auth_refresh_token_expire_days),
+            "exp": datetime.utcnow() + timedelta(days=self.config.auth.refresh_token_expire_days),
             "iat": datetime.utcnow()
         }
-        return jwt.encode(to_encode, self.config.auth_secret_key, algorithm=self.config.auth_algorithm)
+        return jwt.encode(to_encode, self.config.auth.secret_key, algorithm=self.config.auth.algorithm)
     
     def create_service_token(self, service_name: str) -> str:
         """Create JWT token for service-to-service communication"""
@@ -66,12 +69,12 @@ class AuthService:
             "exp": datetime.utcnow() + timedelta(days=365),  # Long-lived for services
             "iat": datetime.utcnow()
         }
-        return jwt.encode(to_encode, self.config.auth_secret_key, algorithm=self.config.auth_algorithm)
+        return jwt.encode(to_encode, self.config.auth.secret_key, algorithm=self.config.auth.algorithm)
     
     def decode_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Decode and validate JWT token"""
         try:
-            payload = jwt.decode(token, self.config.auth_secret_key, algorithms=[self.config.auth_algorithm])
+            payload = jwt.decode(token, self.config.auth.secret_key, algorithms=[self.config.auth.algorithm])
             return payload
         except jwt.ExpiredSignatureError as e:
             logger.warning(f"Token expired: {e}")
@@ -459,89 +462,240 @@ class AnalysisService:
 class EmoBuddyService:
     """EmoBuddy session management service"""
     
-    async def create_session(
-        self, 
-        db: AsyncSession, 
-        user_id: UUID
-    ) -> schemas.EmoBuddySessionResponse:
-        """Create new EmoBuddy session"""
-        # Check if user has active session
-        active_session = await repositories.emo_buddy_session.get_active_session(db, user_id)
-        if active_session:
-            # Create response without loading messages to avoid MissingGreenlet error
-            return schemas.EmoBuddySessionResponse(
-                user_id=active_session.user_id,
-                session_start=active_session.session_start,
-                therapeutic_goals=active_session.therapeutic_goals or {},
-                id=active_session.id,
-                session_uuid=active_session.session_uuid,
-                session_end=active_session.session_end,
-                message_count=active_session.message_count,
-                user_messages=active_session.user_messages,
-                bot_responses=active_session.bot_responses,
-                is_active_session=active_session.is_active_session,
-                created_at=active_session.created_at,
-                updated_at=active_session.updated_at,
-                messages=None  # Don't load messages here to avoid async issues
-            )
-        
-        # Create new session
-        session_data = schemas.EmoBuddySessionCreate(
-            user_id=user_id,
-            session_start=datetime.utcnow()
-        )
-        session = await repositories.emo_buddy_session.create(db, obj_in=session_data)
-        
-        # Return response without loading messages
+    def _build_session_response(self, session: EmoBuddySession) -> schemas.EmoBuddySessionResponse:
+        """Safely build session response without triggering async relationship loading"""
         return schemas.EmoBuddySessionResponse(
+            # From EmoBuddySessionCreate
             user_id=session.user_id,
             session_start=session.session_start,
             therapeutic_goals=session.therapeutic_goals or {},
+            
+            # From TimestampMixin
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            
+            # From EmoBuddySessionResponse
             id=session.id,
             session_uuid=session.session_uuid,
             session_end=session.session_end,
-            message_count=session.message_count,
-            user_messages=session.user_messages,
-            bot_responses=session.bot_responses,
-            is_active_session=session.is_active_session,
-            created_at=session.created_at,
-            updated_at=session.updated_at,
-            messages=None  # Don't load messages here to avoid async issues
+            message_count=session.message_count or 0,
+            user_messages=session.user_messages or 0,
+            bot_responses=session.bot_responses or 0,
+            is_active_session=session.session_end is None  # Calculate manually to avoid hybrid property issues
         )
+
+    async def create_session(
+        self,
+        db: AsyncSession,
+        user_id: UUID
+    ) -> schemas.EmoBuddySessionResponse:
+        """Create new EmoBuddy session with proper concurrency handling"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Check for existing active session first (outside transaction)
+                existing_check = await db.execute(
+                    select(EmoBuddySession)
+                    .where(
+                        EmoBuddySession.user_id == user_id,
+                        EmoBuddySession.session_end.is_(None)  # This is what is_active_session checks
+                    )
+                    .limit(1)
+                )
+                existing_session = existing_check.scalar_one_or_none()
+                
+                if existing_session:
+                    logging.getLogger(__name__).info(f"Returning existing active session {existing_session.session_uuid} for user {user_id}")
+                    
+                    # Ensure required fields have defaults for legacy sessions
+                    needs_update = False
+                    update_data = {}
+                    
+                    if existing_session.message_count is None:
+                        update_data['message_count'] = 0
+                        needs_update = True
+                    if existing_session.user_messages is None:
+                        update_data['user_messages'] = 0
+                        needs_update = True
+                    if existing_session.bot_responses is None:
+                        update_data['bot_responses'] = 0
+                        needs_update = True
+                    if existing_session.therapeutic_goals is None:
+                        update_data['therapeutic_goals'] = {}
+                        needs_update = True
+                    
+                    # Update session if needed
+                    if needs_update:
+                        existing_session = await repositories.emo_buddy_session.update(
+                            db, db_obj=existing_session, obj_in=update_data
+                        )
+                    
+                    return self._build_session_response(existing_session)
+                
+                # Create new session in a transaction
+                try:
+                    session_data = schemas.EmoBuddySessionCreate(
+                        user_id=user_id,
+                        session_start=datetime.now(timezone.utc),
+                        therapeutic_goals={}  # Ensure this has a default
+                        # is_active is inherited from BaseModel and defaults to True
+                    )
+                    
+                    # Create the session with explicit defaults for required fields
+                    session_dict = session_data.model_dump()
+                    session_dict.update({
+                        'message_count': 0,
+                        'user_messages': 0,
+                        'bot_responses': 0
+                    })
+                    
+                    session = await repositories.emo_buddy_session.create(db, obj_in=session_dict)
+                    
+                    logging.getLogger(__name__).info(f"Created new EmoBuddy session {session.session_uuid} for user {user_id}")
+                    return self._build_session_response(session)
+                    
+                except IntegrityError as e:
+                    await db.rollback()
+                    logging.getLogger(__name__).warning(f"Concurrent session creation detected for user {user_id}, checking for existing session")
+                    
+                    # Another process may have created a session concurrently
+                    retry_check = await db.execute(
+                        select(EmoBuddySession)
+                        .where(
+                            EmoBuddySession.user_id == user_id,
+                            EmoBuddySession.session_end.is_(None)  # This is what is_active_session checks
+                        )
+                        .limit(1)
+                    )
+                    concurrent_session = retry_check.scalar_one_or_none()
+                    
+                    if concurrent_session:
+                        logging.getLogger(__name__).info(f"Found concurrent session {concurrent_session.session_uuid} for user {user_id}")
+                        
+                        # Ensure required fields have defaults for legacy sessions
+                        needs_update = False
+                        update_data = {}
+                        
+                        if concurrent_session.message_count is None:
+                            update_data['message_count'] = 0
+                            needs_update = True
+                        if concurrent_session.user_messages is None:
+                            update_data['user_messages'] = 0
+                            needs_update = True
+                        if concurrent_session.bot_responses is None:
+                            update_data['bot_responses'] = 0
+                            needs_update = True
+                        if concurrent_session.therapeutic_goals is None:
+                            update_data['therapeutic_goals'] = {}
+                            needs_update = True
+                        
+                        # Update session if needed
+                        if needs_update:
+                            concurrent_session = await repositories.emo_buddy_session.update(
+                                db, db_obj=concurrent_session, obj_in=update_data
+                            )
+                        
+                        return self._build_session_response(concurrent_session)
+                    else:
+                        # If no concurrent session found, retry creation
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(0.1 * (attempt + 1))
+                            continue
+                        else:
+                            raise e
+                            
+            except Exception as e:
+                await db.rollback()
+                logging.getLogger(__name__).error(f"Error creating EmoBuddy session for user {user_id}: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (attempt + 1))
+                    continue
+                else:
+                    raise e
+                    
+        raise ValueError(f"Failed to create EmoBuddy session for user {user_id} after {max_retries} attempts")
     
     async def add_message(
-        self, 
-        db: AsyncSession, 
-        session_uuid: UUID, 
-        user_id: UUID, 
+        self,
+        db: AsyncSession,
+        session_uuid: UUID,
+        user_id: UUID,
         message_data: schemas.EmoBuddyMessageCreate
     ) -> schemas.EmoBuddyMessage:
-        """Add message to session"""
-        # Get session
-        session = await repositories.emo_buddy_session.get_session_with_messages(db, session_uuid, user_id)
-        if not session:
-            raise ValueError("Session not found")
-        
-        # Get next message order
-        next_order = await repositories.emo_buddy_message.get_next_message_order(db, session.id)
-        
-        # Create message
-        message_dict = message_data.model_dump() if hasattr(message_data, 'model_dump') else message_data.dict()
-        message_dict['session_id'] = session.id
-        message_dict['message_order'] = next_order
-        
-        message = await repositories.emo_buddy_message.create(db, obj_in=message_dict)
-        
-        # Update session message counts
-        if message_data.is_user_message:
-            session.user_messages += 1
-        else:
-            session.bot_responses += 1
-        session.message_count += 1
-        
-        await repositories.emo_buddy_session.update(db, db_obj=session, obj_in={})
-        
-        return schemas.EmoBuddyMessage.model_validate(message)
+        """Add message to session with proper concurrency handling"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Use a fresh transaction for each attempt
+                async with db.begin() as transaction:
+                    # Get session with lock
+                    session_result = await db.execute(
+                        select(EmoBuddySession)
+                        .where(
+                            EmoBuddySession.session_uuid == session_uuid,
+                            EmoBuddySession.user_id == user_id,
+                            EmoBuddySession.session_end.is_(None)  # This is what is_active_session checks
+                        )
+                        .with_for_update()
+                    )
+                    session = session_result.scalar_one_or_none()
+                    
+                    if not session:
+                        raise ValueError(f"EmoBuddy session {session_uuid} not found or not active for user {user_id}")
+                    
+                    # Get next message order with lock
+                    next_order = await repositories.emo_buddy_message.get_next_message_order(db, session.id)
+                    
+                    # Create message
+                    message_dict = message_data.model_dump()
+                    message_dict['session_id'] = session.id
+                    message_dict['message_order'] = next_order
+                    message_dict['created_at'] = datetime.now(timezone.utc)
+                    message_dict['updated_at'] = datetime.now(timezone.utc)
+                    
+                    # Create the message
+                    message = await repositories.emo_buddy_message.create(db, obj_in=message_dict)
+                    
+                    # Update session counts
+                    update_data = {}
+                    if message_data.is_user_message:
+                        update_data['user_messages'] = (session.user_messages or 0) + 1  # Correct attribute name
+                    else:
+                        update_data['bot_responses'] = (session.bot_responses or 0) + 1   # Correct attribute name
+                    
+                    update_data['message_count'] = (session.message_count or 0) + 1
+                    update_data['updated_at'] = datetime.now(timezone.utc)
+                    
+                    await repositories.emo_buddy_session.update(db, db_obj=session, obj_in=update_data)
+                    
+                    # Commit the transaction
+                    await transaction.commit()
+                    
+                    logging.getLogger(__name__).info(f"Successfully added message to session {session_uuid}")
+                    return schemas.EmoBuddyMessage.model_validate(message)
+                    
+            except IntegrityError as e:
+                await db.rollback()  # Explicit rollback
+                if "uq_session_message_order" in str(e):
+                    logging.getLogger(__name__).warning(f"Message order conflict in session {session_uuid}, attempt {attempt + 1}/{max_retries}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                        continue
+                    else:
+                        raise ValueError(f"Failed to add message after {max_retries} attempts due to ordering conflicts")
+                else:
+                    logging.getLogger(__name__).error(f"Database integrity error in session {session_uuid}: {e}")
+                    raise e
+            except Exception as e:
+                await db.rollback()  # Explicit rollback
+                logging.getLogger(__name__).error(f"Error adding message to session {session_uuid}: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                    continue
+                else:
+                    raise e
+                    
+        raise ValueError(f"Failed to add message to session {session_uuid} after {max_retries} attempts")
     
     async def end_session(
         self, 

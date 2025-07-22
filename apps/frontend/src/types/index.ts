@@ -15,9 +15,9 @@ export interface VideoAnalysisResult {
     frames_analyzed?: number;
     successful_detections?: number;
     detection_rate?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  emotion_timeline?: any;
+  emotion_timeline?: unknown;
   faces_detected?: number;
   face_quality_score?: number;
   timestamp: number;

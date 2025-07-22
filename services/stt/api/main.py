@@ -27,23 +27,43 @@ logger = logging.getLogger("main")
 # Load environment variables from .env file
 load_dotenv()
 
-# Add project root to path to allow cross-service imports
+# Add project root to path to allow cross-service imports BEFORE any service imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Add STT service root to path
-stt_service_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if stt_service_root not in sys.path:
-    sys.path.insert(0, stt_service_root)
+# # Add STT service root to path
+# stt_service_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# if stt_service_root not in sys.path:
+#     sys.path.insert(0, stt_service_root)
 
-# Create a simple fallback EmoBuddyAgent class first
+try:
+    from services.emo_buddy.adapters.stt_api_adapter import STTEmoBuddyAdapter
+    from services.emo_buddy.adapters.chat_api_adapter import ChatAPIAdapter
+    logger.info("Successfully imported EmoBuddy core components via package import")
+
+    stt_adapter = STTEmoBuddyAdapter()
+    chat_adapter = ChatAPIAdapter()
+
+except ImportError as e:
+    logger.warning(f"Could not import EmoBuddy components: {e}")
+    stt_adapter = None
+    chat_adapter = None
+    logger.warning("EmoBuddy components not available. Using fallback.")
+
 class EmoBuddyAgentFallback:
     def __init__(self, user_id: str = None):
         self.session_active = True
         
     def start_session(self, analysis_report):
-        return "EmoBuddy is currently unavailable due to missing dependencies. Your analysis has been processed successfully."
+        if stt_adapter:
+            start_response =  stt_adapter.start_session(...)
+            if start_response and start_response.get("success"):
+                emo_buddy_response = start_response.get("response")
+            else:
+                emo_buddy_response = "EmoBuddy temporarily unavailable"
+        else:
+            emo_buddy_response = "EmoBuddy service not available"
         
     def continue_conversation(self, user_input):
         return "EmoBuddy service is temporarily unavailable.", False
@@ -53,11 +73,6 @@ class EmoBuddyAgentFallback:
 
 # Import unified EmoBuddy core adapter
 try:
-    # Add the project root to Python path for imports
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    
     from services.emo_buddy.adapters.stt_api_adapter import STTEmoBuddyAdapter
     logger.info("Successfully imported STTEmoBuddyAdapter")
     
@@ -65,15 +80,17 @@ try:
     stt_adapter = STTEmoBuddyAdapter()
     
 except ImportError as e:
-    print(f"Warning: Could not import STTEmoBuddyAdapter: {e}")
+    logger.warning(f"Could not import STTEmoBuddyAdapter: {e}")
     stt_adapter = None
     logger.warning("STT EmoBuddy adapter not available")
 
 # Fixed import path - now use absolute import from the STT service
+# Replace the existing emotion_analyzer import block with this:
 try:
-    from emotion_analyzer import analyze_text, get_gen_ai_insights, transcribe_audio, load_models
+    from services.stt.emotion_analyzer import analyze_text, get_gen_ai_insights, transcribe_audio, load_models
 except ImportError as e:
-    print(f"Warning: Could not import emotion analyzer functions: {e}")
+    logger.warning(f"Could not import emotion analyzer functions: {e}")
+    # Define fallback functions as they were.
     # Define fallback functions
     def analyze_text(text):
         return {
@@ -137,22 +154,163 @@ try:
 except Exception as e:
     logger.error(f"FATAL: Could not load models on startup: {e}", exc_info=True)
 
+# Helper functions for STT service
+
+def get_core_service_url():
+    """Get the core service URL from environment variables, with a fallback."""
+    url = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+    if not url:
+        logger.warning("CORE_SERVICE_URL is not set, defaulting to http://localhost:8000")
+        return "http://localhost:8000"
+    return url
+
+def get_service_token():
+    """Get service account token for internal API calls"""
+    service_token = os.getenv("SERVICE_AUTH_TOKEN")
+    if not service_token:
+        logger.warning("SERVICE_AUTH_TOKEN not set, inter-service authentication may fail")
+    return service_token
+
+async def store_analysis_in_db(analysis_data: Dict, user_id: str, token: Optional[str] = None, session_id: Optional[str] = None) -> bool:
+    """
+    Asynchronously stores speech analysis data in the core service database.
+    Returns True on success, False on failure.
+    """
+    core_service_url = get_core_service_url()
+    
+    if not token:
+        logger.error("No user token available for storing analysis data")
+        return False
+    
+    if not session_id:
+        logger.error("No session_id available for storing analysis data")
+        return False
+
+    speech_analysis_endpoint = f"{core_service_url}/analyses/speech"
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    # Map sentiment to the expected format
+    sentiment_data = analysis_data.get("sentiment", {})
+    sentiment_label = sentiment_data.get("label", "neutral").lower()
+    
+    # Extract sentiment confidence and convert to sentiment_score
+    sentiment_confidence = sentiment_data.get("confidence", 0.0)
+    sentiment_polarity = sentiment_data.get("polarity", 0.0)
+    sentiment_score = sentiment_polarity
+    
+    # Map emotions and find dominant one
+    emotions_list = analysis_data.get("emotions", [])
+    mapped_emotions = {}
+    for emo in emotions_list:
+        original_emotion = emo.get("emotion", "").lower()
+        target_emotion = EMOTION_MODEL_TO_ENUM_MAPPING.get(original_emotion)
+        if target_emotion:
+            confidence = emo.get("confidence", 0.0)
+            if target_emotion not in mapped_emotions or confidence > mapped_emotions[target_emotion]:
+                mapped_emotions[target_emotion] = confidence
+    
+    dominant_emotion = "neutral"
+    dominant_emotion_confidence = 0.0
+    if mapped_emotions:
+        dominant_emotion = max(mapped_emotions, key=mapped_emotions.get)
+        dominant_emotion_confidence = mapped_emotions[dominant_emotion]
+    
+    emotion_scores_payload = [{"emotion": k, "score": v} for k, v in mapped_emotions.items()]
+    
+    # Get audio duration and ensure it's > 0
+    audio_duration = analysis_data.get("audio_duration_seconds", 0.0)
+    if not audio_duration or audio_duration <= 0:
+        audio_duration = 0.1
+    
+    # Calculate transcription confidence
+    transcription_confidence = max(0.7, dominant_emotion_confidence)
+    
+    # Prepare payload for core service
+    payload = {
+        "user_id": user_id,
+        "session_id": session_id,
+        "audio_duration_seconds": audio_duration,
+        "transcribed_text": analysis_data.get("transcription") or " ",
+        "transcription_confidence": transcription_confidence,
+        "sentiment": sentiment_label,
+        "sentiment_score": sentiment_score,
+        "dominant_emotion": dominant_emotion,
+        "emotion_scores": emotion_scores_payload,
+        "raw_analysis_data": {
+            "sentiment_details": sentiment_data,
+            "emotion_details": emotions_list,
+            "analysis_timestamp": analysis_data.get("timestamp"),
+            "service_version": "stt_v1.0"
+        }
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                speech_analysis_endpoint,
+                headers=headers,
+                json=payload,
+                timeout=30.0
+            )
+            
+            if response.status_code == 200 or response.status_code == 201:
+                logger.info(f"Successfully stored speech analysis for user {user_id}")
+                return True
+            else:
+                logger.error(f"Failed to store speech analysis for user {user_id}. Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+    except httpx.ReadTimeout as e:
+        logger.warning(f"Database storage timeout for user {user_id} - continuing without storage: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error storing analysis in DB: {e}", exc_info=True)
+        return False
+
 # Emotion mapping for database storage
 EMOTION_MODEL_TO_ENUM_MAPPING = {
     "joy": "happy",
-    "sadness": "sad", 
+    "sadness": "sad",
     "anger": "angry",
-    "fear": "fearful",
-    "surprise": "surprised",
-    "disgust": "disgusted",
+    "fear": "fear",
+    "surprise": "surprise",
+    "disgust": "disgust",
     "neutral": "neutral",
     "happy": "happy",
     "sad": "sad",
     "angry": "angry",
-    "fearful": "fearful",
-    "surprised": "surprised",
-    "disgusted": "disgusted"
+    "fearful": "fear",
+    "surprised": "surprise",
+    "disgusted": "disgust",
+    "amusement": "happy",
+    "excitement": "happy",
+    "pride": "happy",
+    "love": "happy",
+    "caring": "happy",
+    "gratitude": "happy",
+    "optimism": "happy",
+    "relief": "happy",
+    "approval": "happy",
+    "admiration": "happy",
+    "desire": "happy",
+    "grief": "sad",
+    "disappointment": "sad",
+    "remorse": "sad",
+    "embarrassment": "fear",
+    "nervousness": "fear",
+    "annoyance": "angry",
+    "disapproval": "angry",
+    "realization": "surprise",
+    "confusion": "neutral",
+    "curiosity": "neutral",
+    "contempt": "disgust",
 }
+
+# NOTE: EmoBuddy sessions are handled entirely in-memory without database storage
 
 app = FastAPI(
     title="Speech-to-Text & Emotion Analysis API",
@@ -188,251 +346,6 @@ class UserInfo(BaseModel):
 
 # Store active unified core sessions (maps STT session ID to unified core session ID)
 active_core_sessions: Dict[str, str] = {}
-
-# --- Helper Functions ---
-
-def get_core_service_url():
-    """Get the core service URL from environment variables, with a fallback."""
-    url = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
-    if not url:
-        logger.warning("CORE_SERVICE_URL is not set, defaulting to http://localhost:8000")
-        return "http://localhost:8000"
-    return url
-
-def get_service_token():
-    """Get service account token for internal API calls"""
-    # For now, we'll use a configurable service token
-    # In production, this should be a proper service account JWT
-    service_token = os.getenv("SERVICE_AUTH_TOKEN")
-    if not service_token:
-        logger.warning("SERVICE_AUTH_TOKEN not set, inter-service authentication may fail")
-    return service_token
-
-async def create_emo_buddy_session_in_core(user_id: str) -> Optional[UUID]:
-    """Create an EmoBuddy session in the core service database"""
-    core_service_url = get_core_service_url()
-    service_token = get_service_token()
-    
-    if not service_token:
-        logger.error("No service token available for creating EmoBuddy session")
-        return None
-    
-    headers = {
-        "Authorization": f"Bearer {service_token}",
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{core_service_url}/emo-buddy/sessions",
-                headers=headers,
-                timeout=10.0
-            )
-            
-            if response.status_code == 200:
-                session_data = response.json()
-                session_uuid = UUID(session_data["session_uuid"])
-                logger.info(f"Created EmoBuddy session {session_uuid} for user {user_id}")
-                return session_uuid
-            else:
-                logger.error(f"Failed to create EmoBuddy session: {response.status_code} - {response.text}")
-                return None
-                
-    except Exception as e:
-        logger.error(f"Error creating EmoBuddy session: {e}")
-        return None
-
-async def add_message_to_emo_buddy_session(session_uuid: UUID, user_message: str, bot_response: str, user_id: str):
-    """Add messages to the EmoBuddy session in core database"""
-    core_service_url = get_core_service_url()
-    service_token = get_service_token()
-    
-    if not service_token:
-        logger.error("No service token available for adding EmoBuddy messages")
-        return
-    
-    headers = {
-        "Authorization": f"Bearer {service_token}",
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            # Add user message
-            user_message_data = {
-                "message_text": user_message,
-                "is_user_message": True
-            }
-            
-            response = await client.post(
-                f"{core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
-                headers=headers,
-                json=user_message_data,
-                timeout=10.0
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Failed to add user message: {response.status_code} - {response.text}")
-            
-            # Add bot response
-            bot_message_data = {
-                "message_text": bot_response,
-                "is_user_message": False
-            }
-            
-            response = await client.post(
-                f"{core_service_url}/emo-buddy/sessions/{session_uuid}/messages",
-                headers=headers,
-                json=bot_message_data,
-                timeout=10.0
-            )
-            
-            if response.status_code == 200:
-                logger.info(f"Added messages to EmoBuddy session {session_uuid}")
-            else:
-                logger.error(f"Failed to add bot message: {response.status_code} - {response.text}")
-                
-    except Exception as e:
-        logger.error(f"Error adding messages to EmoBuddy session: {e}")
-
-async def store_analysis_in_db(analysis_data: Dict, user_id: str, token: Optional[str] = None, session_id: Optional[str] = None) -> bool:
-    """
-    Asynchronously stores analysis data in the core service database.
-    Returns True on success, False on failure.
-    """
-    core_service_url = get_core_service_url()
-    
-    if not token:
-        logger.error("No user token available for storing analysis data")
-        return False
-    
-    if not session_id:
-        logger.error("No session_id available for storing analysis data")
-        return False
-
-    speech_analysis_endpoint = f"{core_service_url}/analyses/speech"
-    
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    
-    # --- Payload Transformation ---
-    
-    # 1. Map sentiment to the expected Enum (should be lowercase)
-    sentiment_data = analysis_data.get("sentiment", {})
-    sentiment_label = sentiment_data.get("label", "neutral").lower()
-    
-    # Extract sentiment confidence and convert to sentiment_score (-1 to 1 range)
-    sentiment_confidence = sentiment_data.get("confidence", 0.0)
-    sentiment_polarity = sentiment_data.get("polarity", 0.0)  # TextBlob polarity is already in -1 to 1 range
-    
-    # Use polarity as sentiment_score as it's more meaningful for the -1 to 1 range
-    sentiment_score = sentiment_polarity
-
-    # 2. Map emotions and find dominant one
-    emotions_list = analysis_data.get("emotions", [])
-    mapped_emotions = {}
-    for emo in emotions_list:
-        original_emotion = emo.get("emotion", "").lower()
-        target_emotion = EMOTION_MODEL_TO_ENUM_MAPPING.get(original_emotion)
-        if target_emotion:
-            confidence = emo.get("confidence", 0.0)
-            if target_emotion not in mapped_emotions or confidence > mapped_emotions[target_emotion]:
-                mapped_emotions[target_emotion] = confidence
-
-    dominant_emotion = "neutral"
-    dominant_emotion_confidence = 0.0
-    if mapped_emotions:
-        dominant_emotion = max(mapped_emotions, key=mapped_emotions.get)
-        dominant_emotion_confidence = mapped_emotions[dominant_emotion]
-
-    emotion_scores_payload = [{"emotion": k, "score": v} for k, v in mapped_emotions.items()]
-    
-    # 3. Get audio duration and ensure it's > 0
-    audio_duration = analysis_data.get("audio_duration_seconds", 0.0)
-    if not audio_duration or audio_duration <= 0:
-        audio_duration = 0.1 # Use a small default value if not present or zero
-    
-    # 4. Calculate transcription confidence (use dominant emotion confidence as a proxy)
-    # In a real system, this would come from the speech-to-text model
-    transcription_confidence = max(0.7, dominant_emotion_confidence)  # Default to 0.7 if no emotion confidence
-    
-    # Prepare payload for core service
-    payload = {
-        "user_id": user_id,
-        "session_id": session_id,
-        "audio_duration_seconds": audio_duration,
-        "transcribed_text": analysis_data.get("transcription") or " ", # Ensure not empty
-        "transcription_confidence": transcription_confidence,
-        "sentiment": sentiment_label,
-        "sentiment_score": sentiment_score,
-        "dominant_emotion": dominant_emotion,
-        "emotion_scores": emotion_scores_payload,
-        "raw_analysis_data": {
-            "sentiment_details": sentiment_data,
-            "emotion_details": emotions_list,
-            "analysis_timestamp": analysis_data.get("timestamp"),
-            "service_version": "stt_v1.0"
-        }
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                speech_analysis_endpoint,
-                headers=headers,
-                json=payload,
-                timeout=10.0
-            )
-            
-            if response.status_code == 200 or response.status_code == 201:
-                logger.info(f"Successfully stored speech analysis for user {user_id}")
-                return True
-            else:
-                logger.error(f"Failed to store speech analysis for user {user_id}. Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-    except Exception as e:
-        logger.error(f"Error storing analysis in DB: {e}")
-        return False
-
-# --- Emotion and Sentiment Mapping ---
-
-EMOTION_MODEL_TO_ENUM_MAPPING = {
-    # Direct
-    "joy": "happy",
-    "sadness": "sad",
-    "anger": "angry",
-    "fear": "fear",
-    "surprise": "surprise",
-    "disgust": "disgust",
-    "neutral": "neutral",
-    "contempt": "contempt",
-    # Mapped
-    "amusement": "happy",
-    "excitement": "happy",
-    "pride": "happy",
-    "love": "happy",
-    "caring": "happy",
-    "gratitude": "happy",
-    "optimism": "happy",
-    "relief": "happy",
-    "approval": "happy",
-    "admiration": "happy",
-    "desire": "happy",
-    "grief": "sad",
-    "disappointment": "sad",
-    "remorse": "sad",
-    "embarrassment": "fear",
-    "nervousness": "fear",
-    "annoyance": "angry",
-    "disapproval": "angry",
-    "realization": "surprise",
-    "confusion": "neutral",
-    "curiosity": "neutral",
-}
 
 def process_audio_file(audio_file: UploadFile) -> (str, float):
     """Processes the uploaded audio file and returns the file path and duration."""
@@ -526,12 +439,13 @@ async def analyze_speech(
     token: str = Form(...),
     session_id: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    gen_ai_enabled: bool = Form(False)
+    gen_ai_enabled: bool = Form(False),
+    start_emo_buddy: bool = Form(False)  # NEW: Optional EmoBuddy integration
 ):
     """
     Main endpoint to analyze speech from an audio file.
     This performs transcription, sentiment analysis, emotion analysis,
-    and optionally generates AI insights and interacts with EmoBuddy.
+    and optionally generates AI insights. EmoBuddy integration is now optional.
     """
     start_time = time.time()
     
@@ -568,23 +482,32 @@ async def analyze_speech(
         current_session_id = session_id or str(uuid.uuid4())
         analysis_result["session_id"] = current_session_id
 
-        # Store analysis in database (fire and forget)
+        # Store speech analysis in database (keeping this functionality)
         try:
             stored_successfully = await store_analysis_in_db(analysis_result, user_id, token, current_session_id)
             if not stored_successfully:
-                logger.warning(f"Failed to store analysis in DB for user {user_id}")
+                logger.warning(f"Failed to store speech analysis in DB for user {user_id}")
         except Exception as e:
-            logger.error(f"Error storing analysis in DB: {e}")
+            logger.error(f"Error storing speech analysis in DB: {e}")
             
-        # EmoBuddy Interaction using unified core adapter
+        # EmoBuddy Integration: In-memory only (NO database storage for EmoBuddy)
         emo_buddy_response = None
-        if stt_adapter:
+        if start_emo_buddy and stt_adapter:
             try:
-                # Prepare analysis data for EmoBuddy
-                emo_buddy_analysis_data = analysis_result.copy()
-                emo_buddy_analysis_data["transcribed_text"] = analysis_result.get("transcription", "")
+                logger.info(f"Starting simplified EmoBuddy integration for user {user_uuid}")
                 
-                # Start EmoBuddy session using the unified core adapter
+                # Prepare analysis data with transcribed text as the focal point
+                emo_buddy_analysis_data = {
+                    "transcribed_text": analysis_result.get("transcription", ""),
+                    "sentiment": analysis_result.get("sentiment", {}),
+                    "emotions": analysis_result.get("emotions", []),
+                    "audio_duration_seconds": analysis_result.get("audio_duration_seconds", 0),
+                    "user_id": str(user_uuid),
+                    "session_id": current_session_id,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Start EmoBuddy session (in-memory only)
                 start_response = await stt_adapter.start_session(
                     user_id=str(user_uuid),
                     analysis_report=emo_buddy_analysis_data,
@@ -592,18 +515,41 @@ async def analyze_speech(
                     token=token
                 )
                 
-                if start_response and start_response.get("success"):
-                    emo_buddy_response = start_response.get("response")
-                    # Store the unified session ID for tracking
-                    active_core_sessions[current_session_id] = start_response.get("session_id")
-                    logger.info(f"EmoBuddy session created via unified core for user {user_uuid}")
+                if start_response and start_response.get("success", True):
+                    emo_buddy_response = start_response.get("emo_buddy_response") or start_response.get("response")
+                    
+                    # Store session ID for tracking (in-memory only)
+                    returned_session_id = start_response.get("session_id")
+                    logger.info(f"Start response session_id: {returned_session_id}")
+                    logger.info(f"Original session_id: {session_id}")
+                    
+                    if returned_session_id:
+                        active_core_sessions[session_id] = returned_session_id
+                        logger.info(f"Stored session mapping: {session_id} -> {returned_session_id}")
+                    else:
+                        logger.warning(f"No session_id in start_response, cannot store mapping")
+                        logger.warning(f"Start response: {start_response}")
+                    
+                    logger.info(f"In-memory EmoBuddy session started successfully for user {user_uuid}")
+                    logger.info(f"Current active_core_sessions: {active_core_sessions}")
+                    
+                    return {
+                        "success": True,
+                        "session_id": session_id,
+                        "emo_buddy_response": emo_buddy_response,
+                        "should_continue": start_response.get("should_continue", True),
+                        "timestamp": datetime.now().isoformat()
+                    }
                 else:
-                    logger.warning(f"Failed to start EmoBuddy session via unified core for user {user_uuid}")
+                    error_msg = start_response.get("error", "Unknown error") if start_response else "No response"
+                    logger.warning(f"Failed to start EmoBuddy session for user {user_uuid}: {error_msg}")
+                    emo_buddy_response = "EmoBuddy temporarily unavailable"
                     
             except Exception as e:
-                logger.error(f"Error starting EmoBuddy session via unified core: {e}")
+                logger.error(f"Error starting EmoBuddy session: {e}")
                 emo_buddy_response = "EmoBuddy temporarily unavailable"
-        else:
+        elif start_emo_buddy:
+            logger.warning("EmoBuddy integration requested but STT adapter not available")
             emo_buddy_response = "EmoBuddy service not available"
             
         analysis_result["emo_buddy_response"] = emo_buddy_response
@@ -634,6 +580,7 @@ async def analyze_speech(
         logger.info(f"Returning analysis response with fields: {list(response_data.keys())}")
         logger.info(f"Technical report length: {len(response_data.get('technical_report', ''))}")
         logger.info(f"GenAI insights available: {bool(response_data.get('gen_ai_insights'))}")
+        logger.info(f"EmoBuddy integration: {'enabled' if start_emo_buddy else 'disabled'}")
 
     except HTTPException as e:
         logger.error(f"HTTP Exception in analyze_speech: {e.detail}")
@@ -649,6 +596,99 @@ async def analyze_speech(
         
     return AnalysisResponse(**response_data)
 
+@app.post("/start-emobuddy-from-analysis")
+async def start_emobuddy_from_analysis(
+    user_id: str = Form(...),
+    token: str = Form(...),
+    session_id: str = Form(...),
+    transcribed_text: str = Form(...),
+    sentiment_label: str = Form(...),
+    sentiment_confidence: float = Form(...),
+    emotions: str = Form(...)  # JSON string of emotions
+):
+    """
+    Start EmoBuddy session from existing speech analysis results (in-memory only).
+    The session will begin with EmoBuddy acknowledging what the user said.
+    """
+    try:
+        user_uuid = validate_user_uuid(user_id)
+        
+        # Parse emotions from JSON string
+        try:
+            emotions_data = json.loads(emotions) if emotions else []
+        except json.JSONDecodeError:
+            emotions_data = []
+        
+        # Prepare analysis data focused on what the user actually said
+        analysis_data = {
+            "transcribed_text": transcribed_text,
+            "sentiment": {
+                "label": sentiment_label,
+                "confidence": sentiment_confidence
+            },
+            "emotions": emotions_data,
+            "user_id": str(user_uuid),
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat(),
+            "audio_duration_seconds": 0  # Not relevant for this flow
+        }
+        
+        if not stt_adapter:
+            raise HTTPException(status_code=503, detail="EmoBuddy service not available")
+        
+        logger.info(f"Starting in-memory EmoBuddy session from analysis for user {user_uuid}")
+        logger.info(f"User said: '{transcribed_text}'")
+        
+        # Start EmoBuddy session (in-memory only)
+        start_response = await stt_adapter.start_session(
+            user_id=str(user_uuid),
+            analysis_report=analysis_data,
+            session_id=session_id,
+            token=token
+        )
+        
+        if start_response and start_response.get("success", True):
+            emo_buddy_response = start_response.get("emo_buddy_response") or start_response.get("response")
+            
+            # Store the session ID for tracking (in-memory only)
+            returned_session_id = start_response.get("session_id")
+            logger.info(f"Start response session_id: {returned_session_id}")
+            logger.info(f"Original session_id: {session_id}")
+            
+            if returned_session_id:
+                active_core_sessions[session_id] = returned_session_id
+                logger.info(f"Stored session mapping: {session_id} -> {returned_session_id}")
+            else:
+                logger.warning(f"No session_id in start_response, cannot store mapping")
+                logger.warning(f"Start response: {start_response}")
+            
+            logger.info(f"In-memory EmoBuddy session started successfully for user {user_uuid}")
+            logger.info(f"Current active_core_sessions: {active_core_sessions}")
+            
+            return {
+                "success": True,
+                "session_id": session_id,
+                "emo_buddy_response": emo_buddy_response,
+                "should_continue": start_response.get("should_continue", True),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            error_msg = start_response.get("error", "Unknown error") if start_response else "No response"
+            logger.warning(f"Failed to start EmoBuddy session for user {user_uuid}: {error_msg}")
+            
+            return {
+                "success": False,
+                "error": error_msg,
+                "session_id": session_id,
+                "emo_buddy_response": "EmoBuddy temporarily unavailable"
+            }
+            
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error starting EmoBuddy from analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start EmoBuddy session: {str(e)}")
+
 
 @app.post("/continue-emo-buddy")
 async def continue_emo_buddy_conversation(
@@ -657,29 +697,42 @@ async def continue_emo_buddy_conversation(
     user_id: str = Form(...),
     token: str = Form(...)
 ):
-    """Continue an EmoBuddy conversation using unified core adapter"""
+    """Continue an EmoBuddy conversation (in-memory only)"""
     try:
         user_uuid = validate_user_uuid(user_id)
         
         if not stt_adapter:
             raise HTTPException(status_code=503, detail="EmoBuddy service not available")
         
-        # Get the unified session ID from active sessions
+        # Get the session ID from active sessions (in-memory tracking)
+        logger.info(f"Looking for session {session_id} in active_core_sessions")
+        logger.info(f"Active core sessions: {list(active_core_sessions.keys())}")
+        
         unified_session_id = active_core_sessions.get(session_id)
         if not unified_session_id:
+            logger.warning(f"Session {session_id} not found in active sessions")
+            logger.warning(f"Available sessions: {active_core_sessions}")
             raise HTTPException(status_code=404, detail="EmoBuddy session not found")
         
-        # Continue the conversation using the unified core adapter
+        logger.info(f"Continuing in-memory EmoBuddy conversation for session {session_id}")
+        
+        # Continue the conversation (in-memory only)
         continue_response = await stt_adapter.continue_session(
             session_id=unified_session_id,
             user_id=str(user_uuid),
-            user_input=user_input,
-            token=token
+            user_token=token,
+            user_input=user_input
         )
         
+        logger.info(f"Continue response received: {continue_response}")
+        logger.info(f"Continue response type: {type(continue_response)}")
+        
         if continue_response and continue_response.get("success"):
-            response = continue_response.get("response")
+            # Fix: Look for "emo_buddy_response" key instead of "response"
+            response = continue_response.get("emo_buddy_response")
             should_continue = continue_response.get("should_continue", True)
+            
+            logger.info(f"Success path: response='{response}', should_continue={should_continue}")
             
             return {
                 "session_id": session_id,
@@ -688,6 +741,9 @@ async def continue_emo_buddy_conversation(
                 "timestamp": datetime.now().isoformat()
             }
         else:
+            error_msg = continue_response.get("error", "Unknown error") if continue_response else "No response"
+            logger.warning(f"Failed to continue EmoBuddy conversation: {error_msg}")
+            logger.warning(f"Continue response was: {continue_response}")
             raise HTTPException(status_code=500, detail="Failed to continue conversation")
         
     except HTTPException as e:
@@ -700,41 +756,42 @@ async def continue_emo_buddy_conversation(
 async def end_emo_buddy_session(
     session_id: str = Form(...),
     user_id: str = Form(...),
-    token: str = Form(...)
+    token: str = Form(...),
+    session_summary: str = Form(None)
 ):
-    """End an EmoBuddy session using unified core adapter"""
+    """End an EmoBuddy session (in-memory cleanup)"""
     try:
         user_uuid = validate_user_uuid(user_id)
         
         if not stt_adapter:
             raise HTTPException(status_code=503, detail="EmoBuddy service not available")
         
-        # Get the unified session ID from active sessions
+        # Get the session ID from active sessions (in-memory tracking)
         unified_session_id = active_core_sessions.get(session_id)
         if not unified_session_id:
+            logger.warning(f"Session {session_id} not found in active sessions")
             raise HTTPException(status_code=404, detail="EmoBuddy session not found")
         
-        # End the session using the unified core adapter
-        end_response = await stt_adapter.end_session(
+        logger.info(f"Ending in-memory EmoBuddy session {session_id}")
+        
+        # End session via unified API (properly closes EmoBuddy session in memory)
+        end_response = await stt_adapter.unified_api.end_session(
             session_id=unified_session_id,
-            user_id=str(user_uuid),
-            token=token
+            user_id=user_id,
+            user_token=token
         )
         
-        if end_response and end_response.get("success"):
-            summary = end_response.get("summary", "Session ended successfully")
-            
-            # Clean up local session tracking
-            if session_id in active_core_sessions:
-                del active_core_sessions[session_id]
-            
-            return {
-                "session_id": session_id,
-                "summary": summary,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to end session")
+        # Clean up local session tracking
+        if session_id in active_core_sessions:
+            del active_core_sessions[session_id]
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "message": "EmoBuddy session ended successfully",
+            "summary": session_summary or end_response.summary if hasattr(end_response, 'summary') else "Session completed",
+            "timestamp": datetime.now().isoformat()
+        }
         
     except HTTPException as e:
         raise e

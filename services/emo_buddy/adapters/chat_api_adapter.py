@@ -17,11 +17,27 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from core import (
-    get_unified_api, UnifiedEmoBuddyAPI, SessionMode,
-    EmoBuddyError, SessionNotFoundError, InvalidSessionError,
-    emo_buddy_start_session, emo_buddy_continue_session, emo_buddy_end_session
-)
+# Also add the services directory if we're running from a subdirectory
+services_dir = os.path.dirname(os.path.dirname(parent_dir))
+if services_dir not in sys.path and 'services' in os.path.basename(services_dir):
+    sys.path.insert(0, services_dir)
+
+try:
+    from core import (
+        get_unified_api, UnifiedEmoBuddyAPI, SessionMode,
+        EmoBuddyError, SessionNotFoundError, InvalidSessionError,
+        emo_buddy_start_session, emo_buddy_continue_session, emo_buddy_end_session
+    )
+except ImportError:
+    # Try different import paths
+    try:
+        from services.emo_buddy.core import (
+            get_unified_api, UnifiedEmoBuddyAPI, SessionMode,
+            EmoBuddyError, SessionNotFoundError, InvalidSessionError,
+            emo_buddy_start_session, emo_buddy_continue_session, emo_buddy_end_session
+        )
+    except ImportError as e:
+        raise ImportError(f"Could not import core modules. Please check your Python path. Error: {e}")
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +84,7 @@ class ChatAPIAdapter:
                 "timestamp": datetime.now().isoformat()
             }
     
-    async def continue_session(self, session_id: str, user_id: str, user_token: str, user_input: str) -> Dict[str, Any]:
+    async def continue_session(self, session_id: str, user_id: str, user_token: str, user_message: str) -> Dict[str, Any]:
         """
         Continue an existing EmoBuddy session
         
@@ -76,7 +92,7 @@ class ChatAPIAdapter:
             session_id: Session identifier
             user_id: User UUID
             user_token: User authentication token
-            user_input: User's message
+            user_message: User's message
             
         Returns:
             Dictionary with continue response
@@ -85,26 +101,16 @@ class ChatAPIAdapter:
             logger.info(f"Continuing EmoBuddy session {session_id} for user {user_id}")
             
             # Use unified API to continue session
-            response = await self.unified_api.continue_session(session_id, user_id, user_token, user_input)
+            response = await self.unified_api.continue_session(session_id, user_id, user_token, user_message)
             
             # Convert to expected format
             return {
                 "session_id": response.session_id,
                 "response": response.response,
                 "should_continue": response.should_continue,
-                "core_session_uuid": response.core_session_uuid,
                 "timestamp": response.timestamp
             }
             
-        except SessionNotFoundError:
-            logger.error(f"Session {session_id} not found")
-            return {
-                "error": f"Session {session_id} not found",
-                "session_id": session_id,
-                "response": "I'm sorry, but I can't find our conversation. Would you like to start a new session?",
-                "should_continue": False,
-                "timestamp": datetime.now().isoformat()
-            }
         except Exception as e:
             logger.error(f"Error continuing EmoBuddy session: {e}")
             return {
@@ -143,14 +149,6 @@ class ChatAPIAdapter:
                 "timestamp": datetime.now().isoformat()
             }
             
-        except SessionNotFoundError:
-            logger.error(f"Session {session_id} not found")
-            return {
-                "error": f"Session {session_id} not found",
-                "session_id": session_id,
-                "summary": "Session not found.",
-                "timestamp": datetime.now().isoformat()
-            }
         except Exception as e:
             logger.error(f"Error ending EmoBuddy session: {e}")
             return {
@@ -162,7 +160,7 @@ class ChatAPIAdapter:
     
     def get_session_status(self, session_id: str) -> Dict[str, Any]:
         """
-        Get session status
+        Get current session status
         
         Args:
             session_id: Session identifier
@@ -172,33 +170,57 @@ class ChatAPIAdapter:
         """
         try:
             return self.unified_api.get_session_status(session_id)
+            
         except Exception as e:
             logger.error(f"Error getting session status: {e}")
-            return {"exists": False, "active": False, "error": str(e)}
+            return {
+                "exists": False,
+                "active": False,
+                "error": str(e)
+            }
+    
+    def is_session_active(self, session_id: str) -> bool:
+        """
+        Check if session is currently active
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            True if session is active, False otherwise
+        """
+        try:
+            return self.unified_api.is_session_active(session_id)
+            
+        except Exception as e:
+            logger.error(f"Error checking session active status: {e}")
+            return False
     
     def health_check(self) -> Dict[str, Any]:
         """
-        Perform health check
+        Perform health check on the chat adapter
         
         Returns:
             Dictionary with health status
         """
         try:
-            core_health = self.unified_api.health_check()
+            # Check unified API health
+            unified_health = self.unified_api.health_check()
+            
             return {
-                "status": "healthy" if core_health["status"] == "healthy" else "unhealthy",
-                "service": "EmoBuddy Chat API",
-                "timestamp": datetime.now().isoformat(),
-                "core_status": core_health,
-                "active_sessions": self.unified_api.get_active_sessions_count()
+                "adapter": "chat_api",
+                "status": "healthy" if unified_health.get("status") == "healthy" else "degraded",
+                "unified_api_status": unified_health.get("status", "unknown"),
+                "timestamp": datetime.now().isoformat()
             }
+            
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return {
+                "adapter": "chat_api",
                 "status": "unhealthy",
-                "service": "EmoBuddy Chat API",
-                "timestamp": datetime.now().isoformat(),
-                "error": str(e)
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
             }
 
 # Global instance

@@ -151,7 +151,7 @@ export interface ChatAnalyticsData {
     avgConfidencePerSession: number;
     avgSessionDurationMinutes: number;
   };
-  analysisDurationStats: Array<any>;
+  analysisDurationStats: Array<unknown>;
   summary: {
     totalAnalyses: number;
     dateRange: {

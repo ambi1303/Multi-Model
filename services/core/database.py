@@ -1,27 +1,29 @@
 """
-Database connection and session management
+Database connection and session management.
+This is the corrected version with nested configuration access, simplified async setup,
+and improved security.
 """
 import logging
-from typing import AsyncGenerator, Optional
+import ssl
+from typing import AsyncGenerator, TypeVar, Generic, Type, Optional, List, Dict, Any, Union
 from contextlib import contextmanager, asynccontextmanager
-from sqlalchemy import create_engine, event, text
+
+from sqlalchemy import create_engine, event, text, select, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import StaticPool, QueuePool
+from sqlalchemy.pool import QueuePool
 from alembic.config import Config
 from alembic import command
 
-from config import get_config, get_database_url
+from config import get_config
 
 # Create declarative base for models
 Base = declarative_base()
 
 logger = logging.getLogger(__name__)
 
-# Database manager handles all connections - no global variables needed
-
 class DatabaseManager:
-    """Database connection manager"""
+    """Database connection manager."""
     
     def __init__(self):
         self.config = get_config()
@@ -31,29 +33,27 @@ class DatabaseManager:
         self._sync_session_local = None
     
     def initialize_sync_db(self):
-        """Initialize synchronous database connection"""
+        """Initialize synchronous database connection."""
         if self._sync_engine is None:
-            # Use QueuePool for PostgreSQL connections
             self._sync_engine = create_engine(
-                self.config.database_url,
+                self.config.database.url,
                 poolclass=QueuePool,
-                pool_size=self.config.database_pool_size,
-                max_overflow=self.config.database_max_overflow,
-                pool_pre_ping=self.config.database_pool_pre_ping,
-                echo=self.config.database_echo,
+                pool_size=self.config.database.pool_size,
+                max_overflow=self.config.database.max_overflow,
+                pool_pre_ping=self.config.database.pool_pre_ping,
+                echo=self.config.database.echo,
                 pool_recycle=3600,  # Recycle connections every hour
                 connect_args={
                     "options": "-c timezone=utc",
                     "connect_timeout": 10,
-                    "application_name": f"{self.config.service_name}_sync"
+                    "application_name": f"{self.config.service.name}_sync"
                 }
             )
             
-            # Add event listeners for connection health
+            # Renamed function for clarity
             @event.listens_for(self._sync_engine, "connect")
-            def set_sqlite_pragma(dbapi_connection, connection_record):
-                if 'postgresql' in self.config.database_url:
-                    # Set PostgreSQL session parameters
+            def set_postgres_timezone(dbapi_connection, connection_record):
+                if 'postgresql' in self.config.database.url:
                     cursor = dbapi_connection.cursor()
                     cursor.execute("SET TIME ZONE 'UTC'")
                     cursor.close()
@@ -67,65 +67,32 @@ class DatabaseManager:
         return self._sync_engine
     
     def initialize_async_db(self):
-        """Initialize asynchronous database connection"""
+        """Initialize asynchronous database connection."""
         if self._async_engine is None:
-            # Convert sync URL to async URL and clean SSL parameters
-            async_url = self.config.database_url.replace(
+            # Convert sync URL to async URL
+            async_url = self.config.database.url.replace(
                 "postgresql://", "postgresql+asyncpg://"
             )
             
-            # Remove SSL parameters that might not be compatible with asyncpg
-            import urllib.parse as urlparse
-            parsed = urlparse.urlparse(async_url)
-            query_params = urlparse.parse_qs(parsed.query)
-            
-            # Remove potentially problematic SSL parameters
-            problematic_params = [
-                'sslmode', 'sslcert', 'sslkey', 'sslrootcert', 'sslcrl',
-                'channel_binding', 'gssencmode', 'target_session_attrs',
-                'passfile', 'service', 'options'
-            ]
-            for param in problematic_params:
-                query_params.pop(param, None)
-            
-            # Rebuild the URL without problematic parameters
-            new_query = urlparse.urlencode(query_params, doseq=True)
-            cleaned_url = urlparse.urlunparse((
-                parsed.scheme,
-                parsed.netloc,
-                parsed.path,
-                parsed.params,
-                new_query,
-                parsed.fragment
-            ))
-            
-            # Prepare connection arguments
-            connect_args = {
-                "command_timeout": 10,
-                "server_settings": {
-                    "application_name": f"{self.config.service_name}_async",
-                    "timezone": "UTC"
-                }
-            }
-            
-            # Handle SSL configuration properly for asyncpg
-            if 'ssl' in self.config.database_url.lower() or 'sslmode' in self.config.database_url:
-                # For development, disable SSL verification
-                # For production, you should configure proper SSL
-                import ssl
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-                connect_args["ssl"] = ssl_context
+            # Simplified: Let asyncpg handle the connection string directly.
+            # The complex manual URL parsing and insecure SSL context have been removed.
+            # Control SSL via your connection string in the .env file.
+            # e.g., DATABASE_URL="postgresql://.../?ssl=require"
             
             self._async_engine = create_async_engine(
-                cleaned_url,
-                pool_size=self.config.database_pool_size,
-                max_overflow=self.config.database_max_overflow,
-                pool_pre_ping=self.config.database_pool_pre_ping,
-                echo=self.config.database_echo,
+                async_url,
+                pool_size=self.config.database.pool_size,
+                max_overflow=self.config.database.max_overflow,
+                pool_pre_ping=self.config.database.pool_pre_ping,
+                echo=self.config.database.echo,
                 pool_recycle=3600,
-                connect_args=connect_args
+                connect_args={
+                    "command_timeout": 10,
+                    "server_settings": {
+                        "application_name": f"{self.config.service.name}_async",
+                        "timezone": "UTC"
+                    }
+                }
             )
             
             self._async_session_local = async_sessionmaker(
@@ -138,7 +105,7 @@ class DatabaseManager:
     
     @contextmanager
     def get_sync_session(self):
-        """Get synchronous database session with proper cleanup"""
+        """Get synchronous database session with proper cleanup."""
         if self._sync_session_local is None:
             self.initialize_sync_db()
             
@@ -154,7 +121,7 @@ class DatabaseManager:
     
     @asynccontextmanager
     async def get_async_session(self) -> AsyncGenerator[AsyncSession, None]:
-        """Get asynchronous database session with proper cleanup"""
+        """Get asynchronous database session with proper cleanup."""
         if self._async_session_local is None:
             self.initialize_async_db()
             
@@ -167,20 +134,22 @@ class DatabaseManager:
                 raise
     
     async def check_health(self) -> bool:
-        """Check database health"""
+        """Check database health."""
         try:
             async with self.get_async_session() as session:
                 result = await session.execute(text("SELECT 1"))
                 return result.scalar() == 1
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
-            logger.debug(f"Database URL being used: {self.config.database_url[:20]}...")
+            logger.debug(f"Database URL being used: {self.config.database.url[:20]}...")
             return False
     
     def run_migrations(self, revision: str = "head"):
-        """Run database migrations"""
+        """Run database migrations."""
         try:
             alembic_cfg = Config("alembic.ini")
+            # Point alembic to the correct database URL
+            alembic_cfg.set_main_option("sqlalchemy.url", self.config.database.url)
             command.upgrade(alembic_cfg, revision)
             logger.info(f"Migrations completed to revision: {revision}")
         except Exception as e:
@@ -188,31 +157,25 @@ class DatabaseManager:
             raise
     
     def create_all_tables(self):
-        """Create all tables (for development only)"""
+        """Create all tables (for development only)."""
         if self._sync_engine is None:
             self.initialize_sync_db()
         Base.metadata.create_all(bind=self._sync_engine)
         logger.info("All tables created")
 
-
-# Base Repository Class
-from typing import TypeVar, Generic, Type, Optional, List, Dict, Any, Union
-from sqlalchemy import select, update, delete, func
-from sqlalchemy.ext.asyncio import AsyncSession
-
+# --- Base Repository Class ---
 ModelType = TypeVar("ModelType", bound=Base)
 CreateSchemaType = TypeVar("CreateSchemaType")
 UpdateSchemaType = TypeVar("UpdateSchemaType")
 
-
 class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    """Base repository with common CRUD operations"""
+    """Base repository with common CRUD operations."""
     
     def __init__(self, model: Type[ModelType]):
         self.model = model
     
     async def get(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
-        """Get a single record by ID"""
+        """Get a single record by ID."""
         result = await db.execute(select(self.model).where(self.model.id == id))
         return result.scalar_one_or_none()
     
@@ -224,29 +187,23 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         limit: int = 100,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[ModelType]:
-        """Get multiple records with pagination and optional filters"""
+        """Get multiple records with pagination and optional filters."""
         query = select(self.model)
         
-        # Apply filters if provided
         if filters:
             for key, value in filters.items():
-                if hasattr(self.model, key):
-                    if value is not None:
-                        query = query.where(getattr(self.model, key) == value)
+                if hasattr(self.model, key) and value is not None:
+                    query = query.where(getattr(self.model, key) == value)
         
-        # Apply pagination
         query = query.offset(skip).limit(limit)
         
         result = await db.execute(query)
         return result.scalars().all()
     
     async def create(self, db: AsyncSession, *, obj_in: Union[CreateSchemaType, Dict[str, Any]]) -> ModelType:
-        """Create a new record"""
+        """Create a new record."""
         try:
-            if isinstance(obj_in, dict):
-                obj_data = obj_in
-            else:
-                obj_data = obj_in.model_dump() if hasattr(obj_in, 'model_dump') else obj_in.dict()
+            obj_data = obj_in if isinstance(obj_in, dict) else obj_in.model_dump()
             
             db_obj = self.model(**obj_data)
             db.add(db_obj)
@@ -265,12 +222,9 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db_obj: ModelType, 
         obj_in: Union[UpdateSchemaType, Dict[str, Any]]
     ) -> ModelType:
-        """Update an existing record"""
+        """Update an existing record."""
         try:
-            if isinstance(obj_in, dict):
-                update_data = obj_in
-            else:
-                update_data = obj_in.model_dump(exclude_unset=True) if hasattr(obj_in, 'model_dump') else obj_in.dict(exclude_unset=True)
+            update_data = obj_in if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
             
             for field, value in update_data.items():
                 if hasattr(db_obj, field):
@@ -285,8 +239,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             logger.error(f"Error updating {self.model.__name__}: {e}")
             raise
     
-    async def delete(self, db: AsyncSession, *, id: Any) -> ModelType:
-        """Delete a record by ID"""
+    async def delete(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
+        """Delete a record by ID."""
         try:
             obj = await self.get(db, id=id)
             if obj:
@@ -298,8 +252,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             logger.error(f"Error deleting {self.model.__name__} with id {id}: {e}")
             raise
     
-    async def soft_delete(self, db: AsyncSession, *, id: Any) -> ModelType:
-        """Soft delete a record by setting is_active to False"""
+    async def soft_delete(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
+        """Soft delete a record by setting is_active to False."""
         try:
             obj = await self.get(db, id=id)
             if obj and hasattr(obj, 'is_active'):
@@ -314,10 +268,9 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             raise
     
     async def count(self, db: AsyncSession, *, filters: Optional[Dict[str, Any]] = None) -> int:
-        """Count records with optional filters"""
+        """Count records with optional filters."""
         query = select(func.count(self.model.id))
         
-        # Apply filters if provided
         if filters:
             for key, value in filters.items():
                 if hasattr(self.model, key) and value is not None:
@@ -326,16 +279,10 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         result = await db.execute(query)
         return result.scalar() or 0
 
-
-# Global managers
+# --- Global managers & Dependencies ---
 db_manager = DatabaseManager()
 
-
-# Dependency functions for FastAPI
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency for asynchronous database session"""
+    """FastAPI dependency for asynchronous database session."""
     async with db_manager.get_async_session() as session:
         yield session
-
-
-# Database is initialized through the DatabaseManager instance when needed 

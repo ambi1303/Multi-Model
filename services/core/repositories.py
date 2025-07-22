@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, desc, asc, update, delete
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
+import asyncio
 
 from database import BaseRepository
 
@@ -489,13 +490,57 @@ class EmoBuddyMessageRepository(BaseRepository[EmoBuddyMessage, schemas.EmoBuddy
         return result.scalars().all()
     
     async def get_next_message_order(self, db: AsyncSession, session_id: int) -> int:
-        """Get next message order for session"""
-        result = await db.execute(
-            select(func.max(EmoBuddyMessage.message_order))
-            .where(EmoBuddyMessage.session_id == session_id)
-        )
-        max_order = result.scalar()
-        return (max_order or 0) + 1
+        """Get next message order for session with proper concurrency handling"""
+        try:
+            # Use row-level locking within the current transaction
+            result = await db.execute(
+                select(func.max(EmoBuddyMessage.message_order))
+                .where(EmoBuddyMessage.session_id == session_id)
+                .with_for_update()
+            )
+            max_order = result.scalar()
+            next_order = (max_order or 0) + 1
+            
+            # Verify the order is actually available
+            existing_check = await db.execute(
+                select(EmoBuddyMessage.message_order)
+                .where(
+                    EmoBuddyMessage.session_id == session_id,
+                    EmoBuddyMessage.message_order == next_order
+                )
+                .limit(1)
+            )
+            
+            if existing_check.scalar() is not None:
+                # If the order is taken, try a few more increments
+                for i in range(1, 6):  # Try 5 more orders
+                    candidate_order = next_order + i
+                    candidate_check = await db.execute(
+                        select(EmoBuddyMessage.message_order)
+                        .where(
+                            EmoBuddyMessage.session_id == session_id,
+                            EmoBuddyMessage.message_order == candidate_order
+                        )
+                        .limit(1)
+                    )
+                    if candidate_check.scalar() is None:
+                        return candidate_order
+                
+                # If all incremental orders are taken, use timestamp-based order
+                import time
+                timestamp_based_order = int(time.time() * 1000) % 1000000  # Use milliseconds mod 1M
+                logger.warning(f"Using timestamp-based order {timestamp_based_order} for session {session_id}")
+                return timestamp_based_order
+            
+            return next_order
+            
+        except Exception as e:
+            logger.error(f"Error getting next message order for session {session_id}: {e}")
+            # Fallback to timestamp-based ordering if database query fails
+            import time
+            fallback_order = int(time.time() * 1000) % 1000000
+            logger.warning(f"Using fallback order {fallback_order} for session {session_id}")
+            return fallback_order
 
 
 class SurveyResponseRepository(BaseRepository[SurveyResponse, schemas.SurveyResponseCreate, None]):

@@ -3,13 +3,13 @@
  * including ML predictions and survey results.
  */
 export interface CombinedAnalysisResponse {
-  message: string;
+  message?: string;
   mlResult?: {
     burnout_score: number;
     risk_level: 'Low' | 'Medium' | 'High';
   };
   surveyResult?: {
-    [key: string]: any; 
+    [key: string]: unknown; 
   };
   breakdown?: Array<{
     category: string;

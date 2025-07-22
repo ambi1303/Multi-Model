@@ -35,22 +35,26 @@ class UnifiedEmoBuddyAPI:
         
     # === Core API Methods ===
     
-    async def start_session(self, user_id: str, user_token: str, mode: SessionMode, analysis_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def start_session(self, user_id: str, user_token: str, mode: SessionMode, analysis_data: Optional[Dict[str, Any]] = None, session_id: str = None) -> Dict[str, Any]:
         """Start a new session and return the initial state and response."""
         # Create session request
         from .models import SessionStartRequest
         request = SessionStartRequest(
             user_id=user_id,
             mode=mode,
-            triggering_analysis=analysis_data
+            triggering_analysis=analysis_data,
+            session_id=session_id
         )
         
         # Start session via session manager
-        response = await self.session_manager.start_session(request, user_token)
+        session_response = await self.session_manager.start_session(request, user_token)
         
         return {
-            "session_id": response.session_id,
+            "session_id": session_response.session_id,
+            "response": session_response.response,  # Include the actual EmoBuddy response
+            "should_continue": session_response.should_continue,
             "user_id": user_id,
+            "timestamp": datetime.now().isoformat()
         }
 
     async def start_session_stream(self, session_id: str, analysis_data: Optional[Dict[str, Any]] = None):
@@ -177,7 +181,7 @@ class UnifiedEmoBuddyAPI:
     # === Convenience Methods for Different Use Cases ===
     
     async def start_speech_integrated_session(self, user_id: str, user_token: str, 
-                                            analysis_data: Dict[str, Any]) -> EmoBuddyResponse:
+                                            analysis_data: Dict[str, Any], session_id: str = None) -> Dict[str, Any]:
         """
         Convenience method to start a speech-integrated session
         
@@ -185,15 +189,17 @@ class UnifiedEmoBuddyAPI:
             user_id: User UUID
             user_token: User authentication token
             analysis_data: Speech analysis data
+            session_id: Optional session ID to use
             
         Returns:
-            EmoBuddyResponse with session details and initial response
+            Dictionary with session details and initial response
         """
         return await self.start_session(
             user_id=user_id,
             user_token=user_token,
             mode=SessionMode.SPEECH_INTEGRATED,
-            analysis_data=analysis_data
+            analysis_data=analysis_data,
+            session_id=session_id
         )
     
     async def start_standalone_session(self, user_id: str, user_token: str) -> EmoBuddyResponse:
@@ -283,7 +289,7 @@ class UnifiedEmoBuddyAPI:
                 "active_sessions": active_sessions,
                 "session_manager": "operational",
                 "chatbot_engine": "operational",
-                "core_service_url": self.session_manager.core_service_url
+                "mode": "in-memory"  # Indicate we're running in-memory mode
             }
             
         except Exception as e:

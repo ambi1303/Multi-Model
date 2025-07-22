@@ -4,11 +4,11 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import google.generativeai as genai
-from memory_manager import get_memory_manager, ConversationMemory
+from services.emo_buddy.memory_manager import get_memory_manager, ConversationMemory
 import uuid
-from crisis_detector import CrisisDetector
-from therapeutic_techniques import get_technique
-from corporate_context import get_corporate_context
+from services.emo_buddy.crisis_detector import CrisisDetector
+from services.emo_buddy.therapeutic_techniques import get_technique
+from services.emo_buddy.corporate_context import get_corporate_context
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -138,76 +138,78 @@ class EmoBuddyAgent:
     
     def continue_conversation(self, user_input: str) -> Tuple[str, bool]:
         """
-        Continue the therapeutic conversation, yielding the response as a stream.
-        Returns: (response_generator, should_continue_flag)
+            Continue the therapeutic conversation, yielding the response as a stream.
+            Returns: (response_string, should_continue_flag)
         """
         self._log_interaction("user", user_input, "")
         self._update_user_context(user_input)
-        
+
         new_workplace_context = self.corporate_analyzer.analyze_workplace_context(user_input)
         if new_workplace_context.get('detected_contexts'):
             existing_context = self.current_session.get("workplace_context", {})
             existing_context.update(new_workplace_context)
             self.current_session["workplace_context"] = existing_context
-        
+
         crisis_level = self.crisis_detector.assess_text_for_crisis(user_input)
         if crisis_level > 3:
             self.current_session["crisis_flags"].append({
-                "timestamp": datetime.now().isoformat(),
-                "level": crisis_level,
-                "type": "conversation_crisis",
-                "text": user_input
+            "timestamp": datetime.now().isoformat(),
+            "level": crisis_level,
+            "type": "conversation_crisis",
+            "text": user_input
             })
-        
+
         conversation_history = self._get_conversation_history()
         past_context = self.memory.get_relevant_context(user_input + " " + self._get_current_emotional_context())
-        
+
         technique = self.therapeutic_techniques.select_technique(
             user_input, 
             conversation_history, 
             self.current_session["emotions_tracked"]
         )
-        
+
         self.current_session["techniques_used"].append({
             "timestamp": datetime.now().isoformat(),
             "technique": technique,
             "context": user_input[:100],
             "rationale": self._get_technique_rationale(technique, user_input)
         })
-        
+
         if self._is_solution_request(user_input):
             response = self._provide_targeted_solutions(user_input)
             should_continue = self._should_continue_conversation(user_input, response)
+            
+            self._log_interaction("assistant", "targeted_solution", response)
+            return response, should_continue
+
         else:
-            def response_generator():
-                therapeutic_prompt = self._create_therapeutic_prompt(
-                    user_input, 
-                    conversation_history, 
-                    past_context, 
-                    technique, 
-                    crisis_level
-                )
+            # For therapeutic responses, generate the full response
+            should_continue = self._should_continue_conversation(user_input, "")  # Using placeholder for now
+            
+            therapeutic_prompt = self._create_therapeutic_prompt(
+                user_input, 
+                conversation_history, 
+                past_context, 
+                technique, 
+                crisis_level
+            )
 
-                response_stream = self._generate_response(therapeutic_prompt)
-                
-                response_chunks = []
-                for chunk in response_stream:
-                    # Handle both cases: chunk objects with .text attribute and plain strings
-                    if hasattr(chunk, 'text'):
-                        text = chunk.text
-                        response_chunks.append(text)
-                        yield text
-                    else:
-                        text = str(chunk)
-                        response_chunks.append(text)
-                        yield text
-                
-                full_response = "".join(response_chunks)
-                self._log_interaction("assistant", "therapeutic_response", full_response)
+            response_stream = self._generate_response(therapeutic_prompt)
+            
+            # Collect the full response from the stream
+            response_chunks = []
+            for chunk in response_stream:
+                # Handle both cases: chunk objects with .text attribute and plain strings
+                if hasattr(chunk, 'text'):
+                    text = chunk.text
+                else:
+                    text = str(chunk)
+                response_chunks.append(text)
+            
+            full_response = "".join(response_chunks)
+            self._log_interaction("assistant", "therapeutic_response", full_response)
 
-            should_continue = self._should_continue_conversation(user_input, "") # Placeholder
-        
-        return response_generator(), should_continue
+            return full_response, should_continue
     
     def end_session(self) -> str:
         """

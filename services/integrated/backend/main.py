@@ -1252,7 +1252,166 @@ async def analyze_speech(
         logger.error(f"Error in analyze_speech endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred during speech analysis.")
 
-# Emo Buddy Proxy Endpoints - Now routes to STT service for integrated EmoBuddy
+# NEW: Route for starting EmoBuddy from existing speech analysis
+@app.post("/start-emobuddy-from-analysis")
+async def start_emobuddy_from_analysis(
+    request: Request,
+    token: Optional[str] = Depends(get_token),
+    user_id: str = Form(...),
+    session_id: str = Form(...),
+    transcribed_text: str = Form(...),
+    sentiment_label: str = Form(...),
+    sentiment_confidence: float = Form(...),
+    emotions: str = Form(...)
+):
+    """
+    Proxies EmoBuddy session start requests from analysis results to the STT backend.
+    This endpoint forwards the request to the STT service's new EmoBuddy integration endpoint.
+    """
+    REQUESTS.labels(endpoint='/start-emobuddy-from-analysis').inc()
+    start_time = time.time()
+
+    if not token:
+        ERROR_COUNT.labels(endpoint='/start-emobuddy-from-analysis', error_type='auth_error').inc()
+        raise HTTPException(status_code=401, detail="Authorization token is missing")
+
+    try:
+        # Forward request to STT service's new endpoint
+        form_data = aiohttp.FormData()
+        form_data.add_field('user_id', user_id)
+        form_data.add_field('token', token)
+        form_data.add_field('session_id', session_id)
+        form_data.add_field('transcribed_text', transcribed_text)
+        form_data.add_field('sentiment_label', sentiment_label)
+        form_data.add_field('sentiment_confidence', str(sentiment_confidence))
+        form_data.add_field('emotions', emotions)
+
+        # Use STT service base URL + new endpoint
+        stt_base_url = STT_BACKEND_URL.replace('/analyze-speech', '')
+        target_url = f"{stt_base_url}/start-emobuddy-from-analysis"
+
+        async with session.post(target_url, data=form_data, timeout=config['error_handling']['timeout']) as resp:
+            response_data = await resp.json()
+            processing_time = time.time() - start_time
+            PROCESSING_TIME.labels(endpoint='/start-emobuddy-from-analysis').observe(processing_time)
+            
+            if resp.status != 200:
+                ERROR_COUNT.labels(endpoint='/start-emobuddy-from-analysis', error_type=f'backend_error_{resp.status}').inc()
+                logger.error(f"STT EmoBuddy backend error: {resp.status} - {response_data}")
+                raise HTTPException(status_code=resp.status, detail=response_data)
+            
+            return JSONResponse(content=response_data, status_code=200)
+
+    except Exception as e:
+        processing_time = time.time() - start_time
+        PROCESSING_TIME.labels(endpoint='/start-emobuddy-from-analysis').observe(processing_time)
+        ERROR_COUNT.labels(endpoint='/start-emobuddy-from-analysis', error_type='processing_error').inc()
+        logger.error(f"Error in start_emobuddy_from_analysis endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred while starting EmoBuddy session.")
+
+# NEW: Route for continuing EmoBuddy conversation via STT service
+@app.post("/continue-emo-buddy-stt")
+async def continue_emo_buddy_stt(
+    request: Request,
+    token: Optional[str] = Depends(get_token),
+    session_id: str = Form(...),
+    user_input: str = Form(...),
+    user_id: str = Form(...)
+):
+    """
+    Proxies EmoBuddy conversation continuation to the STT backend.
+    This is for sessions that were started via the STT service's EmoBuddy integration.
+    """
+    REQUESTS.labels(endpoint='/continue-emo-buddy-stt').inc()
+    start_time = time.time()
+
+    if not token:
+        ERROR_COUNT.labels(endpoint='/continue-emo-buddy-stt', error_type='auth_error').inc()
+        raise HTTPException(status_code=401, detail="Authorization token is missing")
+
+    try:
+        # Forward request to STT service's continue endpoint
+        form_data = aiohttp.FormData()
+        form_data.add_field('session_id', session_id)
+        form_data.add_field('user_input', user_input)
+        form_data.add_field('user_id', user_id)
+        form_data.add_field('token', token)
+
+        # Use STT service base URL + continue endpoint
+        stt_base_url = STT_BACKEND_URL.replace('/analyze-speech', '')
+        target_url = f"{stt_base_url}/continue-emo-buddy"
+
+        async with session.post(target_url, data=form_data, timeout=config['error_handling']['timeout']) as resp:
+            response_data = await resp.json()
+            processing_time = time.time() - start_time
+            PROCESSING_TIME.labels(endpoint='/continue-emo-buddy-stt').observe(processing_time)
+            
+            if resp.status != 200:
+                ERROR_COUNT.labels(endpoint='/continue-emo-buddy-stt', error_type=f'backend_error_{resp.status}').inc()
+                logger.error(f"STT EmoBuddy continue backend error: {resp.status} - {response_data}")
+                raise HTTPException(status_code=resp.status, detail=response_data)
+            
+            return JSONResponse(content=response_data, status_code=200)
+
+    except Exception as e:
+        processing_time = time.time() - start_time
+        PROCESSING_TIME.labels(endpoint='/continue-emo-buddy-stt').observe(processing_time)
+        ERROR_COUNT.labels(endpoint='/continue-emo-buddy-stt', error_type='processing_error').inc()
+        logger.error(f"Error in continue_emo_buddy_stt endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred while continuing EmoBuddy conversation.")
+
+# NEW: Route for ending EmoBuddy session via STT service
+@app.post("/end-emo-buddy-stt")
+async def end_emo_buddy_stt(
+    request: Request,
+    token: Optional[str] = Depends(get_token),
+    session_id: str = Form(...),
+    user_id: str = Form(...),
+    session_summary: str = Form(None)
+):
+    """
+    Proxies EmoBuddy session ending to the STT backend.
+    This is for sessions that were started via the STT service's EmoBuddy integration.
+    """
+    REQUESTS.labels(endpoint='/end-emo-buddy-stt').inc()
+    start_time = time.time()
+
+    if not token:
+        ERROR_COUNT.labels(endpoint='/end-emo-buddy-stt', error_type='auth_error').inc()
+        raise HTTPException(status_code=401, detail="Authorization token is missing")
+
+    try:
+        # Forward request to STT service's end endpoint
+        form_data = aiohttp.FormData()
+        form_data.add_field('session_id', session_id)
+        form_data.add_field('user_id', user_id)
+        form_data.add_field('token', token)
+        if session_summary:
+            form_data.add_field('session_summary', session_summary)
+
+        # Use STT service base URL + end endpoint
+        stt_base_url = STT_BACKEND_URL.replace('/analyze-speech', '')
+        target_url = f"{stt_base_url}/end-emo-buddy"
+
+        async with session.post(target_url, data=form_data, timeout=config['error_handling']['timeout']) as resp:
+            response_data = await resp.json()
+            processing_time = time.time() - start_time
+            PROCESSING_TIME.labels(endpoint='/end-emo-buddy-stt').observe(processing_time)
+            
+            if resp.status != 200:
+                ERROR_COUNT.labels(endpoint='/end-emo-buddy-stt', error_type=f'backend_error_{resp.status}').inc()
+                logger.error(f"STT EmoBuddy end backend error: {resp.status} - {response_data}")
+                raise HTTPException(status_code=resp.status, detail=response_data)
+            
+            return JSONResponse(content=response_data, status_code=200)
+
+    except Exception as e:
+        processing_time = time.time() - start_time
+        PROCESSING_TIME.labels(endpoint='/end-emo-buddy-stt').observe(processing_time)
+        ERROR_COUNT.labels(endpoint='/end-emo-buddy-stt', error_type='processing_error').inc()
+        logger.error(f"Error in end_emo_buddy_stt endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred while ending EmoBuddy session.")
+
 @app.post("/emo-buddy/start")
 async def start_emo_buddy_session(request: Request, token: Optional[str] = Depends(get_token)):
     """Start EmoBuddy session using unified core with mode detection."""

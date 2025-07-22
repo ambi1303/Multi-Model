@@ -51,7 +51,7 @@ export const Footer: React.FC = () => {
             maxWidth: { xs: '100%', md: '350px' },
           }}>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
-              <Box component="span" sx={{ color: 'primary.main' }}>EmotiAnalyze
+              <Box component="span" sx={{ color: 'primary.main' }}>Mind Matrix
               </Box>
             </Typography>
             <Typography 
@@ -62,7 +62,7 @@ export const Footer: React.FC = () => {
                 lineHeight: 1.6,
               }}
             >
-              Advanced sentiment analysis using multiple machine learning models for accurate emotion detection and text classification across various domains.
+              Mapping wellness. Maximizing potential.
             </Typography>
             <Box sx={{ 
               display: 'flex', 
@@ -224,7 +224,7 @@ export const Footer: React.FC = () => {
         gap: 1,
       }}>
         <Typography variant="body2" color="text.secondary">
-          © 2025 EmotiAnalyze. All rights reserved.
+          © 2025 Mind Matrix. All rights reserved.
         </Typography>
         <Box sx={{ 
           display: 'flex', 

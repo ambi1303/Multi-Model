@@ -18,14 +18,10 @@ import {
   LinearProgress,
 } from '@mui/material';
 import {
-  TrendingUpIcon,
-  TrendingDownIcon,
   PeopleIcon,
   AssignmentIcon,
   CheckCircleIcon,
-  WarningIcon,
   TimelineIcon,
-  PsychologyIcon,
   BarChartIcon,
   SecurityIcon,
 } from '../../utils/icons';
@@ -38,7 +34,7 @@ interface OverviewDashboardProps {
   filters: AnalyticsFilters;
 }
 
-export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filters }) => {
+export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data }) => {
   // Add null safety - provide default values if data is undefined
   const safeData = data || {
     totalSessions: 0,
@@ -291,12 +287,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
               Session & Risk Trends Over Time
             </Typography>
             <SimpleChartFallback
-              data={safeData.sessionTrends.map(item => ({
-                name: item.date,
+             data={safeData.sessionTrends
+              .filter(item => typeof item.sessions === 'number' && !isNaN(item.sessions))
+              .map(item => ({
+                name: item.date || '',
                 value: item.sessions
               }))}
-              type="line"
-              title="Session Trends"
+            type="line"
+            title="Session Trends"
             />
           </Card>
         </Grid>
@@ -308,12 +306,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
               Risk Level Distribution
             </Typography>
             <SimpleChartFallback
-              data={safeData.riskDistribution.map(item => ({
-                name: item.level.charAt(0).toUpperCase() + item.level.slice(1),
+             data={safeData.riskDistribution
+              .filter(item => typeof item.count === 'number' && !isNaN(item.count))
+              .map(item => ({
+                name: item.level ? item.level.charAt(0).toUpperCase() + item.level.slice(1) : 'Unknown',
                 value: item.count
               }))}
-              type="pie"
-              title="Risk Distribution"
+            type="pie"
+            title="Risk Distribution"
             />
           </Card>
         </Grid>
@@ -325,12 +325,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
               Mental State Distribution
             </Typography>
             <SimpleChartFallback
-              data={safeData.mentalStateDistribution.map(item => ({
-                name: item.state,
-                value: item.count
-              }))}
-              type="bar"
-              title="Mental State Distribution"
+                data={safeData.mentalStateDistribution
+                  .filter(item => typeof item.count === 'number' && !isNaN(item.count))
+                  .map(item => ({
+                    name: item.state || 'Unknown',
+                    value: item.count
+                  }))}
+                type="bar"
+                title="Mental State Distribution"
             />
           </Card>
         </Grid>
@@ -342,7 +344,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
               Modality Usage & Confidence
             </Typography>
             <Box sx={{ height: 300 }}>
-              {safeData.modalityPerformance.map((item, index) => (
+              {safeData.modalityPerformance.map((item) => (
                 <Box key={item.modality} sx={{ mb: 2 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
@@ -352,11 +354,12 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ data, filt
                       {item.usage} uses • {item.avgConfidence > 0 ? `${(item.avgConfidence * 100).toFixed(1)}%` : 'N/A'} confidence
                     </Typography>
                   </Box>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={item.avgConfidence * 100} 
+                  <LinearProgress
+                    variant="determinate"
+                      value={typeof item.avgConfidence === 'number' && !isNaN(item.avgConfidence) ? item.avgConfidence * 100 : 0}
                     sx={{ height: 8, borderRadius: 4 }}
                   />
+
                 </Box>
               ))}
             </Box>

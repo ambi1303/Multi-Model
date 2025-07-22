@@ -6,7 +6,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Depends, HTTPException, status, Query, BackgroundTasks, File, UploadFile, Request, Body, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
@@ -14,6 +14,11 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
+from sqlalchemy.exc import SQLAlchemyError,IntegrityError
+from pydantic import ValidationError
+import traceback
+
+from date_time  import normalize_datetime
 
 from config import get_config
 from database import get_async_db, db_manager
@@ -25,6 +30,13 @@ from services import services
 from repositories import repositories
 from models import User
 import schemas
+import os
+from dotenv import load_dotenv
+
+# load_dotenv()
+# SERVICE_AUTH_TOKEN = os.getenv('SERVICE_AUTH_TOKEN')
+# if not SERVICE_AUTH_TOKEN:
+#     raise ValueError("SERVICE_AUTH_TOKEN environment variable is required")
 
 # Configure logging
 logging.basicConfig(
@@ -156,7 +168,7 @@ config = get_config()
 app = FastAPI(
     title="Mental Health Analytics Platform",
     description="Professional backend for comprehensive mental health analytics and monitoring",
-    version=config.service_version,
+    version=config.service.version,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -662,17 +674,74 @@ async def store_speech_analysis(
     db: AsyncSession = Depends(get_async_db)
 ):
     """Store new speech analysis and broadcast update"""
-    analysis = await services.analysis.store_speech_analysis(db, analysis_data)
-    
-    if current_user:
-        updated_analytics = await services.analytics.get_overview_analytics(
-            db, 
-            current_user.id,
-            schemas.AnalyticsFilter() # Default filters
+    try:
+        logger.info(f"Attempting to store speech analysis for user: {analysis_data.user_id}")
+        logger.debug(f"Analysis data: {analysis_data.model_dump()}")
+        
+        # Validate the data before processing
+        if analysis_data.audio_duration_seconds <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Audio duration must be greater than 0"
+            )
+        
+        if not analysis_data.transcribed_text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transcribed text cannot be empty"
+            )
+        
+        # Store the analysis
+        analysis = await services.analysis.store_speech_analysis(db, analysis_data)
+        logger.info(f"Successfully stored analysis with ID: {analysis.id}")
+        
+        # Broadcast analytics update if user is available
+        if current_user:
+            try:
+                updated_analytics = await services.analytics.get_overview_analytics(
+                    db, 
+                    current_user.id,
+                    schemas.AnalyticsFilter()
+                )
+                await manager.broadcast(updated_analytics.model_dump_json())
+                logger.debug("Successfully broadcasted analytics update")
+            except Exception as broadcast_error:
+                logger.warning(f"Failed to broadcast analytics update: {broadcast_error}")
+                # Don't fail the whole request for broadcast issues
+        
+        return analysis
+        
+    except ValidationError as e:
+        logger.error(f"Validation error for user {analysis_data.user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(e)}"
         )
-        await manager.broadcast(updated_analytics.model_dump_json())
     
-    return analysis
+    except IntegrityError as e:
+        logger.error(f"Database integrity error for user {analysis_data.user_id}: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Data integrity constraint violation"
+        )
+    
+    except SQLAlchemyError as e:
+        logger.error(f"Database error for user {analysis_data.user_id}: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database operation failed"
+        )
+    
+    except Exception as e:
+        logger.error(f"Unexpected error storing speech analysis for user {analysis_data.user_id}: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error occurred"
+        )
 
 
 @app.get("/analyses/speech/{analysis_id}", response_model=schemas.SpeechAnalysisResponse, tags=["Analysis"])
@@ -1229,12 +1298,24 @@ async def add_message_to_session(
 @app.put("/emo-buddy/sessions/{session_uuid}/end", response_model=schemas.EmoBuddySessionResponse, tags=["EmoBuddy"])
 async def end_emo_buddy_session(
     session_uuid: UUID,
+    request: Request,
     session_summary: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
+    user_id: Optional[UUID] = None,
+    current_user: Optional[User] = Depends(get_current_user_or_service),
     db: AsyncSession = Depends(get_async_db)
 ):
     """End EmoBuddy session"""
-    return await services.emo_buddy.end_session(db, session_uuid, current_user.id, session_summary)
+    # For service calls, use provided user_id; for user calls, use current_user.id
+    if getattr(request.state, 'is_service_call', False):
+        if not user_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user_id required for service calls")
+        target_user_id = user_id
+    else:
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        target_user_id = current_user.id
+    
+    return await services.emo_buddy.end_session(db, session_uuid, target_user_id, session_summary)
 
 
 # Survey endpoints
@@ -1276,8 +1357,8 @@ async def get_burnout_trend(
 # New comprehensive analytics endpoints
 @app.get("/analytics/overview", response_model=schemas.OverviewAnalyticsData, tags=["Analytics"])
 async def get_analytics_overview(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1296,8 +1377,8 @@ async def get_analytics_overview(
 
 @app.get("/analytics/video", response_model=schemas.VideoAnalyticsData, tags=["Analytics"])
 async def get_analytics_video(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1316,8 +1397,8 @@ async def get_analytics_video(
 
 @app.get("/analytics/speech", response_model=schemas.SpeechAnalyticsData, tags=["Analytics"])
 async def get_analytics_speech(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1336,8 +1417,8 @@ async def get_analytics_speech(
 
 @app.get("/analytics/chat", response_model=schemas.ChatAnalyticsData, tags=["Analytics"])
 async def get_analytics_chat(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1356,8 +1437,8 @@ async def get_analytics_chat(
 
 @app.get("/analytics/emobuddy", response_model=schemas.EmoBuddyAnalyticsData, tags=["Analytics"])
 async def get_analytics_emobuddy(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1376,8 +1457,8 @@ async def get_analytics_emobuddy(
 
 @app.get("/analytics/survey", response_model=schemas.SurveyAnalyticsData, tags=["Analytics"])
 async def get_analytics_survey(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1396,8 +1477,8 @@ async def get_analytics_survey(
 
 @app.get("/analytics/department", response_model=schemas.DepartmentAnalyticsData, tags=["Analytics"])
 async def get_analytics_department(
-    start_date: datetime = Query(default_factory=lambda: datetime.utcnow() - timedelta(days=30)),
-    end_date: datetime = Query(default_factory=lambda: datetime.utcnow()),
+    start_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=30)),
+    end_date: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
     modality: str = Query("all"),
     sessionType: str = Query("all"),
     riskLevel: str = Query("all"),
@@ -1423,7 +1504,18 @@ try:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 except ImportError:
     pass
-
+def broadcast_analytics_update(self, analysis_data):
+    try:
+        # Normalize all datetime fields
+        if 'timestamp' in analysis_data:
+            analysis_data['timestamp'] = normalize_datetime(analysis_data['timestamp'])
+        
+        # Add any other datetime fields that need normalization
+        
+        # Your broadcasting logic here
+        
+    except Exception as e:
+        logger.warning(f"Failed to broadcast analytics update: {e}")
 
 if __name__ == "__main__":
     config = get_config()
@@ -1436,3 +1528,4 @@ if __name__ == "__main__":
         log_level=config.service.log_level.lower(),
         access_log=True
     ) 
+    

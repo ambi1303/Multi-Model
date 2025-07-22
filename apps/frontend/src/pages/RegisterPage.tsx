@@ -39,12 +39,13 @@ const RegisterPage: React.FC = () => {
              <BrainCircuit size={30} />
             </Box>
             <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              EmotiAnalyze
+              <h2>Mind Matrix</h2>
             </Typography>
           </Box>
 
           <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
-            Join a smarter, healthier workforce
+          Mapping wellness. Maximizing potential.
+
           </Typography>
           <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
             Create your account to unlock personalized wellness insights and contribute to a more emotionally intelligent workplace.

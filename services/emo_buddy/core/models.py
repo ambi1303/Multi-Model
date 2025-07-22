@@ -106,6 +106,7 @@ class SessionStartRequest:
     mode: SessionMode
     triggering_analysis: Optional[Dict[str, Any]] = None
     initial_message: Optional[str] = None
+    session_id: Optional[str] = None  # Allow specifying session ID
 
 @dataclass
 class SessionContinueRequest:

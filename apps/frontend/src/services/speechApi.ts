@@ -1,5 +1,23 @@
+/**
+ * Speech Analysis API - Simplified EmoBuddy Integration
+ * ===================================================
+ * 
+ * This service handles speech analysis and EmoBuddy integration using a 
+ * simplified in-memory approach without database dependencies.
+ * 
+ * Flow:
+ * 1. analyzeAudio() - Performs speech analysis (no EmoBuddy by default)
+ * 2. User sees results and decides to engage with EmoBuddy
+ * 3. startEmoBuddyFromAnalysis() - Starts EmoBuddy with transcribed text
+ * 4. continueEmoBuddyConversation() - Continues the conversation in-memory
+ * 5. endEmoBuddySession() - Cleans up in-memory session
+ * 
+ * EmoBuddy sessions are now purely in-memory without database storage.
+ */
+
 import api, { apiCall } from './api';
 import { SpeechAnalysisResult } from '../types';
+import { useAppStore } from '../store/useAppStore';
 
 // Unified EmoBuddy Core Types
 export interface EmoBuddySession {
@@ -19,10 +37,7 @@ export interface EmoBuddyConversation {
   session_id: string;
   response: string;
   should_continue: boolean;
-  core_session_uuid?: string;
   metadata?: {
-    technique_used?: string;
-    response_category?: string;
     response_time_ms?: number;
   };
 }
@@ -31,44 +46,43 @@ export interface EmoBuddyEndSession {
   session_id: string;
   summary: string;
   total_messages: number;
-  session_duration_minutes: number;
-  core_session_uuid?: string;
+  timestamp: string;
 }
 
 export interface EmoBuddyAvailability {
   available: boolean;
-  service: string;
-  version: string;
-  routing?: string;
-  error?: string;
+  message: string;
+  estimated_wait_time?: number;
 }
 
+// Helper function to get current user token
+const getCurrentToken = (): string => {
+  const token = useAppStore.getState().token;
+  if (!token) {
+    throw new Error('User not authenticated - token not available');
+  }
+  return token;
+};
+
 export const speechApi = {
-  analyzeAudio: async (audioBlob: Blob, userId?: string): Promise<SpeechAnalysisResult> => {
+  analyzeAudio: async (audioBlob: Blob, userId?: string, startEmoBuddy: boolean = false) : Promise<SpeechAnalysisResult> => {
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.webm');
-    
-    // Add user_id to form data - required by backend
-    if (userId) {
-      formData.append('user_id', userId);
-    } else {
-      // Fallback user_id if not provided
-      formData.append('user_id', 'user_api');
-    }
+    formData.append('user_id', userId ?? 'user_api');
+    formData.append('token', getCurrentToken());
+    formData.append('start_emo_buddy', startEmoBuddy.toString()); // NEW: Control EmoBuddy integration
 
     const response = await api.post('/analyze-speech', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 30000, // 30 seconds timeout for speech analysis (longer than default 10s)
+      timeout: 30000, // Reduced timeout since we're not doing EmoBuddy by default
     });
-    
-    // Map backend response to SpeechAnalysisResult
+
     const data = response.data;
-    
-    // Handle different response structures from backend
-    const emotions = data.emotions || [];
-    const emotionScores = Array.isArray(emotions) ? emotions : 
-                         (emotions.emotion_scores || []);
-    
+    const emotionsRaw = data.emotions || [];
+    const emotionScores = Array.isArray(emotionsRaw)
+      ? emotionsRaw
+      : emotionsRaw.emotion_scores || [];
+
     return {
       transcribed_text: data.transcribed_text || data.transcription || '',
       sentiment: data.sentiment || { label: 'neutral', confidence: 0 },
@@ -77,141 +91,128 @@ export const speechApi = {
       technicalReport: data.technical_report || data.technicalReport || null,
       audio_duration_seconds: data.audio_duration_seconds || 0,
       timestamp: Date.now(),
-      // Additional fields from backend
       session_id: data.session_id,
-      emoBuddyResponse: data.emo_buddy_response
+      emoBuddyResponse: data.emo_buddy_response,
+    };
+  },
+
+  // NEW: Separate method to start EmoBuddy from analysis results
+  startEmoBuddyFromAnalysis: async (
+    analysisResult: SpeechAnalysisResult,
+    userId: string
+  ): Promise<EmoBuddySession> => {
+    const formData = new FormData();
+    formData.append('user_id', userId);
+    formData.append('token', getCurrentToken());
+    formData.append('session_id', analysisResult.session_id || '');
+    formData.append('transcribed_text', analysisResult.transcribed_text || '');
+    formData.append('sentiment_label', analysisResult.sentiment?.label || 'neutral');
+    formData.append('sentiment_confidence', (analysisResult.sentiment?.confidence || 0).toString());
+    formData.append('emotions', JSON.stringify(analysisResult.emotions || []));
+
+    const response = await api.post('/start-emobuddy-from-analysis', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+
+    const data = response.data;
+    return {
+      session_id: data.session_id,
+      response: data.emo_buddy_response,
+      should_continue: data.should_continue ?? true,
+      metadata: {
+        mode: 'speech_integrated',
+        started_at: data.timestamp,
+        total_messages: 1,
+        techniques_used: [],
+      },
     };
   },
 
   transcribeAudio: async (audioBlob: Blob): Promise<string> => {
     const formData = new FormData();
     formData.append('audio', audioBlob);
-    return apiCall(() => api.post('/transcribe', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }));
+    return apiCall(() =>
+      api.post('/transcribe', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    );
   },
 
-  // Unified EmoBuddy Core API functions
   checkEmoBuddyAvailability: async (): Promise<EmoBuddyAvailability> => {
     const response = await api.get('/emo-buddy/availability');
     return response.data;
   },
 
-  startEmoBuddySession: async (analysisReport: SpeechAnalysisResult, userId: string): Promise<EmoBuddySession> => {
-    // Prepare analysis report for unified core
-    const analysisData = {
-      transcribed_text: analysisReport.transcribed_text || '',
-      sentiment: analysisReport.sentiment || { label: 'neutral', confidence: 0 },
-      emotions: analysisReport.emotions || [],
-      genAIInsights: analysisReport.genAIInsights || null,
-      technicalReport: analysisReport.technicalReport || null,
-      audio_duration_seconds: analysisReport.audio_duration_seconds || 0,
-      timestamp: analysisReport.timestamp || Date.now(),
-      session_id: analysisReport.session_id
-    };
+  // DEPRECATED: Keep for backward compatibility but mark as deprecated
+  startEmoBuddySession: async (
+    analysisReport: SpeechAnalysisResult,
+    userId: string
+  ): Promise<EmoBuddySession> => {
+    console.warn('startEmoBuddySession is deprecated. Use startEmoBuddyFromAnalysis instead.');
+    return speechApi.startEmoBuddyFromAnalysis(analysisReport, userId);
+  },
 
-    const response = await api.post('/emo-buddy/start', {
-      user_id: userId,
-      analysis_report: analysisData
-    }, {
-      headers: {
-        'X-Session-Mode': 'SPEECH_INTEGRATED' // Indicate this is from speech analysis
-      },
-      timeout: 30000, // 30 seconds timeout for EmoBuddy session start
-      responseType: 'text' // Handle as text to parse the streaming response
+  // Continue EmoBuddy conversation (now works with in-memory sessions)
+  continueEmoBuddyConversation: async (
+    sessionId: string,
+    userInput: string,
+    userId: string
+  ): Promise<EmoBuddyConversation> => {
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('user_input', userInput);
+    formData.append('user_id', userId);
+    formData.append('token', getCurrentToken());
+
+    const response = await api.post('/continue-emo-buddy-stt', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
     });
-    
-    // Handle streaming response format
-    const responseText = response.data;
-    let sessionId = '';
-    let botResponse = '';
-    
-    if (typeof responseText === 'string') {
-      // Extract session_id and response from streaming format
-      const lines = responseText.split('\n');
-      const sessionIdLine = lines.find(line => line.startsWith('session_id:'));
-      if (sessionIdLine) {
-        sessionId = sessionIdLine.split(':')[1].trim();
-      }
-      // Get the response content (everything after session_id line)
-      botResponse = lines.filter(line => !line.startsWith('session_id:')).join('\n').trim();
-    } else {
-      // Fallback for JSON response
-      sessionId = responseText.session_id || '';
-      botResponse = responseText.response || '';
-    }
-    
+
+    const data = response.data;
     return {
-      session_id: sessionId,
-      response: botResponse,
-      should_continue: true, // Default to true for new sessions
-      timestamp: new Date().toISOString()
+      session_id: data.session_id,
+      response: data.response,
+      should_continue: data.should_continue,
+      metadata: {
+        response_time_ms: undefined, // Not tracked in simplified mode
+      },
     };
   },
 
-  continueEmoBuddyConversation: async (sessionId: string, userInput: string, userId: string): Promise<EmoBuddyConversation> => {
-    const response = await api.post('/emo-buddy/continue', {
-      session_id: sessionId,
-      user_id: userId,
-      user_message: userInput  // Changed from user_input to user_message
-    }, {
-      headers: {
-        'X-Session-Mode': 'CONTINUATION' // Indicate this is a continuation
-      },
-      timeout: 25000, // 25 seconds timeout for EmoBuddy conversation
-      responseType: 'text' // Handle as text to parse the streaming response
-    });
-    
-    // Handle streaming response format
-    const responseText = response.data;
-    let botResponse = '';
-    let shouldContinue = true;
-    
-    if (typeof responseText === 'string') {
-      // Parse streaming response - no session_id in continue responses
-      botResponse = responseText.trim();
-      
-      // Check if response indicates session should end
-      if (botResponse.toLowerCase().includes('session ended') || 
-          botResponse.toLowerCase().includes('goodbye') ||
-          botResponse.toLowerCase().includes('take care')) {
-        shouldContinue = false;
-      }
-    } else {
-      // Fallback for JSON response
-      botResponse = responseText.response || responseText.message || '';
-      shouldContinue = responseText.should_continue !== false;
+  // End EmoBuddy session (now works with in-memory cleanup)
+  endEmoBuddySession: async (
+    sessionId: string,
+    userId: string,
+    sessionSummary?: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('user_id', userId);
+    formData.append('token', getCurrentToken());
+    if (sessionSummary) {
+      formData.append('session_summary', sessionSummary);
     }
-    
-    return {
-      session_id: sessionId,
-      response: botResponse,
-      should_continue: shouldContinue,
-      timestamp: new Date().toISOString()
-    };
-  },
 
-  endEmoBuddySession: async (sessionId: string, userId: string): Promise<EmoBuddyEndSession> => {
-    const response = await api.post('/emo-buddy/end', {
-      session_id: sessionId,
-      user_id: userId
-    }, {
-      headers: {
-        'X-Session-Mode': 'CONTINUATION' // Indicate this is ending a session
-      },
-      timeout: 15000 // 15 seconds timeout for EmoBuddy session end
+    const response = await api.post('/end-emo-buddy-stt', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
     });
-    
+
     return response.data;
   },
 
-  // Additional unified core endpoints
-  getSessionStatus: async (sessionId: string): Promise<{ session_id: string; status: string; is_active: boolean }> => {
+  getSessionStatus: async (
+    sessionId: string
+  ): Promise<{ session_id: string; status: string; is_active: boolean }> => {
     const response = await api.get(`/emo-buddy/session/${sessionId}/status`);
     return response.data;
   },
 
-  getUserSessions: async (userId: string): Promise<{ sessions: EmoBuddySession[]; total: number }> => {
+  getUserSessions: async (
+    userId: string
+  ): Promise<{ sessions: EmoBuddySession[]; total: number }> => {
     const response = await api.get(`/emo-buddy/user/${userId}/sessions`);
     return response.data;
   },

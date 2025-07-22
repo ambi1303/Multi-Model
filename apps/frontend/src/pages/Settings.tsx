@@ -30,38 +30,32 @@ import {
   DialogActions,
   Avatar,
   IconButton,
-  Tooltip,
   Slider,
   FormGroup,
-  Checkbox,
   RadioGroup,
   Radio,
   FormLabel,
   CircularProgress,
   Snackbar,
-  LinearProgress
+  
 } from '@mui/material';
 import {
   PersonIcon,
   SecurityIcon,
   NotificationsIcon,
-  PaletteIcon,
   PrivacyTipIcon,
   SaveIcon,
-  EditIcon,
   VisibilityIcon,
   VisibilityOffIcon,
   DeleteIcon,
   DownloadIcon,
   UploadIcon,
-  RefreshIcon,
   LockIcon,
   EmailIcon,
   PhoneIcon,
   BusinessIcon,
   SettingsIcon,
-  DarkModeIcon,
-  LightModeIcon
+
 } from '../utils/icons';
 import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../contexts/ThemeContext';
@@ -135,7 +129,7 @@ const SettingsPage: React.FC = () => {
   const { mode, toggleTheme } = useTheme();
   
   const [tabValue, setTabValue] = useState(0);
-  const [loading, setLoading] = useState(false);
+  //const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');

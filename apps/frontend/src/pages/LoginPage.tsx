@@ -1,6 +1,6 @@
 import React from 'react';
 import { LoginForm } from '../components/Auth/LoginForm';
-import { Box, Paper, Typography, Grid, Icon } from '@mui/material';
+import { Box, Paper, Typography, Grid } from '@mui/material';
 import { BarChart, BrainCircuit } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
@@ -39,12 +39,12 @@ const LoginPage: React.FC = () => {
              <BrainCircuit size={30} />
             </Box>
             <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              EmotiAnalyze
+              <h2>Mind Matrix</h2>
             </Typography>
           </Box>
 
           <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
-            Your wellness, intelligently analyzed
+          Mapping wellness. Maximizing potential.
           </Typography>
           <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
             Empowering organizations with AI-driven mental health insights and emotional intelligence analytics for a healthier, more productive workforce.

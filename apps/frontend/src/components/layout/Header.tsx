@@ -110,17 +110,17 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                 fontSize: '1.2rem',
               }}
             >
-              EA
+              MM
             </Typography>
           </Box>
           
           <Box>
             <Typography variant="h6" component="h1" sx={{ fontWeight: 600 }}>
-              EmotiAnalyze
+              <h3>Mind Matrix</h3>
             </Typography>
             {!isMobile && (
               <Typography variant="caption" color="text.secondary">
-                Multi-Modal Emotion Analysis Platform
+               <b> Mapping wellness. Maximizing potential.</b>
               </Typography>
             )}
           </Box>

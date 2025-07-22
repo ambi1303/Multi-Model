@@ -210,12 +210,14 @@ def availability_check():
     """Check if the EmoBuddy service is available."""
     try:
         # Check unified API availability
-        is_available = unified_api.check_availability()
+        availability_status = unified_api.check_availability()
         
         return {
-            "available": is_available,
+            "available": availability_status.get("available", False),
             "service": "unified_emobuddy",
-            "version": "2.0.0"
+            "version": "2.0.0",
+            "message": availability_status.get("message", "Unknown status"),
+            "timestamp": availability_status.get("timestamp", datetime.now().isoformat())
         }
     except Exception as e:
         logger.error(f"Error checking availability: {str(e)}")
@@ -231,10 +233,10 @@ def health_check():
     """Health check endpoint."""
     try:
         # Check unified API health
-        health_status = unified_api.get_health_status()
+        health_status = unified_api.health_check()
         
         return {
-            "status": "healthy" if health_status["healthy"] else "unhealthy",
+            "status": "healthy" if health_status.get("status") == "healthy" else "unhealthy",
             "service": "unified_emobuddy",
             "version": "2.0.0",
             "timestamp": datetime.now().isoformat(),

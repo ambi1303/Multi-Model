@@ -33,13 +33,8 @@ import {
   Tooltip,
   Switch,
   FormControlLabel,
-  Divider,
   LinearProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondary,
-  Badge,
+ 
   Avatar
 } from '@mui/material';
 import {
@@ -47,17 +42,15 @@ import {
   BusinessIcon,
   SecurityIcon,
   AnalyticsIcon,
-  SettingsIcon,
   RefreshIcon,
   EditIcon,
   DeleteIcon,
   AddIcon,
   VisibilityIcon,
-  BlockIcon,
+  
   CheckCircleIcon,
-  ErrorIcon,
-  WarningIcon,
-  InfoIcon
+  
+  
 } from '../utils/icons';
 import { useAppStore } from '../store/useAppStore';
 import api from '../services/api';
@@ -98,7 +91,7 @@ interface AuditLog {
   id: number;
   user_id: string;
   action: string;
-  details: any;
+  details: string;
   timestamp: string;
   ip_address?: string;
   user_agent?: string;

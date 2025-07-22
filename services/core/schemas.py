@@ -1,10 +1,10 @@
 """
-Comprehensive Pydantic schemas for request/response validation and DTOs
+Pydantic schemas for API request/response validation
 """
-from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Union
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, EmailStr, field_validator, model_validator
 from enum import Enum
 
 from models import UserRole, EmotionType, SentimentType, MentalState, AnalysisStatus
@@ -269,7 +269,7 @@ class EmoBuddySessionResponse(EmoBuddySessionCreate, TimestampMixin):
     user_messages: int
     bot_responses: int
     is_active_session: bool
-    messages: Optional[List[EmoBuddyMessage]] = None
+    # Removed messages field to avoid SQLAlchemy async relationship loading issues
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -606,8 +606,8 @@ class SystemHealthUpdate(BaseModel):
 class AnalyticsFilter(BaseModel):
     """Analytics filter parameters"""
     dateRange: Dict[str, datetime] = Field(default_factory=lambda: {
-        "start": datetime.utcnow() - timedelta(days=30),
-        "end": datetime.utcnow()
+        "start": datetime.now(timezone.utc) - timedelta(days=30),
+        "end": datetime.now(timezone.utc)
     })
     modality: str = "all"
     sessionType: str = "all"

@@ -11,10 +11,7 @@ import {
   Button,
   Tooltip,
   IconButton,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  LinearProgress,
+
   Divider,
 } from '@mui/material';
 import {
@@ -22,15 +19,12 @@ import {
   TrendingUpIcon,
   TrendingDownIcon,
   RemoveIcon,
-  InfoIcon,
   WarningIcon,
   DownloadIcon,
   EmojiEmotionsIcon,
-  PsychologyIcon,
   AssessmentIcon,
   TimerIcon,
   BarChartIcon,
-  ExpandMoreIcon,
 } from '../../utils/icons';
 import { SimpleChartFallback } from '../charts/SimpleChartFallback';
 import { motion } from 'framer-motion';
@@ -43,7 +37,8 @@ interface ChatAnalyticsDashboardProps {
 
 export const ChatAnalyticsDashboard: React.FC<ChatAnalyticsDashboardProps> = ({ data, filters }) => {
   const [showDataWarnings, setShowDataWarnings] = useState(true);
-  const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
+  // eslint-disable-next-line no-empty-pattern
+  const [] = useState<string[]>([]);
 
   // Add null safety - provide default values if data is undefined
   const safeData = data || {

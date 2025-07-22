@@ -183,7 +183,8 @@ const SpeechAnalysis: React.FC = () => {
     const progressInterval = startProgress();
 
     try {
-      const result = await speechApi.analyzeAudio(audioBlob, user?.id);
+      // IMPROVED: Analyze audio without EmoBuddy integration for faster response
+      const result = await speechApi.analyzeAudio(audioBlob, user?.id, false); // false = no EmoBuddy
       const enhancedResult = {
         ...result,
         duration,
@@ -195,11 +196,9 @@ const SpeechAnalysis: React.FC = () => {
       addAnalysisResult('speech', enhancedResult);
       showSuccess('Audio analyzed successfully! 🎉');
       
-      // Show Emo Buddy popup after successful analysis
+      // IMPROVED: No automatic EmoBuddy popup - user can choose to engage
       setEmoBuddyAnalysis(enhancedResult);
-      setTimeout(() => {
-        setShowEmoBuddy(true);
-      }, 2000); // Show popup 2 seconds after analysis completes
+      
     } catch (err) {
       showError('Failed to analyze audio. Please try again.');
     } finally {
@@ -266,12 +265,24 @@ const SpeechAnalysis: React.FC = () => {
     setPlayingAudio(false);
   }, [reset]);
 
-  const handleEmoBuddyClick = () => {
-    if (analysis) {
+  // NEW: Handle EmoBuddy integration separately
+  const handleEmoBuddyClick = async () => {
+    if (!analysis) {
+      showError("Please analyze some audio first to get EmoBuddy's insights.");
+      return;
+    }
+    
+    if (!user?.id) {
+      showError('You must be logged in to use EmoBuddy.');
+      return;
+    }
+
+    try {
+      // Set the analysis for EmoBuddy and show the popup
       setEmoBuddyAnalysis(analysis);
       setShowEmoBuddy(true);
-    } else {
-      showError("No analysis result available for EmoBuddy.");
+    } catch (error) {
+      showError('Failed to start EmoBuddy session.');
     }
   };
 
