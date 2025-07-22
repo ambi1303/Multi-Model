@@ -466,7 +466,12 @@ const SpeechAnalysis: React.FC = () => {
         </Typography>
         
         {/* Recording Button */}
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ 
+          mb: 4, 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center' 
+        }}>
           <RecordingButton
             isRecording={isRecording}
             onClick={isRecording ? stop : start}
@@ -535,23 +540,7 @@ const SpeechAnalysis: React.FC = () => {
           >
             Audio Settings
           </Button>
-          
-          {/* EmoBuddy Access Button */}
-          <GradientButton
-            startIcon={<EmojiEmotionsIcon />}
-            onClick={() => {
-              if (analysis) {
-                setEmoBuddyAnalysis(analysis);
-                setShowEmoBuddy(true);
-              } else {
-                showError("Please analyze some audio first to get EmoBuddy's insights.");
-              }
-            }}
-            fullWidth
-            disabled={isRecording || isLoading}
-          >
-            Chat with EmoBuddy
-          </GradientButton>
+
         </Stack>
 
         {/* Settings Panel */}
@@ -607,17 +596,6 @@ const SpeechAnalysis: React.FC = () => {
           </Alert>
         )}
       </CardContent>
-      <CardActions sx={{ justifyContent: 'space-between', p: 2, flexWrap: 'wrap', gap: 2 }}>
-        <Button startIcon={<RefreshIcon />} onClick={handleReset} color="secondary">
-          Analyze New Audio
-        </Button>
-        <GradientButton
-          startIcon={<EmojiEmotionsIcon />}
-          onClick={handleEmoBuddyClick}
-        >
-          Ask EmoBuddy
-        </GradientButton>
-      </CardActions>
     </EnhancedCard>
   );
 
