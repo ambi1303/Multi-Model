@@ -1541,7 +1541,7 @@ async def start_emo_buddy_session(request: Request, token: Optional[str] = Depen
         'Content-Type': 'application/json'
     }
     
-    upstream = await session.post(f"{EMO_BUDDY_BACKEND_URL}/start", json=body, headers=headers)
+    upstream = await http_session.post(f"{EMO_BUDDY_BACKEND_URL}/start", json=body, headers=headers)
     
     # Check if the response is SSE (Server-Sent Events)
     content_type = upstream.headers.get("content-type", "")
@@ -1604,7 +1604,7 @@ async def continue_emo_buddy_conversation(request: Request, token: Optional[str]
         'Content-Type': 'application/json'
     }
     
-    upstream = await session.post(f"{EMO_BUDDY_BACKEND_URL}/continue", json=body, headers=headers)
+    upstream = await http_session.post(f"{EMO_BUDDY_BACKEND_URL}/continue", json=body, headers=headers)
     
     # Check if the response is SSE (Server-Sent Events)
     content_type = upstream.headers.get("content-type", "")
