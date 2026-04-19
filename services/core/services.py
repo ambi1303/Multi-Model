@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+def _truncate_for_bcrypt(password: str) -> str:
+    """Truncate password to 72 bytes (bcrypt limit) to avoid bcrypt 4.1+ errors."""
+    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+
 
 class AuthService:
     """Authentication and authorization service"""
@@ -31,11 +35,11 @@ class AuthService:
     
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash"""
-        return pwd_context.verify(plain_password, hashed_password)
+        return pwd_context.verify(_truncate_for_bcrypt(plain_password), hashed_password)
     
     def get_password_hash(self, password: str) -> str:
         """Hash password"""
-        return pwd_context.hash(password)
+        return pwd_context.hash(_truncate_for_bcrypt(password))
     
     def create_access_token(self, user_id: UUID, email: str, role: UserRole) -> str:
         """Create JWT access token"""
@@ -233,10 +237,7 @@ class UserService:
     
     async def create_user(self, db: AsyncSession, user_data: schemas.UserRegister) -> User:
         """Create new user"""
-        # Hash password
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        hashed_password = pwd_context.hash(user_data.password)
+        hashed_password = pwd_context.hash(_truncate_for_bcrypt(user_data.password))
         
         # Create user data dict
         user_dict = user_data.model_dump() if hasattr(user_data, 'model_dump') else user_data.dict()

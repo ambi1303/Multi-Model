@@ -154,33 +154,40 @@ export const RegisterForm = () => {
     }
   };
 
-  // Fetch departments on component mount
+  const DEFAULT_DEPARTMENTS: Department[] = [
+    { id: 1, name: 'Engineering' },
+    { id: 2, name: 'Product' },
+    { id: 3, name: 'Design' },
+    { id: 4, name: 'Marketing' },
+    { id: 5, name: 'Sales' },
+    { id: 6, name: 'Human Resources' },
+    { id: 7, name: 'Finance' },
+    { id: 8, name: 'Operations' },
+    { id: 9, name: 'Customer Support' },
+    { id: 10, name: 'Other' },
+  ];
+
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
         setLoadingDepartments(true);
         setDepartmentError(null);
         const response = await api.get('/departments');
-        
+
         if (response.data && Array.isArray(response.data) && response.data.length > 0) {
           setDepartments(response.data);
         } else {
-          throw new Error('No departments available');
+          setDepartments(DEFAULT_DEPARTMENTS);
         }
-      } catch (error) {
-        console.error('Failed to fetch departments:', error);
-        setDepartmentError('Failed to load departments. Please refresh the page.');
-        addNotification({
-          message: 'Failed to load departments. Please refresh the page and try again.',
-          type: 'error',
-        });
+      } catch {
+        setDepartments(DEFAULT_DEPARTMENTS);
       } finally {
         setLoadingDepartments(false);
       }
     };
 
     fetchDepartments();
-  }, [addNotification]);
+  }, []);
 
   const onSubmit = async (data: RegisterFormData) => {
     try {

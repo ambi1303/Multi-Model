@@ -69,15 +69,28 @@ class DatabaseManager:
     def initialize_async_db(self):
         """Initialize asynchronous database connection."""
         if self._async_engine is None:
-            # Convert sync URL to async URL
             async_url = self.config.database.url.replace(
                 "postgresql://", "postgresql+asyncpg://"
             )
             
-            # Simplified: Let asyncpg handle the connection string directly.
-            # The complex manual URL parsing and insecure SSL context have been removed.
-            # Control SSL via your connection string in the .env file.
-            # e.g., DATABASE_URL="postgresql://.../?ssl=require"
+            # Strip sslmode from URL (asyncpg uses ssl context instead)
+            if "sslmode=" in async_url:
+                import re
+                async_url = re.sub(r'[?&]sslmode=[^&]*', '', async_url)
+                if async_url.endswith('?'):
+                    async_url = async_url[:-1]
+
+            connect_args = {
+                "command_timeout": 10,
+                "server_settings": {
+                    "application_name": f"{self.config.service.name}_async",
+                    "timezone": "UTC"
+                }
+            }
+            
+            if "neon.tech" in self.config.database.url:
+                ssl_ctx = ssl.create_default_context()
+                connect_args["ssl"] = ssl_ctx
             
             self._async_engine = create_async_engine(
                 async_url,
@@ -86,13 +99,7 @@ class DatabaseManager:
                 pool_pre_ping=self.config.database.pool_pre_ping,
                 echo=self.config.database.echo,
                 pool_recycle=3600,
-                connect_args={
-                    "command_timeout": 10,
-                    "server_settings": {
-                        "application_name": f"{self.config.service.name}_async",
-                        "timezone": "UTC"
-                    }
-                }
+                connect_args=connect_args
             )
             
             self._async_session_local = async_sessionmaker(

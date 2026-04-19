@@ -9,6 +9,13 @@ import tempfile
 import subprocess
 import shutil
 from dotenv import load_dotenv
+
+try:
+    import static_ffmpeg
+    static_ffmpeg.add_paths()
+except ImportError:
+    pass
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Query, Form
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -158,10 +165,10 @@ except Exception as e:
 
 def get_core_service_url():
     """Get the core service URL from environment variables, with a fallback."""
-    url = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+    url = os.getenv("CORE_SERVICE_URL", "http://localhost:8010")
     if not url:
-        logger.warning("CORE_SERVICE_URL is not set, defaulting to http://localhost:8000")
-        return "http://localhost:8000"
+        logger.warning("CORE_SERVICE_URL is not set, defaulting to http://localhost:8010")
+        return "http://localhost:8010"
     return url
 
 def get_service_token():

@@ -119,14 +119,23 @@ def validate_user_uuid(user_id: str) -> UUID:
 
 
 # Initialize components
-try:
-    emotion_detector = EmotionDetector()
-    visualizer = Visualizer()
-    safe_print("EmotionDetector and Visualizer initialized successfully.")
-except Exception as e:
-    safe_print(f"Error initializing components: {e}")
-    emotion_detector = None
-    visualizer = None
+emotion_detector = None
+visualizer = None
+
+def init_components():
+    global emotion_detector, visualizer
+    try:
+        emotion_detector = EmotionDetector()
+        visualizer = Visualizer()
+        safe_print("EmotionDetector and Visualizer initialized successfully.")
+    except Exception as e:
+        safe_print(f"Error initializing components: {e}")
+        import traceback
+        traceback.print_exc()
+        emotion_detector = None
+        visualizer = None
+
+init_components()
 
 # FastAPI app setup
 app = FastAPI(
@@ -167,7 +176,7 @@ def update_system_metrics():
 async def store_chat_analysis_in_core_service(raw_data: dict, analyzed_messages: List[dict], user_uuid: UUID, token: Optional[str] = None):
     """Store chat analysis results in the Core service via API calls"""
     try:
-        CORE_SERVICE_URL = "http://localhost:8000"
+        CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8010")
         
         if not token:
             safe_print("No authentication token provided, skipping storage")
@@ -385,21 +394,20 @@ async def analyze_single_message(request: SingleMessageRequest):
         safe_print(f"[API] Received token: {request.token[:10] + '...' if request.token else 'None'}")
         
         user_uuid = validate_user_uuid(request.user_id)
+
+        if emotion_detector is None:
+            safe_print("[API] EmotionDetector not initialized — attempting lazy re-init")
+            init_components()
+            if emotion_detector is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Emotion analysis model is not loaded. The service may still be starting up or the model failed to download."
+                )
         
         try:
             analysis = emotion_detector.get_mental_state(request.text)
         except UnicodeEncodeError as e:
             safe_print(f"[API] Unicode encoding error during analysis: {e}")
-            # Fallback analysis for text with encoding issues
-            analysis = {
-                'sentiment_score': 0.0,
-                'primary_emotion': 'neutral',
-                'emotion_score': 0.5,
-                'mental_state': 'neutral'
-            }
-        except Exception as e:
-            safe_print(f"[API] Error during emotion analysis: {e}")
-            # Fallback analysis for any other issues
             analysis = {
                 'sentiment_score': 0.0,
                 'primary_emotion': 'neutral',

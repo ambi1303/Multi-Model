@@ -26,32 +26,11 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => {
-    // Try to get theme from cookies first, fallback to localStorage for migration
-    let savedTheme = null;
-    
-    try {
-      const { EmotiAnalyzeCookies } = require('../utils/cookies');
-      savedTheme = EmotiAnalyzeCookies.getPreferences().theme;
-    } catch (error) {
-      console.warn('Cookie manager not available, falling back to localStorage');
-    }
-    
-    // Fallback to localStorage if no cookie theme found
-    if (!savedTheme) {
-      savedTheme = localStorage.getItem('theme-mode');
-    }
-    
+    const savedTheme = localStorage.getItem('theme-mode');
     return (savedTheme as ThemeMode) || 'light';
   });
 
   useEffect(() => {
-    // Save to both cookies and localStorage for migration compatibility
-    try {
-      const { EmotiAnalyzeCookies } = require('../utils/cookies');
-      EmotiAnalyzeCookies.setPreferences({ theme: mode });
-    } catch (error) {
-      console.warn('Cookie manager not available during theme save');
-    }
     localStorage.setItem('theme-mode', mode);
   }, [mode]);
 

@@ -17,7 +17,7 @@ from config import get_config
 async def create_all_tables():
     """Create all database tables"""
     config = get_config()
-    print(f"🔍 Creating tables for database: {config.database_url[:30]}...")
+    print(f"🔍 Creating tables for database: {config.database.url[:30]}...")
     
     try:
         # Initialize database connection

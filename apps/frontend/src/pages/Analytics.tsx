@@ -42,7 +42,7 @@ import { SurveyAnalyticsDashboard } from '../components/analytics/SurveyAnalytic
 import SentimentTrendChart from '../components/charts/SentimentTrendChart';
 import ChartWrapper from '../components/charts/ChartWrapper';
 import { useAppStore } from '../store/useAppStore';
-import { socketService } from '../services/socket';
+
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -72,7 +72,7 @@ const Analytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [filters, setFilters] = useState<AnalyticsFilters>({
     dateRange: {
-      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+      start: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
       end: new Date(),
     },
     modality: 'all',
@@ -113,8 +113,6 @@ const Analytics: React.FC = () => {
   const notificationSent = React.useRef({ success: false, error: false });
 
   useEffect(() => {
-    socketService.connect();
-
     const fetchInitialData = async () => {
       try {
         setLoading(true);
@@ -140,10 +138,6 @@ const Analytics: React.FC = () => {
     };
 
     fetchInitialData();
-
-    return () => {
-      socketService.disconnect();
-    };
   }, [filters, setOverviewData]);
 
   useEffect(() => {

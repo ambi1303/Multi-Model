@@ -38,8 +38,8 @@ const RegisterPage: React.FC = () => {
             >
              <BrainCircuit size={30} />
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              <h2>Mind Matrix</h2>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+              Mind Matrix
             </Typography>
           </Box>
 

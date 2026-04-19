@@ -116,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           
           <Box>
             <Typography variant="h6" component="h1" sx={{ fontWeight: 600 }}>
-              <h3>Mind Matrix</h3>
+              Mind Matrix
             </Typography>
             {!isMobile && (
               <Typography variant="caption" color="text.secondary">

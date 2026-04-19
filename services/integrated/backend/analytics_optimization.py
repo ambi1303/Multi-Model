@@ -97,7 +97,7 @@ class OptimizedAnalyticsQueries:
         """Parse and validate date range"""
         if not date_range:
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
+            start_date = end_date - timedelta(days=730)
         else:
             start_date = datetime.fromisoformat(date_range.get('start', '').replace('Z', '+00:00'))
             end_date = datetime.fromisoformat(date_range.get('end', '').replace('Z', '+00:00'))

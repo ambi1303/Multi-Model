@@ -1,47 +1,74 @@
 import { useAppStore } from '../store/useAppStore';
 
-const VITE_WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+const VITE_WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:9000';
 
 let socket: WebSocket | null = null;
+let retryCount = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let intentionalDisconnect = false;
+
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 2000;
+const MAX_DELAY_MS = 30000;
+
+const getRetryDelay = () =>
+  Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
 
 const connect = () => {
   if (socket && socket.readyState === WebSocket.OPEN) {
-    console.log('WebSocket is already connected.');
     return;
   }
 
-  socket = new WebSocket(`${VITE_WS_BASE_URL}/ws/analytics`);
+  if (retryCount >= MAX_RETRIES) {
+    console.warn(`WebSocket: max retries (${MAX_RETRIES}) reached, giving up.`);
+    return;
+  }
+
+  intentionalDisconnect = false;
+
+  try {
+    socket = new WebSocket(`${VITE_WS_BASE_URL}/ws/analytics`);
+  } catch {
+    return;
+  }
 
   socket.onopen = () => {
-    console.log('WebSocket connection established.');
+    retryCount = 0;
     useAppStore.getState().setSocketConnected(true);
   };
 
   socket.onmessage = (event) => {
-    console.log('WebSocket message received:', event.data);
     try {
       const data = JSON.parse(event.data);
-      // Assuming the broadcasted data is the overview analytics
       useAppStore.getState().setOverviewData(data);
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
+    } catch {
+      // ignore malformed messages
     }
   };
 
   socket.onclose = () => {
-    console.log('WebSocket connection closed.');
     useAppStore.getState().setSocketConnected(false);
-    // Optional: implement reconnection logic here
-    setTimeout(connect, 5000); // Try to reconnect every 5 seconds
+    socket = null;
+
+    if (!intentionalDisconnect && retryCount < MAX_RETRIES) {
+      const delay = getRetryDelay();
+      retryCount++;
+      retryTimer = setTimeout(connect, delay);
+    }
   };
 
-  socket.onerror = (error) => {
-    console.error('WebSocket error:', error);
+  socket.onerror = () => {
     socket?.close();
   };
 };
 
 const disconnect = () => {
+  intentionalDisconnect = true;
+  retryCount = MAX_RETRIES;
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
   if (socket) {
     socket.close();
     socket = null;

@@ -32,7 +32,7 @@ async def get_token(authorization: Optional[str] = Header(None)) -> Optional[str
     return None
 
 # --- NEW: Core Service Integration ---
-CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8010")
 
 async def store_survey_in_core_service(survey_data: dict, user_id: str, token: Optional[str]):
     """Asynchronously stores survey analysis results in the core service."""

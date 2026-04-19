@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Moved to a class-level variable for clarity.
 # Each tuple: (Name, Path, Main Module File, FastAPI App Name, Port)
 SERVICE_CONFIG = [
-    ("Core Service", "services/core", "main", "app", 8000),
+    ("Core Service", "services/core", "main", "app", 8010),
     ("Video Service", "services/video/emp_face", "api", "app", 8001),
     ("STT Service", "services/stt/api", "main", "app", 8002),
     ("Chat Service", "services/chat/chat/mental_state_analyzer", "api", "app", 8003),
@@ -28,12 +28,13 @@ SERVICE_CONFIG = [
 ]
 
 class ServiceManager:
-    def __init__(self, service_configs):
+    def __init__(self, service_configs, skip_install=False):
         self.service_configs = service_configs
         self.processes = {}
         self.threads = []
         self.project_root = os.path.abspath(os.path.dirname(__file__))
         self.debug_mode = "DEBUG_MODE" in os.environ
+        self.skip_install = skip_install
 
     def log_debug(self, message):
         """Log debug messages if debug mode is enabled"""
@@ -129,7 +130,7 @@ class ServiceManager:
 
         # 2. Find Python executable and install dependencies
         python_exec = self.find_python_executable(path)
-        if not self.install_dependencies(name, path, python_exec):
+        if not self.skip_install and not self.install_dependencies(name, path, python_exec):
             return {'name': name, 'status': 'failed', 'error': 'Dependency installation failed'}
 
         # 3. Set up environment
@@ -190,14 +191,14 @@ class ServiceManager:
         failed = [r for r in results if r and r['status'] == 'failed']
         
         print("\n" + "="*50)
-        print("🚀 STARTUP COMPLETE 🚀")
+        print("STARTUP COMPLETE")
         print("="*50)
-        logger.info(f"✅ Successfully started {len(successful)} service(s):")
+        logger.info(f"Successfully started {len(successful)} service(s):")
         for s in successful:
             print(f"  - {s['name']} on port {s['port']}")
 
         if failed:
-            logger.error(f"❌ Failed to start {len(failed)} service(s):")
+            logger.error(f"Failed to start {len(failed)} service(s):")
             for f in failed:
                 print(f"  - {f['name']}: {f.get('error', 'Unknown error')}")
             print("\nCheck the logs above for detailed error messages.")
@@ -232,7 +233,8 @@ class ServiceManager:
         logger.info("All services have been shut down.")
 
 def main():
-    manager = ServiceManager(SERVICE_CONFIG)
+    skip_install = "--skip-install" in sys.argv
+    manager = ServiceManager(SERVICE_CONFIG, skip_install=skip_install)
 
     # Set up a signal handler for graceful shutdown
     def signal_handler(sig, frame):

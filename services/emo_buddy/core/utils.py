@@ -85,7 +85,7 @@ def parse_timestamp(timestamp_str: str) -> datetime:
 def get_core_service_url() -> str:
     """Get the core service URL from environment variables"""
     import os
-    return os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+    return os.getenv("CORE_SERVICE_URL", "http://localhost:8010")
 
 def get_service_token() -> Optional[str]:
     """Get service account token for internal API calls"""

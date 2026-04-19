@@ -6,16 +6,21 @@ import os
 
 class EmotionDetector:
     def __init__(self):
-        # Set environment variables for better performance
-        os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Avoid tokenizer warnings
+        os.environ['TOKENIZERS_PARALLELISM'] = 'false'
         
-        # Initialize the emotion classifier with optimizations
+        local_model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models')
+        if os.path.isdir(local_model_path) and os.path.exists(os.path.join(local_model_path, 'pytorch_model.bin')):
+            model_source = local_model_path
+            print(f"[EmotionDetector] Loading model from local path: {local_model_path}")
+        else:
+            model_source = "j-hartmann/emotion-english-distilroberta-base"
+            print(f"[EmotionDetector] Local model not found, downloading from HuggingFace")
+        
         self.emotion_classifier = pipeline(
             "text-classification",
-            model="j-hartmann/emotion-english-distilroberta-base",
-            return_all_scores=True,
-            device=-1,  # Use CPU explicitly (-1) for consistency
-            model_kwargs={"torch_dtype": torch.float32}  # Explicit dtype
+            model=model_source,
+            top_k=None,
+            device=-1,
         )
         
         # Define emotion to mental state mapping
@@ -41,20 +46,20 @@ class EmotionDetector:
     def detect_emotion(self, text: str) -> List[Dict]:
         """Detect emotions using the transformer model."""
         try:
-            # Limit text length for performance (transformer models have token limits)
-            if len(text) > 512:  # Reasonable limit for DistilRoBERTa
+            if len(text) > 512:
                 text = text[:512]
             
-            results = self.emotion_classifier(text)[0]
+            results = self.emotion_classifier(text)
+            # top_k=None returns List[List[Dict]] for single input
+            if results and isinstance(results[0], list):
+                return results[0]
             return results
         except Exception as e:
             print(f"[WARNING] Emotion detection failed: {e}")
-            # Return neutral fallback
             return [{'label': 'neutral', 'score': 1.0}]
         
     def get_mental_state(self, text: str) -> Dict:
         """Analyze text and return mental state analysis."""
-        # Input validation
         if not text or not text.strip():
             return {
                 'sentiment_score': 0.0,
@@ -63,25 +68,24 @@ class EmotionDetector:
                 'mental_state': 'Neutral'
             }
         
-        # Get sentiment
         sentiment_score = self.analyze_sentiment(text)
         
-        # Get emotions
         emotions = self.detect_emotion(text)
         primary_emotion = max(emotions, key=lambda x: x['score'])
         
-        # Map to mental state
         mental_state = self.emotion_to_state.get(
             primary_emotion['label'].lower(),
             'Neutral'
         )
         
-        return {
+        result = {
             'sentiment_score': sentiment_score,
             'primary_emotion': primary_emotion['label'],
             'emotion_score': primary_emotion['score'],
             'mental_state': mental_state
         }
+        print(f"[EmotionDetector] Input: '{text[:60]}...' -> emotion={primary_emotion['label']} score={primary_emotion['score']:.3f} sentiment={sentiment_score:.3f} state={mental_state}")
+        return result
         
     def analyze_messages(self, messages: List[Dict]) -> List[Dict]:
         """Analyze a list of messages and return their mental states."""

@@ -28,35 +28,51 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_SIZE = 8000
 
-# Initialize models globally
-logger.info("Loading sentiment and emotion models...")
-# Initialize sentiment model
-sentiment_tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
-sentiment_model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
-
-# Initialize emotion model
-emotion_tokenizer = AutoTokenizer.from_pretrained("SamLowe/roberta-base-go_emotions")
-emotion_model = AutoModelForSequenceClassification.from_pretrained("SamLowe/roberta-base-go_emotions")
-
-logger.info("All models loaded successfully")
+sentiment_tokenizer = None
+sentiment_model = None
+emotion_tokenizer = None
+emotion_model = None
+_models_loaded = False
 
 def load_models():
-    """Load all required models for the API"""
-    global sentiment_tokenizer, sentiment_model, emotion_tokenizer, emotion_model
-    
-    logger.info("Loading models for API...")
-    
-    # Models are already loaded at module level
-    # This function is called by the API during startup
-    logger.info("Models loaded successfully for API")
+    """Load all required models. Called during API startup."""
+    global sentiment_tokenizer, sentiment_model, emotion_tokenizer, emotion_model, _models_loaded
+    if _models_loaded:
+        return
+
+    logger.info("Loading sentiment and emotion models...")
+    try:
+        sentiment_tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
+        sentiment_model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
+
+        emotion_tokenizer = AutoTokenizer.from_pretrained("SamLowe/roberta-base-go_emotions")
+        emotion_model = AutoModelForSequenceClassification.from_pretrained("SamLowe/roberta-base-go_emotions")
+
+        _models_loaded = True
+        logger.info("All models loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load HuggingFace models: {e}")
+        logger.warning("STT emotion analysis will use TextBlob fallback only")
 
 def get_sentiment(text):
-    """Get detailed sentiment analysis using RoBERTa"""
+    """Get detailed sentiment analysis using RoBERTa, with TextBlob fallback."""
+    if sentiment_tokenizer is None or sentiment_model is None:
+        blob = TextBlob(text)
+        p = blob.sentiment.polarity
+        if p > 0.1:
+            label, neg, neu, pos = "positive", max(0, 0.5 - p), 0.3, min(1, 0.5 + p)
+        elif p < -0.1:
+            label, neg, neu, pos = "negative", min(1, 0.5 - p), 0.3, max(0, 0.5 + p)
+        else:
+            label, neg, neu, pos = "neutral", 0.25, 0.5, 0.25
+        total = neg + neu + pos
+        return {"label": label, "confidence": max(neg, neu, pos) / total,
+                "scores": {"negative": neg / total, "neutral": neu / total, "positive": pos / total}}
+
     inputs = sentiment_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
     outputs = sentiment_model(**inputs)
     scores = torch.nn.functional.softmax(outputs.logits, dim=1)
     
-    # Get the label and score
     label_map = {0: "negative", 1: "neutral", 2: "positive"}
     scores = scores[0].tolist()
     max_score = max(scores)
@@ -73,20 +89,27 @@ def get_sentiment(text):
     }
 
 def get_emotions(text):
-    """Get detailed emotion analysis using RoBERTa"""
+    """Get detailed emotion analysis using RoBERTa, with TextBlob fallback."""
+    if emotion_tokenizer is None or emotion_model is None:
+        blob = TextBlob(text)
+        p = blob.sentiment.polarity
+        if p > 0.3:
+            return [{"emotion": "joy", "confidence": 0.6}, {"emotion": "optimism", "confidence": 0.3}, {"emotion": "love", "confidence": 0.1}]
+        elif p < -0.3:
+            return [{"emotion": "sadness", "confidence": 0.5}, {"emotion": "anger", "confidence": 0.3}, {"emotion": "fear", "confidence": 0.2}]
+        else:
+            return [{"emotion": "neutral", "confidence": 0.5}, {"emotion": "curiosity", "confidence": 0.3}, {"emotion": "surprise", "confidence": 0.2}]
+
     inputs = emotion_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
     outputs = emotion_model(**inputs)
     scores = torch.nn.functional.sigmoid(outputs.logits)
     
-    # Get emotion labels
     emotion_labels = emotion_model.config.id2label
     
-    # Get top emotions with scores
     scores = scores[0].tolist()
     emotion_scores = [(emotion_labels[i], score) for i, score in enumerate(scores)]
     emotion_scores.sort(key=lambda x: x[1], reverse=True)
     
-    # Return top 3 emotions with scores
     return [{"emotion": emotion, "confidence": score} for emotion, score in emotion_scores[:3]]
 
 def record_audio(duration=10):

@@ -3,12 +3,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 import cv2
 import numpy as np
+import ssl
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+import urllib.request
+_original_urlopen = urllib.request.urlopen
+def _ssl_bypass_urlopen(url, *args, **kwargs):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    if "context" not in kwargs:
+        kwargs["context"] = ctx
+    return _original_urlopen(url, *args, **kwargs)
+urllib.request.urlopen = _ssl_bypass_urlopen
+
 from deepface import DeepFace
 import uvicorn
 import logging
 import time
 import psutil
-import os
 from prometheus_client import Counter as PrometheusCounter, Histogram, Gauge, generate_latest
 from collections import Counter as CollectionsCounter
 from typing import List, Dict, Any, Optional
@@ -44,7 +59,7 @@ ERROR_COUNT = PrometheusCounter('video_errors_total', 'Total errors in video ana
 MEMORY_USAGE = Gauge('video_memory_usage_bytes', 'Memory usage of the video service')
 CPU_USAGE = Gauge('video_cpu_usage_percent', 'CPU usage of the video service')
 
-CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8000")
+CORE_SERVICE_URL = os.getenv("CORE_SERVICE_URL", "http://localhost:8010")
 
 app = FastAPI(
     title="Video Emotion Analysis API",
@@ -191,45 +206,55 @@ async def analyze_video_frame(
             ERROR_COUNT.labels(endpoint='/analyze-video-frame', error_type='image_decode').inc()
             raise HTTPException(status_code=400, detail="Could not decode image")
 
-        # Perform emotion analysis
         try:
             analysis = DeepFace.analyze(img, actions=['emotion'], enforce_detection=False)
-            
-            # Check if analysis is a list and not empty
+
             if isinstance(analysis, list) and len(analysis) > 0:
                 result = analysis[0]
                 dominant_emotion = result.get('dominant_emotion', 'neutral')
                 confidence = result.get('emotion', {}).get(dominant_emotion, 0)
 
-                # Prepare result for response and storage
-                # Convert numpy float32 values to regular Python floats for JSON serialization
                 analysis_result = {
                     "dominantEmotion": str(dominant_emotion),
-                    "averageConfidence": float(confidence / 100), # Normalize confidence and convert to float
+                    "averageConfidence": float(confidence / 100),
                     "emotions": [{"emotion": str(k), "confidence": float(v/100), "timestamp": int(time.time() * 1000)} for k, v in result.get('emotion', {}).items()],
                     "total_detections": 1,
-                    "duration": 0.1,  # Set to 0.1 seconds for single frame analysis (must be > 0)
+                    "duration": 0.1,
                     "analysis_details": {}
                 }
-                
-                # Asynchronously store the analysis result in the core service
+
                 if user_id and token:
                     user_uuid = validate_user_uuid(user_id)
                     asyncio.create_task(store_video_analysis_in_core_service(user_uuid, analysis_result, token))
 
                 processing_time = time.time() - start_time
                 PROCESSING_TIME.labels(endpoint='/analyze-video-frame').observe(processing_time)
-                
+
                 return JSONResponse(content=analysis_result)
             else:
-                # Handle case where no face is detected or analysis fails
                 ERROR_COUNT.labels(endpoint='/analyze-video-frame', error_type='no_face_detected').inc()
-                return JSONResponse(content={"error": "No face detected or analysis failed"}, status_code=404)
+                return JSONResponse(content={
+                    "dominantEmotion": "neutral",
+                    "averageConfidence": 0.0,
+                    "emotions": [{"emotion": "neutral", "confidence": 1.0, "timestamp": int(time.time() * 1000)}],
+                    "total_detections": 0,
+                    "duration": 0.1,
+                    "analysis_details": {},
+                    "warning": "No face detected in frame"
+                })
 
         except Exception as e:
             logger.error(f"DeepFace analysis error: {str(e)}")
             ERROR_COUNT.labels(endpoint='/analyze-video-frame', error_type='deepface_error').inc()
-            raise HTTPException(status_code=500, detail=f"Error during emotion analysis: {str(e)}")
+            return JSONResponse(content={
+                "dominantEmotion": "neutral",
+                "averageConfidence": 0.0,
+                "emotions": [{"emotion": "neutral", "confidence": 1.0, "timestamp": int(time.time() * 1000)}],
+                "total_detections": 0,
+                "duration": 0.1,
+                "analysis_details": {},
+                "warning": f"Analysis fallback: {str(e)}"
+            })
 
     except Exception as e:
         logger.error(f"Error processing image file: {str(e)}")

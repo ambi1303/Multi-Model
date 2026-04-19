@@ -144,9 +144,8 @@ async def lifespan(app: FastAPI):
 async def get_date_range_filter(date_range: Dict[str, str] = None):
     """Parse date range filter"""
     if not date_range:
-        # Default to last 30 days
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
+        start_date = end_date - timedelta(days=730)
     else:
         start_date = datetime.fromisoformat(date_range.get('start', '').replace('Z', '+00:00'))
         end_date = datetime.fromisoformat(date_range.get('end', '').replace('Z', '+00:00'))
@@ -794,6 +793,36 @@ async def proxy_logout(request: Request):
             "success": True,
             "timestamp": datetime.utcnow().isoformat()
         }, status_code=200)
+
+
+# Enhanced Security Proxy - forward all /enhanced-security/* to Core service
+@app.api_route("/enhanced-security/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def proxy_enhanced_security(request: Request, path: str, token: Optional[str] = Depends(get_token)):
+    """Proxy enhanced-security requests to core service"""
+    try:
+        if not token:
+            raise HTTPException(status_code=401, detail="Authorization token is missing")
+
+        headers = {"Authorization": f"Bearer {token}"}
+        query_params = dict(request.query_params)
+        target_url = f"{CORE_SERVICE_URL}/enhanced-security/{path}"
+
+        if request.method == "GET":
+            async with http_session.get(target_url, headers=headers, params=query_params) as resp:
+                data = await resp.json()
+                return JSONResponse(content=data, status_code=resp.status)
+        else:
+            body = await request.body()
+            headers["Content-Type"] = request.headers.get("Content-Type", "application/json")
+            async with http_session.request(request.method, target_url, headers=headers, data=body, params=query_params) as resp:
+                data = await resp.json()
+                return JSONResponse(content=data, status_code=resp.status)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error proxying enhanced-security request: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 # Admin Management Endpoints - Complete CRUD Operations
